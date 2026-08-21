@@ -13,12 +13,14 @@ alias which-command=whence
 # custom
 alias l=ls
 alias ll="ls -l"
+alias la="ls -a"
 alias ls=eza
 alias z=ls
 alias gs="git status"
 alias gf="git fetch --all"
 alias gb="git branch"
 alias gd="git diff"
+alias gl="git log -5"
 alias cat=bat
 alias hcl="hcloud"
 alias sz="source ~/.zshrc"
