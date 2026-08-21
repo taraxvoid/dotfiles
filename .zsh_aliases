@@ -1,0 +1,25 @@
+alias envsubst='python -c '\''import os,sys;[sys.stdout.write(os.path.expandvars(l)) for l in sys.stdin]'\'
+alias globurl='noglob urlglobber '
+alias hd='hexdump -C'
+alias help=run-help
+alias hist='fc -li'
+alias history-stat='history 0 | awk '\''{print $2}'\'' | sort | uniq -c | sort -n -r | head'
+alias histsync='fc -RI'
+alias ls=eza
+alias pip=pip3
+alias python=python3
+alias which-command=whence
+
+# custom
+alias l=ls
+alias ll="ls -l"
+alias ls=eza
+alias z=ls
+alias gs="git status"
+alias gf="git fetch --all"
+alias gb="git branch"
+alias gd="git diff"
+alias cat=bat
+alias hcl="hcloud"
+alias sz="source ~/.zshrc"
+alias vlt="vultr-cli"
