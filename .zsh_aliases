@@ -204,3 +204,26 @@ gpo() {
     cd "$wt"
   fi
 }
+
+# dx <group>... -- <cmd...>: run cmd with secrets from Dashlane injected into
+# its environment only. Each group is ~/.config/dashlane/<group>.env, a list of
+# NAME=dl://<entry title>/password references (not secrets).
+dx() {
+  local -a groups
+  local g f
+  while (( $# )) && [[ $1 != -- ]]; do groups+=("$1"); shift; done
+  [[ $1 == -- ]] && shift
+  if (( ! $# || ! ${#groups} )); then
+    print -u2 "usage: dx <group>... -- <cmd...>  (groups: $(ls ~/.config/dashlane 2>/dev/null | sed 's/\.env$//' | tr '\n' ' '))"
+    return 2
+  fi
+  (
+    for g in $groups; do
+      f=~/.config/dashlane/$g.env
+      [[ -r $f ]] || { print -u2 "dx: no such group: $g"; exit 1 }
+      set -a; source $f; set +a
+    done
+    # dcli exec re-joins its args into a shell string, so pass one pre-quoted string
+    dcli exec -- "${(j: :)${(q)@}}"
+  )
+}
