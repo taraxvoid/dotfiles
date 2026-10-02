@@ -5,23 +5,202 @@ alias help=run-help
 alias hist='fc -li'
 alias history-stat='history 0 | awk '\''{print $2}'\'' | sort | uniq -c | sort -n -r | head'
 alias histsync='fc -RI'
-alias ls=eza
 alias pip=pip3
 alias python=python3
 alias which-command=whence
 
+alias vim=nvim
+
 # custom
-alias l=ls
+alias l="ls"
 alias ll="ls -l"
 alias la="ls -a"
-alias ls=eza
-alias z=ls
+alias ls="eza"
 alias gs="git status"
-alias gf="git fetch --all"
 alias gb="git branch"
 alias gd="git diff"
 alias gl="git log -5"
-alias cat=bat
+alias gwl="git worktree list"
+alias gwp="git worktree prune"
+alias cat="bat"
 alias hcl="hcloud"
-alias sz="source ~/.zshrc"
 alias vlt="vultr-cli"
+alias sz="source ~/.zshrc"
+alias jc="just --choose"
+alias vz="vim ~/.zshrc"
+alias ve="vim ~/.zshenv"
+alias gps="gh pr status --conflict-status"
+alias ga="git add ."
+alias gci="git commit"
+alias grl="gh run list"
+_gh_rerun_failed_branch() {
+  local branch run_id
+  branch=$(git branch --show-current)
+  if [[ -z "$branch" ]]; then
+    print -u2 -- "not on a branch"
+    return 1
+  fi
+  run_id=$(gh run list --branch "$branch" --status failure --limit 1 --json databaseId --jq '.[0].databaseId')
+  if [[ -z "$run_id" ]]; then
+    print -u2 -- "no failed runs found for branch $branch"
+    return 1
+  fi
+  gh run rerun --failed "$run_id"
+}
+alias grf=_gh_rerun_failed_branch
+
+alias gpm="gh pr merge --squash"
+alias gpd="gh pr diff"
+alias gpn="gh pr create --title"
+alias gpl="gh pr list"
+alias gil="gh issue list"
+alias gco="git checkout"
+alias gf="git fetch --all --tags"
+
+# gh pr checks --watch, but bails on first failure so you don't sit there
+# after the outcome is already decided.
+alias gpc="gh pr checks --watch --fail-fast"
+
+# Resolve the databaseId of a PR's most recent run (current branch, or pass
+# a PR number/branch). 
+_gh_pr_run_id() {
+  local ref="${1:-}"
+  if [[ -n "$ref" ]]; then
+    ref=$(gh pr view "$ref" --json headRefName -q .headRefName) || return 1
+  else
+    ref=$(git branch --show-current)
+  fi
+  gh run list --branch "$ref" --limit 1 --json databaseId -q '.[0].databaseId'
+}
+
+# Stream live job output for a PR's most recent run (current branch, or pass
+# a PR number/branch). Unlike `gpc` (which polls check *status*), this tails
+# the actual log via `gh run watch`. If the run already finished, `gh run
+# watch` just prints a one-liner, so fall back to the full annotated summary
+# (catches things like workflow-syntax failures that never produced jobs).
+grw() {
+  local ref="${1:-}" run_id run_status
+  run_id=$(_gh_pr_run_id "$ref") || return 1
+  if [[ -z "$run_id" ]]; then
+    echo "no runs found for branch ${ref:-$(git branch --show-current)}" >&2
+    return 1
+  fi
+  run_status=$(gh run view "$run_id" --json status -q .status)
+  if [[ "$run_status" == "completed" ]]; then
+    gh run view "$run_id"
+  else
+    gh run watch "$run_id" --exit-status
+  fi
+}
+
+# Jump straight to the failed-step logs for a PR's most recent run (current
+# branch, or pass a PR number/branch) — no manual `gh run list` + id lookup.
+# Falls back to the annotated run summary when there's no log to fetch (e.g.
+# the run succeeded, so --log-failed has nothing to print, or it failed
+# before any job ran, like a workflow-syntax error).
+gj() {
+  local ref="${1:-}" run_id conclusion
+  run_id=$(_gh_pr_run_id "$ref") || return 1
+  if [[ -z "$run_id" ]]; then
+    echo "no runs found for branch ${ref:-$(git branch --show-current)}" >&2
+    return 1
+  fi
+  conclusion=$(gh run view "$run_id" --json conclusion -q .conclusion)
+  if [[ "$conclusion" != "failure" ]]; then
+    gh run view "$run_id"
+    return
+  fi
+  local out
+  out=$(gh run view "$run_id" --log-failed 2>/dev/null)
+  if [[ -n "$out" ]]; then
+    print -r -- "$out"
+  else
+    gh run view "$run_id"
+  fi
+}
+
+
+# --- more gh shorthands ---
+# PRs (gp*)
+alias gpv="gh pr view"
+alias gpw="gh pr view --web"
+alias gpe="gh pr edit"
+alias gpnd="gh pr create --draft --title"
+alias gpnf="gh pr create --fill"
+alias gprdy="gh pr ready"
+alias gpx="gh pr close --delete-branch"
+alias gpma="gh pr merge --squash --auto --delete-branch"
+alias gpmine="gh pr list --author @me"
+alias gpq="gh pr list --search 'review-requested:@me'"
+alias gpcm="gh pr comment"
+alias gpa="gh pr review --approve"
+alias gprv="gh pr review"
+alias gpu="gh pr update-branch"
+alias gpdn="gh pr diff --name-only"
+
+# push current branch and open a PR from the commits
+gpp() { git push -u origin HEAD && gh pr create --fill "$@"; }
+
+# Issues (gi*)
+alias gin="gh issue create --title"
+alias giv="gh issue view"
+alias giw="gh issue view --web"
+alias gie="gh issue edit"
+alias gic="gh issue close"
+alias gicm="gh issue comment"
+alias gim="gh issue list --assignee @me"
+alias gid="gh issue develop --checkout"
+
+# Runs and workflows (gr*; gw* is worktrees)
+alias grvl="gh run view"
+alias grlg="gh run view --log"
+alias grx="gh run cancel"
+alias grr="gh run rerun"   # full rerun (grf = failed only, current branch)
+alias grd="gh run download"
+alias grb='gh run list --branch "$(git branch --show-current)"'
+alias gwfl="gh workflow list"
+alias gwfr="gh workflow run"
+
+# Repo
+alias gbw="gh browse"
+alias gcl="gh repo clone"
+alias gfk="gh repo fork --clone"
+alias gcr="gh repo create"
+
+# Search, releases, misc
+alias gsp="gh search prs"
+alias gsi="gh search issues"
+alias gsc="gh search code"
+alias grel="gh release list"
+alias grelc="gh release create"
+alias gapi="gh api"
+alias gauth="gh auth status"
+alias grv="gh release verify"
+alias gha="gh attestation"
+
+# Smart PR checkout: if the PR's head branch is already checked out in a
+# worktree (or here), cd there instead of failing; otherwise gh pr checkout.
+# Takes the same args as `gh pr checkout` (number, URL, or branch). With no
+# args, shows an fzf picker of open PRs.
+gpo() {
+  local branch wt pick
+  if (( $# )); then
+    branch=$(gh pr view "$1" --json headRefName -q .headRefName) || return 1
+  else
+    pick=$(gh pr list --json number,headRefName,title \
+      -q '.[] | "\(.number)\t\(.headRefName)\t\(.title)"' \
+      | fzf --delimiter='\t' --with-nth=1,3 --prompt='PR> ') || return 1
+    set -- "${pick%%$'\t'*}"
+    branch=$(cut -f2 <<<"$pick")
+  fi
+  wt=$(git worktree list --porcelain | awk -v b="refs/heads/$branch" \
+    '/^worktree /{p=substr($0,10)} $1=="branch" && $2==b {print p; exit}')
+  if [[ -z "$wt" ]]; then
+    gh pr checkout "$@"
+  elif [[ "$wt" == "$PWD" ]]; then
+    echo "already on $branch here"
+  else
+    echo "$branch is checked out in $wt"
+    cd "$wt"
+  fi
+}

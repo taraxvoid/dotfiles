@@ -1,0 +1,8 @@
+# Global bun defaults; a project's bunfig.toml overrides these.
+[install]
+# Refuse package versions published less than 3 days ago (seconds), which
+# blunts "publish a poisoned release and wait for installs" attacks.
+minimumReleaseAge = 259200
+
+# Packages that bypass the gate
+minimumReleaseAgeExcludes = ["@types/bun", "bun-types", "typescript"]
