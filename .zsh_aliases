@@ -1,28 +1,32 @@
-alias envsubst='python -c '\''import os,sys;[sys.stdout.write(os.path.expandvars(l)) for l in sys.stdin]'\'
+# Cross-platform: tool-dependent aliases are only defined when the tool exists, so
+# a fresh Linux box without eza/bat/nvim keeps working ls/cat/vim.
+# macOS has no envsubst; GNU gettext provides the real one on Linux.
+(( $+commands[envsubst] )) || alias envsubst='python3 -c '\''import os,sys;[sys.stdout.write(os.path.expandvars(l)) for l in sys.stdin]'\'
 alias globurl='noglob urlglobber '
 alias hd='hexdump -C'
 alias help=run-help
 alias hist='fc -li'
 alias history-stat='history 0 | awk '\''{print $2}'\'' | sort | uniq -c | sort -n -r | head'
 alias histsync='fc -RI'
-alias pip=pip3
-alias python=python3
+(( $+commands[pip3] )) && alias pip=pip3
+(( $+commands[python3] )) && alias python=python3
 alias which-command=whence
 
-alias vim=nvim
+(( $+commands[nvim] )) && alias vim=nvim
 
 # custom
 alias l="ls"
 alias ll="ls -l"
 alias la="ls -a"
-alias ls="eza"
+(( $+commands[eza] )) && alias ls="eza"
 alias gs="git status"
 alias gb="git branch"
 alias gd="git diff"
 alias gl="git log -5"
 alias gwl="git worktree list"
 alias gwp="git worktree prune"
-alias cat="bat"
+# bat is installed as `batcat` on Debian/Ubuntu
+if (( $+commands[bat] )); then alias cat="bat"; elif (( $+commands[batcat] )); then alias cat="batcat"; fi
 alias hcl="hcloud"
 alias vlt="vultr-cli"
 alias sz="source ~/.zshrc"
@@ -211,6 +215,7 @@ gpo() {
 dx() {
   local -a groups
   local g f
+  (( $+commands[dcli] )) || { print -u2 "dx: dcli (Dashlane CLI) is not installed"; return 127 }
   while (( $# )) && [[ $1 != -- ]]; do groups+=("$1"); shift; done
   [[ $1 == -- ]] && shift
   if (( ! $# || ! ${#groups} )); then
