@@ -10,6 +10,14 @@ source "${ZDOTDIR:-$HOME}/.zsh_aliases"
 _zfind() { local f; for f in "$@"; do [[ -r $f ]] && { REPLY=$f; return 0 } done; return 1 }
 _brew=${HOMEBREW_PREFIX:-/opt/homebrew}
 
+# ssh keys: keychain reuses one long-lived ssh-agent across shells and loads every
+# private key in ~/.ssh (prompting once per boot for passphrases). Not installed
+# on macOS, which has its own launchd agent. Exports SSH_AUTH_SOCK via the env file.
+if [[ -o interactive ]] && (( $+commands[keychain] )); then
+  keychain --quiet --agents ssh --ignore-missing ~/.ssh/id*~*.pub(N) 2>/dev/null
+  [[ -r ~/.keychain/${HOST}-sh ]] && source ~/.keychain/${HOST}-sh
+fi
+
 # HISTFILE is only preset by macOS's /etc/zshrc, not on Debian/Ubuntu
 : ${HISTFILE:=$HOME/.zsh_history}
 
