@@ -36,7 +36,12 @@ alias ve="vim ~/.zshenv"
 
 # github CLI
 alias grem="git remote -v"
-alias gps="gh pr status --conflict-status"
+# gh pr status only covers your PRs, review requests, and the current branch;
+# follow it with the full open PR list so bot PRs (dependabot, release-please) show too.
+unalias gps 2>/dev/null
+gps() {
+  gh pr status --conflict-status "$@" && { print; print -- "All open PRs:"; gh pr list; }
+}
 alias ga="git add ."
 alias gci="git commit"
 alias grl="gh run list"

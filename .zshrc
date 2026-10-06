@@ -66,7 +66,8 @@ fi
 autoload -U select-word-style
 select-word-style bash
 
-(( $+commands[mise] )) && eval "$(mise activate zsh)"
+# absolute path: ~/.local/bin isn't on PATH yet here (it's appended at the end of this file)
+[[ -x "$HOME/.local/bin/mise" ]] && eval "$("$HOME/.local/bin/mise" activate zsh)"
 
 # zoxide: `j <part of dir>` jumps to the best frecent match, `ji` is an fzf picker
 (( $+commands[zoxide] )) && eval "$(zoxide init zsh --cmd j)"
