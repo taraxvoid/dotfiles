@@ -29,6 +29,9 @@ alias sz="source ~/.zshrc"
 alias jc="just --choose"
 alias vz="vim ~/.zshrc"
 alias ve="vim ~/.zshenv"
+
+# github CLI
+alias grem="git remote -v"
 alias gps="gh pr status --conflict-status"
 alias ga="git add ."
 alias gci="git commit"
@@ -120,7 +123,6 @@ gj() {
 }
 
 
-# --- more gh shorthands ---
 # PRs (gp*)
 alias gpv="gh pr view"
 alias gpw="gh pr view --web"
