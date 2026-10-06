@@ -71,7 +71,7 @@ alias gf="git fetch --all --tags"
 
 # gh pr checks --watch, but bails on first failure so you don't sit there
 # after the outcome is already decided.
-alias gpc="gh pr checks --watch --fail-fast"
+alias gpc="gh pr checks"
 
 # Resolve the databaseId of a PR's most recent run (current branch, or pass
 # a PR number/branch). 
@@ -134,7 +134,9 @@ gj() {
 
 # PRs (gp*)
 alias gpv="gh pr view"
-alias gpw="gh pr view --web"
+alias gpw="gh pr checks --watch"
+# gpb: open the PR in the browser; if the branch has none yet, open the create-PR page instead
+gpb() { gh pr view --web 2>/dev/null || gh pr create --web; }
 alias gpe="gh pr edit"
 alias gpnd="gh pr create --draft --title"
 alias gpnf="gh pr create --fill"
