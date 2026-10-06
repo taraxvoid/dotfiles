@@ -1,5 +1,29 @@
-source ~/.zsh_aliases
-export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
+# Cross-platform (macOS + Debian/Ubuntu/ChromeOS Crostini): detect what exists
+# instead of branching on OS. Every macOS path below is still tried first.
+source "${ZDOTDIR:-$HOME}/.zsh_aliases"
+
+# colima (macOS) exposes docker on a per-user socket; only point at it if present
+[[ -S "$HOME/.colima/default/docker.sock" ]] && export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
+
+# helper: set REPLY to the first readable candidate path (macOS brew paths come
+# first, then Linux package/clone locations)
+_zfind() { local f; for f in "$@"; do [[ -r $f ]] && { REPLY=$f; return 0 } done; return 1 }
+_brew=${HOMEBREW_PREFIX:-/opt/homebrew}
+
+# ssh keys: keychain reuses one long-lived ssh-agent across shells and loads every
+# private key in ~/.ssh (prompting once per boot for passphrases). Not installed
+# on macOS, which has its own launchd agent. Exports SSH_AUTH_SOCK via the env file.
+if [[ -o interactive ]] && (( $+commands[keychain] )); then
+  # `~` (glob exclusion) only works with extendedglob, which is off by default
+  () {
+    setopt local_options extendedglob
+    keychain --quiet --agents ssh --ignore-missing ~/.ssh/id*~*.pub(N) 2>/dev/null
+  }
+  [[ -r ~/.keychain/${HOST}-sh ]] && source ~/.keychain/${HOST}-sh
+fi
+
+# HISTFILE is only preset by macOS's /etc/zshrc, not on Debian/Ubuntu
+: ${HISTFILE:=$HOME/.zsh_history}
 
 # dedupe PATH entries (zsh ties $path to $PATH)
 typeset -U path PATH
@@ -19,8 +43,8 @@ setopt HIST_IGNORE_SPACE
 # collapse runs of blanks before saving
 setopt HIST_REDUCE_BLANKS
 
-# add unix utils such as timeout (installed as gtimeout)
-PATH="/opt/homebrew/opt/coreutils/libexec/gnubin:$PATH"
+# macOS only: GNU unix utils such as timeout (installed as gtimeout)
+[[ -d "$_brew/opt/coreutils/libexec/gnubin" ]] && PATH="$_brew/opt/coreutils/libexec/gnubin:$PATH"
 # user-writable tool dirs (~/.local/bin, ~/.bun/bin, ~/.cargo/bin, ~/.turso) are
 # moved after the system dirs at the end of this file; see "PATH order" below
 
@@ -42,18 +66,32 @@ fi
 autoload -U select-word-style
 select-word-style bash
 
-eval "$(mise activate zsh)"
+(( $+commands[mise] )) && eval "$(mise activate zsh)"
 
 # zoxide: `j <part of dir>` jumps to the best frecent match, `ji` is an fzf picker
-eval "$(zoxide init zsh --cmd j)"
+(( $+commands[zoxide] )) && eval "$(zoxide init zsh --cmd j)"
 
-# fzf defaults: fd respects .gitignore and is much faster than find
-export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'
-export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
-export FZF_ALT_C_COMMAND='fd --type d --hidden --follow --exclude .git'
-export FZF_CTRL_T_OPTS="--preview 'bat --color=always --style=numbers --line-range=:200 {}'"
-export FZF_ALT_C_OPTS="--preview 'eza --tree --level=1 --color=always {}'"
-source <(fzf --zsh)
+# fzf defaults: fd respects .gitignore and is much faster than find.
+# Debian/Ubuntu ship fd as `fdfind` and bat as `batcat`; fzf runs these strings in
+# a subshell where aliases don't exist, so resolve the real binary names here.
+_fd=${${commands[fd]:+fd}:-${commands[fdfind]:+fdfind}}
+_bat=${${commands[bat]:+bat}:-${commands[batcat]:+batcat}}
+if [[ -n $_fd ]]; then
+  export FZF_DEFAULT_COMMAND="$_fd --type f --hidden --follow --exclude .git"
+  export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+  export FZF_ALT_C_COMMAND="$_fd --type d --hidden --follow --exclude .git"
+fi
+[[ -n $_bat ]] && export FZF_CTRL_T_OPTS="--preview '$_bat --color=always --style=numbers --line-range=:200 {}'"
+(( $+commands[eza] )) && export FZF_ALT_C_OPTS="--preview 'eza --tree --level=1 --color=always {}'"
+if (( $+commands[fzf] )); then
+  if fzf --zsh &>/dev/null; then
+    source <(fzf --zsh)
+  else
+    # fzf < 0.48 (older Ubuntu/Debian) has no --zsh; use the packaged scripts
+    for f in /usr/share/doc/fzf/examples/{key-bindings,completion}.zsh(N); do source $f; done
+    unset f
+  fi
+fi
 command -v flux >/dev/null && . <(flux completion zsh)
 # just completion: recipe names only, see ~/.zsh/completions/_just
 
@@ -64,12 +102,15 @@ SPACESHIP_PROMPT_ORDER=(
   char          # Prompt character (usually ➜)
 )
 
-# load antidote (zsh plugins)
-source /opt/homebrew/opt/antidote/share/antidote/antidote.zsh
+# load antidote (zsh plugins): brew on macOS, pinned clone from install.sh on Linux
+_zfind "$_brew/opt/antidote/share/antidote/antidote.zsh" "$HOME/.zsh/antidote/antidote.zsh" && source $REPLY
 
-# Bind Up and Down arrow keys for Fish-like history searching
+# Bind Up and Down arrow keys for Fish-like history searching. Terminals in
+# application mode (Crostini, ghostty, tmux) send ^[OA/^[OB instead of ^[[A/^[[B.
 bindkey '^[[A' history-substring-search-up
 bindkey '^[[B' history-substring-search-down
+[[ -n $terminfo[kcuu1] ]] && bindkey "$terminfo[kcuu1]" history-substring-search-up
+[[ -n $terminfo[kcud1] ]] && bindkey "$terminfo[kcud1]" history-substring-search-down
 
 # fzf-tab: case-insensitive + partial-path matching (e.g. proj/syn<TAB> finds
 # projects/synthomaha), with a directory preview for cd
@@ -79,22 +120,24 @@ zstyle ':fzf-tab:complete:cd:*' fzf-preview 'ls -1 --color=always $realpath'
 zstyle ':fzf-tab:complete:__zoxide_j:*' fzf-preview 'ls -1 --color=always $realpath'
 zstyle ':fzf-tab:*' switch-group '<' '>'
 
-antidote load
+(( $+functions[antidote] )) && antidote load
 
-# brew-managed plugins. Order matters: autosuggestions must come after fzf-tab
-# (loaded by antidote above) and syntax-highlighting must be sourced last.
-source /opt/homebrew/opt/spaceship/spaceship.zsh
-source /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-source /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+# brew (macOS) / apt + pinned clone (Linux) plugins. Order matters: autosuggestions
+# must come after fzf-tab (loaded by antidote above) and syntax-highlighting must
+# be sourced last.
+_zfind "$_brew/opt/spaceship/spaceship.zsh" "$HOME/.zsh/spaceship/spaceship.zsh" && source $REPLY
+_zfind "$_brew/share/zsh-autosuggestions/zsh-autosuggestions.zsh" /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh && source $REPLY
+_zfind "$_brew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh && source $REPLY
+unset _brew
 
 # sentry
-fpath=("/Users/kitsune/.local/share/zsh/site-functions" $fpath)
+fpath=("$HOME/.local/share/zsh/site-functions" $fpath)
 
 # re-prioritize custom completions (e.g. _just) over anything brew shellenv/antidote
 # prepended to fpath above, since zsh autoloads from whichever fpath dir it finds first
 fpath=( "$HOME/.zsh/completions" $fpath )
 
-. "$HOME/.turso/env"
+[[ -r "$HOME/.turso/env" ]] && . "$HOME/.turso/env"
 
 # PATH order: user-writable tool dirs go after the system dirs so a package that
 # drops a fake `git` or `ls` into one of them can't shadow the real binary.
