@@ -14,7 +14,11 @@ _brew=${HOMEBREW_PREFIX:-/opt/homebrew}
 # private key in ~/.ssh (prompting once per boot for passphrases). Not installed
 # on macOS, which has its own launchd agent. Exports SSH_AUTH_SOCK via the env file.
 if [[ -o interactive ]] && (( $+commands[keychain] )); then
-  keychain --quiet --agents ssh --ignore-missing ~/.ssh/id*~*.pub(N) 2>/dev/null
+  # `~` (glob exclusion) only works with extendedglob, which is off by default
+  () {
+    setopt local_options extendedglob
+    keychain --quiet --agents ssh --ignore-missing ~/.ssh/id*~*.pub(N) 2>/dev/null
+  }
   [[ -r ~/.keychain/${HOST}-sh ]] && source ~/.keychain/${HOST}-sh
 fi
 
