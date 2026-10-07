@@ -15,6 +15,7 @@ alias which-command=whence
 (( $+commands[nvim] )) && alias vim=nvim
 
 # custom
+alias fd="fdfind"
 alias l="ls"
 alias ll="ls -l"
 alias la="ls -a"
