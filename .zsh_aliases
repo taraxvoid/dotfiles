@@ -15,7 +15,8 @@ alias which-command=whence
 (( $+commands[nvim] )) && alias vim=nvim
 
 # custom
-alias fd="fdfind"
+# Debian/Ubuntu name fd `fdfind`; elsewhere `fd` is already the real binary
+(( $+commands[fdfind] && ! $+commands[fd] )) && alias fd="fdfind"
 alias l="ls"
 alias ll="ls -l"
 alias la="ls -a"
@@ -70,8 +71,7 @@ alias gil="gh issue list"
 alias gco="git checkout"
 alias gf="git fetch --all --tags"
 
-# gh pr checks --watch, but bails on first failure so you don't sit there
-# after the outcome is already decided.
+# one-shot status of the current PR's checks (gpw is the --watch version)
 alias gpc="gh pr checks"
 
 # Resolve the databaseId of a PR's most recent run (current branch, or pass
