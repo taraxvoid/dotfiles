@@ -1,0 +1,32 @@
+# Needs a Nerd Font in the terminal (install.sh installs JetBrainsMono Nerd Font)
+add_newline = false
+command_timeout = 500
+
+format = """$directory$git_branch$git_status$nodejs$python$rust$golang$cmd_duration$line_break$character"""
+
+[directory]
+truncation_length = 3
+truncation_symbol = "…/"
+read_only = " 󰌾"
+
+[git_branch]
+symbol = " "
+
+[git_status]
+style = "bold red"
+
+[nodejs]
+symbol = " "
+
+[python]
+symbol = " "
+
+[rust]
+symbol = " "
+
+[golang]
+symbol = " "
+
+[character]
+success_symbol = "[➜](bold green)"
+error_symbol = "[➜](bold red)"

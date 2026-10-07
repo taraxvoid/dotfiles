@@ -96,13 +96,6 @@ fi
 command -v flux >/dev/null && . <(flux completion zsh)
 # just completion: recipe names only, see ~/.zsh/completions/_just
 
-# Order of elements shown on the prompt line
-SPACESHIP_PROMPT_ORDER=(
-  dir           # Current directory
-  git           # Git status (branch, delivery status)
-  char          # Prompt character (usually ➜)
-)
-
 # load antidote (zsh plugins): brew on macOS, pinned clone from install.sh on Linux
 _zfind "$_brew/opt/antidote/share/antidote/antidote.zsh" "$HOME/.zsh/antidote/antidote.zsh" && source $REPLY
 
@@ -126,10 +119,12 @@ zstyle ':fzf-tab:*' switch-group '<' '>'
 # brew (macOS) / apt + pinned clone (Linux) plugins. Order matters: autosuggestions
 # must come after fzf-tab (loaded by antidote above) and syntax-highlighting must
 # be sourced last.
-_zfind "$_brew/opt/spaceship/spaceship.zsh" "$HOME/.zsh/spaceship/spaceship.zsh" && source $REPLY
 _zfind "$_brew/share/zsh-autosuggestions/zsh-autosuggestions.zsh" /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh && source $REPLY
 _zfind "$_brew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh && source $REPLY
 unset _brew
+
+# prompt: starship (binary from brew / install.sh), config in ~/.config/starship.toml
+(( $+commands[starship] )) && eval "$(starship init zsh)"
 
 # sentry
 fpath=("$HOME/.local/share/zsh/site-functions" $fpath)
