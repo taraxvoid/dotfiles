@@ -15,8 +15,13 @@ OS=$(uname -s)
 # Pinned like .zsh_plugins.txt: bump on purpose (review the diff, change the SHA).
 ANTIDOTE_URL=https://github.com/mattmc3/antidote
 ANTIDOTE_SHA=9bb69ab99c6f05d6e6ae237f7ce222eeeb5b4a14 # v2.3.0
-SPACESHIP_URL=https://github.com/spaceship-prompt/spaceship-prompt
-SPACESHIP_SHA=fd0d6653a134fe28f498eae1784fbb46d27f20f3 # v4.22.5
+# starship is a Rust binary, not a zsh plugin, so antidote can't provide it.
+# brew on macOS; on Linux a checksummed release tarball goes in ~/.local/bin.
+STARSHIP_VERSION=1.26.0
+STARSHIP_SHA256_x86_64=b7c232b0e8249d8e55a40beb79c5c43a7d370f3f9408bd215deb0170daeaadf3
+STARSHIP_SHA256_aarch64=dc30189378d2f2e287384e8a692d3f95ad1df64cf0e8c36aa9201516028aed6b
+NERDFONT_VERSION=3.5.1
+NERDFONT_SHA256=04d5e8f903693f9dd13e16f867e994834e681eb3c72c0d337a770dcda09010cf # JetBrainsMono.tar.xz
 
 say() { printf '==> %s\n' "$*"; }
 
@@ -51,7 +56,7 @@ pinned_clone() { # pinned_clone <url> <sha> <dest>
 }
 
 # --- dotfiles ---------------------------------------------------------------
-for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml; do
+for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .config/starship.toml; do
   link "$f"
 done
 # dx reads these (references to Dashlane entries, not secrets); link the dir only
@@ -74,7 +79,43 @@ fi
 if [ "$OS" != Darwin ]; then
   mkdir -p "$HOME/.zsh/completions"
   pinned_clone "$ANTIDOTE_URL" "$ANTIDOTE_SHA" "$HOME/.zsh/antidote"
-  pinned_clone "$SPACESHIP_URL" "$SPACESHIP_SHA" "$HOME/.zsh/spaceship"
+fi
+
+# --- starship + Nerd Font ---------------------------------------------------
+fetch_verified() { # fetch_verified <url> <sha256> <dest>
+  curl -fsSL "$1" -o "$3"
+  echo "$2  $3" | sha256sum -c --quiet - || { echo "checksum mismatch: $1" >&2; exit 1; }
+}
+
+if [ "$OS" = Darwin ]; then
+  if command -v brew >/dev/null; then
+    command -v starship >/dev/null || brew install --quiet starship
+    brew list --cask font-jetbrains-mono-nerd-font >/dev/null 2>&1 \
+      || brew install --quiet --cask font-jetbrains-mono-nerd-font
+  fi
+else
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT
+  if ! command -v starship >/dev/null || [ "$(starship --version | awk 'NR==1{print $2}')" != "$STARSHIP_VERSION" ]; then
+    arch=$(uname -m)
+    sha_var=STARSHIP_SHA256_$arch
+    [ -n "${!sha_var:-}" ] || { echo "no pinned starship checksum for $arch" >&2; exit 1; }
+    say "installing starship $STARSHIP_VERSION"
+    fetch_verified "https://github.com/starship/starship/releases/download/v$STARSHIP_VERSION/starship-$arch-unknown-linux-musl.tar.gz" \
+      "${!sha_var}" "$tmp/starship.tar.gz"
+    mkdir -p "$HOME/.local/bin"
+    tar -xzf "$tmp/starship.tar.gz" -C "$HOME/.local/bin" starship
+  fi
+  fontdir=$HOME/.local/share/fonts/JetBrainsMonoNerd
+  if [ ! -e "$fontdir/.v$NERDFONT_VERSION" ]; then
+    say "installing JetBrainsMono Nerd Font $NERDFONT_VERSION"
+    fetch_verified "https://github.com/ryanoasis/nerd-fonts/releases/download/v$NERDFONT_VERSION/JetBrainsMono.tar.xz" \
+      "$NERDFONT_SHA256" "$tmp/font.tar.xz"
+    rm -rf "$fontdir"; mkdir -p "$fontdir"
+    tar -xJf "$tmp/font.tar.xz" -C "$fontdir" --wildcards '*.ttf'
+    touch "$fontdir/.v$NERDFONT_VERSION"
+    command -v fc-cache >/dev/null && fc-cache -f "$fontdir"
+  fi
 fi
 
 # --- login shell ------------------------------------------------------------
