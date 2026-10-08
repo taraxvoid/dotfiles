@@ -36,5 +36,5 @@ because they hold per-machine auth or hooks; diff those by hand.
 Tool versions are pinned in `mise.toml` (`mise install`, then `lefthook install` once per clone). `lefthook.yml` runs on pre-commit: `shellcheck`
 on `install.sh`, `zsh -n` on the zsh files, and a staged-diff `gitleaks` scan.
 `.github/workflows/ci.yml` runs the same plus a full-history gitleaks scan with a
-pinned, checksummed binary. gitleaks is feature-complete upstream; move to
+pinned, checksummed binary (keep its version in sync with `mise.toml`). gitleaks is feature-complete upstream; move to
 betterleaks once it reaches 1.x.
