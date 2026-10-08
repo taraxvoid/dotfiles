@@ -1,0 +1,11 @@
+pre-commit:
+  parallel: true
+  commands:
+    shellcheck:
+      glob: "install.sh"
+      run: shellcheck {staged_files}
+    zsh-syntax:
+      glob: "{.zshrc,.zshenv,.zsh_aliases}"
+      run: zsh -n {staged_files}
+    gitleaks:
+      run: gitleaks git --pre-commit --staged --redact --no-banner -l warn
