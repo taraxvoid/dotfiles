@@ -106,6 +106,29 @@ bindkey '^[[B' history-substring-search-down
 [[ -n $terminfo[kcuu1] ]] && bindkey "$terminfo[kcuu1]" history-substring-search-up
 [[ -n $terminfo[kcud1] ]] && bindkey "$terminfo[kcud1]" history-substring-search-down
 
+# Word navigation: ctrl+arrows (^[[1;5), alt+arrows (^[[1;3 xterm/ghostty, ^[^[[ and
+# ^[[1;9 for some macOS terminals), in both normal and application cursor mode.
+# select-word-style bash (above) makes backward-word/forward-word stop at / . etc.
+for _m in 5 3 9; do
+  bindkey "^[[1;${_m}D" backward-word
+  bindkey "^[[1;${_m}C" forward-word
+done
+bindkey '^[^[[D' backward-word
+bindkey '^[^[[C' forward-word
+bindkey '^[^[OD' backward-word
+bindkey '^[^[OC' forward-word
+bindkey '^[b' backward-word
+bindkey '^[f' forward-word
+# Home/End/Delete (xterm, application mode, and terminfo variants)
+bindkey '^[[H' beginning-of-line
+bindkey '^[[F' end-of-line
+bindkey '^[OH' beginning-of-line
+bindkey '^[OF' end-of-line
+bindkey '^[[3~' delete-char
+[[ -n $terminfo[khome] ]] && bindkey "$terminfo[khome]" beginning-of-line
+[[ -n $terminfo[kend] ]] && bindkey "$terminfo[kend]" end-of-line
+unset _m
+
 # fzf-tab: case-insensitive + partial-path matching (e.g. proj/syn<TAB> finds
 # projects/synthomaha), with a directory preview for cd
 zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|[._/-]=* r:|=*'
