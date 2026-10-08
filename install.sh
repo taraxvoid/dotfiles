@@ -28,14 +28,19 @@ NERDFONT_SHA256=04d5e8f903693f9dd13e16f867e994834e681eb3c72c0d337a770dcda09010cf
 say() { printf '==> %s\n' "$*"; }
 
 link() { # link <repo-relative path> [dest]
-  local src="$DOTFILES/$1" dest="${2:-$HOME/$1}"
+  local src="$DOTFILES/$1" dest="${2:-$HOME/$1}" cur bak
   mkdir -p "$(dirname "$dest")"
-  if [ -L "$dest" ] && [ "$(readlink "$dest")" = "$src" ]; then
+  cur=$(readlink "$dest" 2>/dev/null || true)
+  [ "$cur" = "$src" ] && return
+  if [ -n "$cur" ] && [[ $cur == */"$1" ]]; then
+    # points into another checkout of this repo: nothing to keep, just repoint
+    ln -sfn "$src" "$dest"
+    say "relinked $dest -> $src"
     return
   fi
   if [ -e "$dest" ] || [ -L "$dest" ]; then
-    local bak="$dest.pre-dotfiles"
-    [ -e "$bak" ] || [ -L "$bak" ] && bak="$bak.$(date +%Y%m%d%H%M%S)"
+    bak="$dest.pre-dotfiles"
+    if [ -e "$bak" ] || [ -L "$bak" ]; then bak="$bak.$(date +%Y%m%d%H%M%S)"; fi
     mv "$dest" "$bak"
     say "backed up $dest -> $bak"
   fi
@@ -58,7 +63,7 @@ pinned_clone() { # pinned_clone <url> <sha> <dest>
 }
 
 # --- dotfiles ---------------------------------------------------------------
-for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .config/starship.toml; do
+for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .gitconfig .config/git/ignore .config/starship.toml; do
   link "$f"
 done
 # dx reads these (references to Dashlane entries, not secrets); link the dir only
