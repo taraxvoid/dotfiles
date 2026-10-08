@@ -17,7 +17,9 @@
 	cob = checkout -b
 	ft = fetch --all
 	pl = pull
+	pul = pull
 	ps = push
+	psh = push
 	pu = push
 	st = status
 	sta = stash
