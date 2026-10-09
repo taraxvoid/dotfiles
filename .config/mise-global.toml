@@ -2,9 +2,14 @@
 node = "latest"
 pnpm = "12.8.1"
 usage = "latest"
+uv = "latest"
 
 [settings]
 auto_update = true
+# Without this, mise still reads a config that only has [tools] from an untrusted
+# dir, and `bun run dev` there would download and install whatever it pins, outside
+# the sandbox. Paranoid refuses every untrusted config.
+paranoid = true
 # A mise.toml can set env vars, run hooks and define tasks, so mise refuses to read
 # an untrusted one (and therefore never auto-installs its tools). Only the
 # first-party trees are trusted by path. ~/projects/untrusted is deliberately
