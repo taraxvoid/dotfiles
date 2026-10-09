@@ -15,12 +15,17 @@ example after merging a worktree). Existing real files are moved to
 
 The zsh config detects what is installed instead of branching on OS:
 
-- macOS: antidote, starship, the Nerd Font cask and the two zsh plugins come from brew.
+- macOS: antidote, the Nerd Font cask and the two zsh plugins come from brew.
 - Linux: `install.sh` apt-installs `zsh-autosuggestions` and
   `zsh-syntax-highlighting`, and clones antidote at a pinned commit
-  into `~/.zsh/`. starship (musl release tarball into `~/.local/bin`) and
-  JetBrainsMono Nerd Font (into `~/.local/share/fonts`) are downloaded at pinned
-  versions with checksums. Bump those pins in `install.sh` on purpose.
+  into `~/.zsh/`. JetBrainsMono Nerd Font (into `~/.local/share/fonts`) is
+  downloaded at a pinned version with a checksum. Bump that pin in `install.sh` on purpose.
+- Both: CLI tools (neovim, fzf, rg, zoxide, eza, just, yq, starship) are pinned in
+  `.config/mise-global.toml` and installed by `mise install`, since Debian's apt
+  versions are years old. mise, uv and bun come from their vendors' installers
+  (brew on macOS) when missing and update themselves; keep uv and bun out of the
+  mise config so a stray global copy can't mask an unpinned version in a project.
+  No third-party apt mirrors.
 - Prompt icons need a Nerd Font in the terminal itself. On Crostini the Terminal
   app renders text, so fonts in the container don't count: install the font on
   the ChromeOS side (or use a terminal that reads fontconfig) and select it.
