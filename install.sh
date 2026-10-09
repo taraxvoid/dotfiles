@@ -5,8 +5,9 @@
 #   ./install.sh           link dotfiles, install zsh plugins
 #   ./install.sh --chsh    also make zsh the login shell
 #
-# What it deliberately does NOT touch: ~/.config/gh, ~/.config/poolside (they hold
-# per-machine auth state) and ~/.claude (machine-specific hooks). Diff those by hand.
+# What it deliberately does NOT touch: ~/.config/gh/hosts.yml, ~/.config/poolside
+# (they hold per-machine auth state) and ~/.claude (machine-specific hooks). Diff
+# those by hand. ~/.config/gh/config.yml has no secrets, so it is linked.
 set -euo pipefail
 
 DOTFILES=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -18,7 +19,9 @@ ANTIDOTE_SHA=9bb69ab99c6f05d6e6ae237f7ce222eeeb5b4a14 # v2.3.0
 # starship is a Rust binary, not a zsh plugin, so antidote can't provide it.
 # brew on macOS; on Linux a checksummed release tarball goes in ~/.local/bin.
 STARSHIP_VERSION=1.26.0
+# shellcheck disable=SC2034 # indirect expansion via sha_var
 STARSHIP_SHA256_x86_64=b7c232b0e8249d8e55a40beb79c5c43a7d370f3f9408bd215deb0170daeaadf3
+# shellcheck disable=SC2034 # indirect expansion via sha_var
 STARSHIP_SHA256_aarch64=dc30189378d2f2e287384e8a692d3f95ad1df64cf0e8c36aa9201516028aed6b
 NERDFONT_VERSION=3.5.1
 NERDFONT_SHA256=04d5e8f903693f9dd13e16f867e994834e681eb3c72c0d337a770dcda09010cf # JetBrainsMono.tar.xz
@@ -61,7 +64,7 @@ pinned_clone() { # pinned_clone <url> <sha> <dest>
 }
 
 # --- dotfiles ---------------------------------------------------------------
-for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .gitconfig .config/git/ignore .config/starship.toml; do
+for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .gitconfig .config/git/ignore .config/starship.toml .config/gh/config.yml; do
   link "$f"
 done
 # dx reads these (references to Dashlane entries, not secrets); link the dir only

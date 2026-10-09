@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # gitleaks scans full history
+          persist-credentials: false
+
+      - name: Secrets scan
+        # OSS gitleaks binary, pinned and checksummed. gitleaks is feature-complete
+        # (no further development); betterleaks is the successor, revisit at 1.x.
+        # Known findings go in .gitleaksignore.
+        run: |
+          version=8.30.1
+          tarball="gitleaks_${version}_linux_x64.tar.gz"
+          sha=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$tarball" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${version}/${tarball}"
+          echo "${sha}  $RUNNER_TEMP/$tarball" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" git --redact --no-banner --verbose .
+        shell: bash
+
+      - name: shellcheck
+        run: shellcheck install.sh
+
+      - name: zsh syntax
+        run: |
+          sudo apt-get install -y -qq zsh
+          zsh -n .zshrc .zshenv .zsh_aliases

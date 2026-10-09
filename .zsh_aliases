@@ -38,11 +38,34 @@ alias ve="vim ~/.zshenv"
 
 # github CLI
 alias grem="git remote -v"
-# gh pr status only covers your PRs, review requests, and the current branch;
-# follow it with the full open PR list so bot PRs (dependabot, release-please) show too.
+# One table of every open PR (mine, review requests, bots like dependabot/release-please)
+# with CI checks, review decision, and merge state. Extra args pass through to `gh pr list`.
 unalias gps 2>/dev/null
 gps() {
-  gh pr status --conflict-status "$@" && { print; print -- "All open PRs:"; gh pr list; }
+  local me; me=$(gh api user --jq .login) || return
+  gh pr list --limit 100 "$@" --json number,title,author,headRefName,isDraft,reviewDecision,mergeable,statusCheckRollup,reviewRequests \
+  | jq -r --arg me "$me" '
+    def c(code; s): "\u001b[\(code)m\(s)\u001b[0m";
+    def checks:
+      (.statusCheckRollup // []) as $r
+      | if ($r | length) == 0 then c("2"; "no checks")
+        elif any($r[]; (.conclusion // .state // "") | IN("FAILURE","ERROR","TIMED_OUT","CANCELLED","ACTION_REQUIRED")) then c("31"; "checks failing")
+        elif any($r[]; (.status // "COMPLETED") != "COMPLETED" or (.state // "") == "PENDING") then c("33"; "checks pending")
+        else c("32"; "checks passing") end;
+    def review:
+      if .isDraft then c("2"; "draft")
+      elif .reviewDecision == "APPROVED" then c("32"; "approved")
+      elif .reviewDecision == "CHANGES_REQUESTED" then c("31"; "changes requested")
+      elif .reviewDecision == "REVIEW_REQUIRED" then c("33"; "review required")
+      else c("2"; "no review") end;
+    def merge:
+      if .mergeable == "CONFLICTING" then c("31"; "conflicts")
+      elif .mergeable == "MERGEABLE" then c("32"; "mergeable")
+      else c("2"; "merge unknown") end;
+    if length == 0 then "No open PRs" else
+    sort_by([(.author.login != $me), .number])[]
+    | "\(c("1;32"; "#\(.number)")) \(.title)  \(c("36"; .headRefName))\n    \(if .author.login == $me then c("35"; "you") else .author.login end) | \(checks) | \(review) | \(merge)\(if any(.reviewRequests[]?; .login == $me) then " | " + c("35"; "review requested") else "" end)"
+    end'
 }
 alias ga="git add ."
 alias gci="git commit"
@@ -65,7 +88,6 @@ alias grf=_gh_rerun_failed_branch
 
 alias gpm="gh pr merge --squash"
 alias gpd="gh pr diff"
-alias gpn="gh pr create --title"
 alias gpl="gh pr list"
 alias gil="gh issue list"
 alias gco="git checkout"
@@ -138,13 +160,13 @@ alias gpv="gh pr view"
 alias gpw="gh pr checks --watch"
 # gpb: open the PR in the browser; if the branch has none yet, open the create-PR page instead
 gpb() { gh pr view --web 2>/dev/null || gh pr create --web; }
+alias gpn="gh pr create --fill"
+alias gpndt="gh pr create --draft --title"
 alias gpe="gh pr edit"
-alias gpnd="gh pr create --draft --title"
-alias gpnf="gh pr create --fill"
-alias gprdy="gh pr ready"
+alias gpr="gh pr ready"
 alias gpx="gh pr close --delete-branch"
 alias gpma="gh pr merge --squash --auto --delete-branch"
-alias gpmine="gh pr list --author @me"
+alias gplm="gh pr list --author @me"
 alias gpq="gh pr list --search 'review-requested:@me'"
 alias gpcm="gh pr comment"
 alias gpa="gh pr review --approve"
@@ -169,7 +191,22 @@ alias gid="gh issue develop --checkout"
 alias grvl="gh run view"
 alias grlg="gh run view --log"
 alias grx="gh run cancel"
-alias grr="gh run rerun"   # full rerun (grf = failed only, current branch)
+# full rerun of the current branch's latest run (grf = failed only); any args
+# pass straight through to `gh run rerun` (e.g. a run id, --job, --debug)
+unalias grr 2>/dev/null
+grr() {
+  if (( $# )); then
+    gh run rerun "$@"
+    return
+  fi
+  local run_id
+  run_id=$(_gh_pr_run_id) || return 1
+  if [[ -z "$run_id" ]]; then
+    print -u2 -- "no runs found for branch $(git branch --show-current)"
+    return 1
+  fi
+  gh run rerun "$run_id"
+}
 alias grd="gh run download"
 alias grb='gh run list --branch "$(git branch --show-current)"'
 alias gwfl="gh workflow list"
