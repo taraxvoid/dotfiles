@@ -38,7 +38,7 @@ jobs:
         shell: bash
 
       - name: shellcheck
-        run: shellcheck install.sh
+        run: shellcheck install.sh .claude/scripts/*.sh
 
       - name: zsh syntax
         run: |
