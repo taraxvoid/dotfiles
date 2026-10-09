@@ -25,8 +25,8 @@ alias gs="git status"
 alias gb="git branch"
 alias gd="git diff"
 alias gl="git log -5"
-alias gwl="git worktree list"
 alias gwp="git worktree prune"
+# gwr is a function below (fzf picker)
 # bat is installed as `batcat` on Debian/Ubuntu
 if (( $+commands[bat] )); then alias cat="bat"; elif (( $+commands[batcat] )); then alias cat="batcat"; fi
 alias hcl="hcloud"
@@ -38,34 +38,103 @@ alias ve="vim ~/.zshenv"
 
 # github CLI
 alias grem="git remote -v"
-# One table of every open PR (mine, review requests, bots like dependabot/release-please)
-# with CI checks, review decision, and merge state. Extra args pass through to `gh pr list`.
+# Shared jq for PR status, used by gps (decide on a PR) and gwl (scan worktrees).
+# Colors are ANSI; rows come out as one line (fzf) or a 3-line block (table).
+typeset -g _gh_pr_fields='number,title,author,headRefName,isDraft,reviewDecision,mergeable,mergeStateStatus,statusCheckRollup,reviewRequests,additions,deletions,changedFiles,updatedAt,autoMergeRequest'
+typeset -g _gh_pr_jq_defs='
+  def c(code; s): "\u001b[\(code)m\(s)\u001b[0m";
+  def join_(a): a | map(select(. != "")) | join(" | ");
+  def failing: [(.statusCheckRollup // [])[]
+    | select((.conclusion // .state // "") | IN("FAILURE","ERROR","TIMED_OUT","CANCELLED","ACTION_REQUIRED"))
+    | (.name // .context)] | unique;
+  def checks:
+    (.statusCheckRollup // []) as $r
+    | if ($r | length) == 0 then c("2"; "no checks")
+      elif (failing | length) > 0 then c("31"; "checks failing")
+      elif any($r[]; (.status // "COMPLETED") != "COMPLETED" or (.state // "") == "PENDING") then c("33"; "checks pending")
+      else c("32"; "checks passing") end;
+  def review:
+    if .isDraft then c("2"; "draft")
+    elif .reviewDecision == "APPROVED" then c("32"; "approved")
+    elif .reviewDecision == "CHANGES_REQUESTED" then c("31"; "changes requested")
+    elif .reviewDecision == "REVIEW_REQUIRED" then c("33"; "review required")
+    else c("2"; "no review") end;
+  def merge:
+    if .isDraft then ""
+    elif .mergeable == "CONFLICTING" or .mergeStateStatus == "DIRTY" then c("31"; "conflicts")
+    elif .mergeStateStatus == "BEHIND" then c("33"; "behind base")
+    elif .mergeStateStatus == "BLOCKED" then c("33"; "blocked")
+    elif .mergeStateStatus == "UNSTABLE" then c("33"; "non-required checks failing")
+    elif .mergeStateStatus == "CLEAN" or .mergeStateStatus == "HAS_HOOKS" then c("32"; "ready to merge")
+    else c("2"; "merge unknown") end;
+  def age:
+    ([now - (.updatedAt | fromdateiso8601), 0] | max) as $s
+    | if $s < 3600 then "\($s / 60 | floor)m" elif $s < 86400 then "\($s / 3600 | floor)h" else "\($s / 86400 | floor)d" end;
+  def who: if .author.login == $me then c("35"; "you") else .author.login end;
+  def asked: if any(.reviewRequests[]?; .login == $me) then c("35"; "review requested") else "" end;
+  def row: "\(.number)\t\(c("1;32"; "#\(.number)")) \(.title[0:60])  \(join_([who, checks, review, merge, asked]))";
+  def block:
+    "\(c("1;32"; "#\(.number)")) \(.title)  \(c("36"; .headRefName))\n"
+    + "    \(join_([who, checks, review, merge, asked]))\n"
+    + "    \(join_(["+\(.additions) -\(.deletions) in \(.changedFiles) files", "updated \(age) ago",
+        (if .autoMergeRequest then c("36"; "auto-merge on") else "" end),
+        (if (failing | length) > 0 then c("31"; "failing: \(failing | join(", "))") else "" end)]))";
+  def pr_summary:
+    if .state == "MERGED" then c("35"; "#\(.number) merged")
+    elif .state == "CLOSED" then c("31"; "#\(.number) closed")
+    else "#\(.number) \(join_([checks, review, merge]))" end;
+'
+
+# gps: open PRs with what you need to decide on a merge (checks and which are
+# failing, review state, merge state incl. behind/blocked/conflicts, size, age,
+# auto-merge). On a terminal it is an fzf picker (preview = PR + checks) that
+# leads to an action menu; `gps -l`, a pipe, or no fzf prints the plain table.
+# Other args pass through to `gh pr list` (e.g. `gps --author @me`).
 unalias gps 2>/dev/null
 gps() {
-  local me; me=$(gh api user --jq .login) || return
-  gh pr list --limit 100 "$@" --json number,title,author,headRefName,isDraft,reviewDecision,mergeable,statusCheckRollup,reviewRequests \
-  | jq -r --arg me "$me" '
-    def c(code; s): "\u001b[\(code)m\(s)\u001b[0m";
-    def checks:
-      (.statusCheckRollup // []) as $r
-      | if ($r | length) == 0 then c("2"; "no checks")
-        elif any($r[]; (.conclusion // .state // "") | IN("FAILURE","ERROR","TIMED_OUT","CANCELLED","ACTION_REQUIRED")) then c("31"; "checks failing")
-        elif any($r[]; (.status // "COMPLETED") != "COMPLETED" or (.state // "") == "PENDING") then c("33"; "checks pending")
-        else c("32"; "checks passing") end;
-    def review:
-      if .isDraft then c("2"; "draft")
-      elif .reviewDecision == "APPROVED" then c("32"; "approved")
-      elif .reviewDecision == "CHANGES_REQUESTED" then c("31"; "changes requested")
-      elif .reviewDecision == "REVIEW_REQUIRED" then c("33"; "review required")
-      else c("2"; "no review") end;
-    def merge:
-      if .mergeable == "CONFLICTING" then c("31"; "conflicts")
-      elif .mergeable == "MERGEABLE" then c("32"; "mergeable")
-      else c("2"; "merge unknown") end;
-    if length == 0 then "No open PRs" else
-    sort_by([(.author.login != $me), .number])[]
-    | "\(c("1;32"; "#\(.number)")) \(.title)  \(c("36"; .headRefName))\n    \(if .author.login == $me then c("35"; "you") else .author.login end) | \(checks) | \(review) | \(merge)\(if any(.reviewRequests[]?; .login == $me) then " | " + c("35"; "review requested") else "" end)"
-    end'
+  local list=0 me rows pick
+  [[ ${1:-} == (-l|--list) ]] && { list=1; shift }
+  me=$(gh api user --jq .login) || return
+  if (( list )) || [[ ! -t 1 ]] || (( ! $+commands[fzf] )); then
+    gh pr list --limit 100 "$@" --json $_gh_pr_fields \
+    | jq -r --arg me "$me" "$_gh_pr_jq_defs"'
+      if length == 0 then "No open PRs" else sort_by([(.author.login != $me), .number])[] | block end'
+    return
+  fi
+  rows=$(gh pr list --limit 100 "$@" --json $_gh_pr_fields \
+    | jq -r --arg me "$me" "$_gh_pr_jq_defs"'sort_by([(.author.login != $me), .number])[] | row') || return
+  [[ -n "$rows" ]] || { echo "No open PRs"; return }
+  pick=$(print -r -- "$rows" | fzf --ansi --delimiter=$'\t' --with-nth=2 --prompt='PR> ' \
+    --header='enter: actions' --preview='gh pr view {1}; echo; gh pr checks {1}' \
+    --preview-window=down,60%) || return 1
+  _gh_pr_act "${pick%%$'\t'*}"
+}
+
+# gpl: the gps table without the picker (args pass through to `gh pr list`)
+unalias gpl 2>/dev/null
+gpl() { gps -l "$@"; }
+
+# Action menu for one PR number (called by gps). Merge, auto-merge and close ask first.
+_gh_pr_act() {
+  local n=$1 action
+  action=$(printf '%s\n' view diff checks "failed logs" "checkout (cd to worktree)" "squash merge" \
+    "auto-merge (squash)" approve "review or comment" "update branch" "mark ready" browser close \
+    | fzf --prompt="#$n> " --height=~40%) || return 1
+  case $action in
+    view) gh pr view $n ;;
+    diff) gh pr diff $n ;;
+    checks) gh pr checks $n ;;
+    "failed logs") gj $n ;;
+    "checkout (cd to worktree)") gpo $n ;;
+    "squash merge") read -q "?Squash-merge #$n? [y/N] " && { echo; gh pr merge $n --squash } ;;
+    "auto-merge (squash)") read -q "?Enable auto-merge for #$n and delete the branch after? [y/N] " && { echo; gh pr merge $n --squash --auto --delete-branch } ;;
+    approve) gh pr review $n --approve ;;
+    "review or comment") gh pr review $n ;;
+    "update branch") gh pr update-branch $n ;;
+    "mark ready") gh pr ready $n ;;
+    browser) gh pr view $n --web ;;
+    close) read -q "?Close #$n and delete its branch? [y/N] " && { echo; gh pr close $n --delete-branch } ;;
+  esac
 }
 alias ga="git add ."
 alias gci="git commit"
@@ -88,9 +157,7 @@ alias grf=_gh_rerun_failed_branch
 
 alias gpm="gh pr merge --squash"
 alias gpd="gh pr diff"
-alias gpl="gh pr list"
 alias gil="gh issue list"
-alias gco="git checkout"
 alias gf="git fetch --all --tags"
 
 # one-shot status of the current PR's checks (gpw is the --watch version)
@@ -179,13 +246,7 @@ gpp() { git push -u origin HEAD && gh pr create --fill "$@"; }
 
 # Issues (gi*)
 alias gin="gh issue create --title"
-alias giv="gh issue view"
-alias giw="gh issue view --web"
-alias gie="gh issue edit"
-alias gic="gh issue close"
-alias gicm="gh issue comment"
 alias gim="gh issue list --assignee @me"
-alias gid="gh issue develop --checkout"
 
 # Runs and workflows (gr*; gw* is worktrees)
 alias grvl="gh run view"
@@ -254,6 +315,108 @@ gpo() {
     echo "$branch is checked out in $wt"
     cd "$wt"
   fi
+}
+
+# gwr: git worktree remove. With args, passes them straight through (so
+# `gwr -f path` works). With none, shows an fzf picker of the other worktrees
+# (tab multi-selects, preview shows status) and removes what you pick.
+unalias gwr 2>/dev/null
+gwr() {
+  local -a picks
+  local p
+  if (( $# )); then git worktree remove "$@"; return; fi
+  picks=("${(@f)$(git worktree list --porcelain \
+    | awk '/^worktree /{p=substr($0,10); n++} n>1 && /^branch /{b=substr($0,8); sub(/refs\/heads\//,"",b); print p "\t" b}' \
+    | fzf --multi --delimiter='\t' --with-nth=2 --prompt='remove worktree> ' \
+        --preview='git -C {1} status -sb' --preview-window=down,6)}")
+  [[ -n "${picks[1]}" ]] || return 1
+  for p in $picks; do git worktree remove "${p%%$'\t'*}" && echo "removed ${p%%$'\t'*}"; done
+}
+
+# fzf pickers: these run their usual command when given args and fall back to an
+# fzf picker when called bare (like gpo and gwr). `gh issue` needs a number, so
+# bare giv/giw/gie/gic/gicm/gid pick an open issue first. gh already prompts on
+# its own for `gh run view/cancel/download/rerun` and `gh workflow run`.
+unalias giv giw gie gic gicm gid gco 2>/dev/null
+_gi() { # _gi "<gh issue subcommand + flags>" [args...]
+  local sub=$1 n; shift
+  if (( $# )); then gh issue ${=sub} "$@"; return; fi
+  n=$(gh issue list --limit 100 --json number,title -q '.[] | "\(.number)\t\(.title)"' \
+    | fzf --delimiter='\t' --prompt='issue> ' --preview='gh issue view {1}' --preview-window=right,60% \
+    | cut -f1) || return 1
+  [[ -n "$n" ]] || return 1
+  gh issue ${=sub} "$n"
+}
+giv() { _gi view "$@" }
+giw() { _gi "view --web" "$@" }
+gie() { _gi edit "$@" }
+gic() { _gi close "$@" }
+gicm() { _gi comment "$@" }
+gid() { _gi "develop --checkout" "$@" }
+# gco: bare, pick a local branch (most recent first, preview shows its log)
+gco() {
+  local b
+  if (( $# )); then git checkout "$@"; return; fi
+  b=$(git branch --sort=-committerdate --format='%(refname:short)' \
+    | fzf --prompt='checkout> ' --preview='git log --oneline --color=always -10 {}') || return 1
+  git checkout "$b"
+}
+
+# gwl: scannable worktree overview, like `git status` for all worktrees: path,
+# branch, local state (dirty files, ahead/behind upstream, locked) and the
+# branch's PR (checks, review, merge state; merged/closed shown plainly, with a
+# warning when the branch has commits newer than the merged PR). With args it is
+# plain `git worktree list`. `*` marks the worktree you are in.
+unalias gwl 2>/dev/null
+gwl() {
+  if (( $# )); then git worktree list "$@"; return; fi
+  local prs='[]' p h b lk o st t dirty lr pr loc cur w1=0 w2=0 i
+  local dim=$'\e[2m' red=$'\e[31m' yel=$'\e[33m' rst=$'\e[0m'
+  local -A prtxt proid prstate
+  local -a paths branches heads locals prcols
+  if (( $+commands[gh] )); then
+    prs=$(gh pr list --state all --limit 100 --json "$_gh_pr_fields,state,headRefOid" 2>/dev/null) || prs='[]'
+  fi
+  while IFS=$'\t' read -r b o st t; do
+    prtxt[$b]=$t; proid[$b]=$o; prstate[$b]=$st
+  done < <(jq -r --arg me "" "$_gh_pr_jq_defs"'
+    group_by(.headRefName)[] | (map(select(.state == "OPEN")) + sort_by(-.number)) | .[0]
+    | "\(.headRefName)\t\(.headRefOid)\t\(.state)\t\(pr_summary)"' <<<"$prs" 2>/dev/null)
+  cur=$(git rev-parse --show-toplevel 2>/dev/null)
+  while IFS=$'\t' read -r p h b lk; do
+    dirty=$(git -C "$p" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+    loc=()
+    (( dirty )) && loc+=("${yel}${dirty} dirty${rst}")
+    if lr=$(git -C "$p" rev-list --left-right --count '@{u}...HEAD' 2>/dev/null); then
+      (( ${lr##*[[:space:]]} )) && loc+=("ahead ${lr##*[[:space:]]}")
+      (( ${lr%%[[:space:]]*} )) && loc+=("${yel}behind ${lr%%[[:space:]]*}${rst}")
+    elif [[ $b != "(detached)" ]]; then
+      loc+=("${dim}no upstream${rst}")
+    fi
+    [[ $lk == locked ]] && loc+=("locked")
+    (( ${#loc} )) || loc=("${dim}clean${rst}")
+    pr=""
+    if (( ${#paths} )) && [[ -n ${prtxt[$b]:-} ]]; then
+      pr=${prtxt[$b]}
+      [[ ${prstate[$b]} != OPEN && ${proid[$b]} != $h ]] && pr+=" ${red}(new commits since)${rst}"
+    elif (( ${#paths} )); then
+      pr="${dim}no PR${rst}"
+    fi
+    paths+=("${p/#$HOME/~}"); branches+=("$b"); heads+=("${h[1,7]}")
+    locals+=("${(j: :)loc}"); prcols+=("$pr")
+    [[ $p == $cur ]] && paths[-1]="* ${paths[-1]}" || paths[-1]="  ${paths[-1]}"
+    (( ${#paths[-1]} > w1 )) && w1=${#paths[-1]}
+    (( ${#b} > w2 )) && w2=${#b}
+  done < <(git worktree list --porcelain | awk '
+    function flush() { if (path != "") printf "%s\t%s\t%s\t%s\n", path, head, (branch == "" ? "(detached)" : branch), (locked ? "locked" : "-"); path = branch = head = ""; locked = 0 }
+    /^worktree / { flush(); path = substr($0, 10) }
+    /^HEAD /     { head = substr($0, 6) }
+    /^branch /   { branch = substr($0, 8); sub(/^refs\/heads\//, "", branch) }
+    /^locked/    { locked = 1 }
+    END          { flush() }')
+  for (( i = 1; i <= ${#paths}; i++ )); do
+    printf '%-*s  %-*s  %s  %s%s\n' $w1 "${paths[i]}" $w2 "${branches[i]}" "${heads[i]}" "${locals[i]}" "${prcols[i]:+  ${prcols[i]}}"
+  done
 }
 
 # dx <group>... -- <cmd...>: run cmd with secrets from Dashlane injected into
