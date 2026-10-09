@@ -94,7 +94,7 @@ if (( $+commands[fzf] )); then
   fi
 fi
 command -v flux >/dev/null && . <(flux completion zsh)
-# just completion: recipe names only, see ~/.zsh/completions/_just
+# tool completions (just, mise, uv, bun, ...) are generated into ~/.zsh/completions by install.sh
 
 # load antidote (zsh plugins): brew on macOS, pinned clone from install.sh on Linux
 _zfind "$_brew/opt/antidote/share/antidote/antidote.zsh" "$HOME/.zsh/antidote/antidote.zsh" && source $REPLY
