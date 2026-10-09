@@ -110,6 +110,10 @@ gps() {
   _gh_pr_act "${pick%%$'\t'*}"
 }
 
+# gpl: the gps table without the picker (args pass through to `gh pr list`)
+unalias gpl 2>/dev/null
+gpl() { gps -l "$@"; }
+
 # Action menu for one PR number (called by gps). Merge, auto-merge and close ask first.
 _gh_pr_act() {
   local n=$1 action
@@ -153,7 +157,6 @@ alias grf=_gh_rerun_failed_branch
 
 alias gpm="gh pr merge --squash"
 alias gpd="gh pr diff"
-alias gpl="gh pr list"
 alias gil="gh issue list"
 alias gf="git fetch --all --tags"
 
