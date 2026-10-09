@@ -4,10 +4,19 @@
 #
 #   ./install.sh           link dotfiles, install zsh plugins
 #   ./install.sh --chsh    also make zsh the login shell
+#   ./install.sh -y        answer yes to every prompt (also: --yes)
+#
+# It asks (default no) before linking the Claude files in .claude/ into ~/.claude;
+# anything already there is moved aside to <name>.pre-dotfiles first. With no
+# terminal on stdin it assumes no unless -y is given.
 #
 # What it deliberately does NOT touch: ~/.config/gh/hosts.yml, ~/.config/poolside
-# (they hold per-machine auth state) and ~/.claude (machine-specific hooks). Diff
-# those by hand. ~/.config/gh/config.yml has no secrets, so it is linked.
+# (they hold per-machine auth state) and the rest of ~/.claude (settings.json and
+# hooks are machine-specific). Diff those by hand. ~/.config/gh/config.yml has no
+# secrets, so it is linked.
+#
+# Stays bash (not POSIX sh) for arrays and [[ ]]; keep it bash 3.2 compatible,
+# that is what macOS ships.
 set -euo pipefail
 
 DOTFILES=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -26,7 +35,25 @@ STARSHIP_SHA256_aarch64=dc30189378d2f2e287384e8a692d3f95ad1df64cf0e8c36aa9201516
 NERDFONT_VERSION=3.5.1
 NERDFONT_SHA256=04d5e8f903693f9dd13e16f867e994834e681eb3c72c0d337a770dcda09010cf # JetBrainsMono.tar.xz
 
+CHSH=0
+YES=0
+for arg in "$@"; do
+  case $arg in
+    --chsh) CHSH=1 ;;
+    -y | --yes) YES=1 ;;
+    *) echo "usage: $0 [--chsh] [-y|--yes]" >&2; exit 2 ;;
+  esac
+done
+
 say() { printf '==> %s\n' "$*"; }
+
+ask() { # ask <question>: default no; -y answers yes; no tty means no
+  [ "$YES" = 1 ] && return 0
+  [ -t 0 ] || return 1
+  local reply
+  read -r -p "$1 [y/N] " reply
+  [[ $reply == [yY] || $reply == [yY][eE][sS] ]]
+}
 
 link() { # link <repo-relative path> [dest]
   local src="$DOTFILES/$1" dest="${2:-$HOME/$1}" cur bak
@@ -70,6 +97,16 @@ done
 # dx reads these (references to Dashlane entries, not secrets); link the dir only
 # if this machine has none of its own.
 [ -e "$HOME/.config/dashlane" ] || link .config/dashlane
+
+# --- Claude files (opt-in) --------------------------------------------------
+# link() backs up whatever is already at the destination. Scripts are linked one
+# by one so other scripts in ~/.claude/scripts (e.g. hooks) are left alone.
+if ask "Link Claude files (.claude/CLAUDE.md, .claude/scripts/*) into ~/.claude?"; then
+  link .claude/CLAUDE.md
+  for f in .claude/scripts/*.sh; do link "$f"; done
+else
+  say "skipping ~/.claude (pass -y to link it)"
+fi
 
 # --- Linux packages ---------------------------------------------------------
 if [ "$OS" = Linux ] && command -v apt-get >/dev/null; then
@@ -127,7 +164,7 @@ else
 fi
 
 # --- login shell ------------------------------------------------------------
-if [ "${1:-}" = --chsh ]; then
+if [ "$CHSH" = 1 ]; then
   zsh_path=$(command -v zsh)
   if [ "$(getent passwd "$USER" | cut -d: -f7)" != "$zsh_path" ]; then
     grep -qx "$zsh_path" /etc/shells || echo "$zsh_path" | sudo tee -a /etc/shells >/dev/null
