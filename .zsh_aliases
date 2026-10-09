@@ -191,7 +191,22 @@ alias gid="gh issue develop --checkout"
 alias grvl="gh run view"
 alias grlg="gh run view --log"
 alias grx="gh run cancel"
-alias grr="gh run rerun"   # full rerun (grf = failed only, current branch)
+# full rerun of the current branch's latest run (grf = failed only); any args
+# pass straight through to `gh run rerun` (e.g. a run id, --job, --debug)
+unalias grr 2>/dev/null
+grr() {
+  if (( $# )); then
+    gh run rerun "$@"
+    return
+  fi
+  local run_id
+  run_id=$(_gh_pr_run_id) || return 1
+  if [[ -z "$run_id" ]]; then
+    print -u2 -- "no runs found for branch $(git branch --show-current)"
+    return 1
+  fi
+  gh run rerun "$run_id"
+}
 alias grd="gh run download"
 alias grb='gh run list --branch "$(git branch --show-current)"'
 alias gwfl="gh workflow list"
