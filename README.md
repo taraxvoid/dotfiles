@@ -6,6 +6,7 @@ My configs
 ```sh
 ./install.sh          # symlink zsh/bun configs into ~, install zsh plugins
 ./install.sh --chsh   # also make zsh the login shell
+./install.sh -y       # no prompts, answer yes to all
 ```
 
 Safe to re-run; re-run it from whichever checkout `~` should point at (for
@@ -28,13 +29,23 @@ The zsh config detects what is installed instead of branching on OS:
 - Aliases for `eza`, `bat`, `nvim`, `pip3` and `python3` are only defined when the
   tool exists. `dx` needs the Dashlane `dcli`.
 
-`install.sh` leaves `~/.config/gh`, `~/.config/poolside` and `~/.claude` alone
-because they hold per-machine auth or hooks; diff those by hand.
+`install.sh` leaves `~/.config/gh/hosts.yml` and `~/.config/poolside` alone
+(per-machine auth). It asks, default no, before linking `.claude/CLAUDE.md` and
+`.claude/scripts/*.sh` into `~/.claude` (existing files are moved to
+`*.pre-dotfiles`); `-y` answers yes. The rest of `~/.claude` (settings, hooks)
+is machine-specific, diff it by hand.
 
 ## Checks
 
 Tool versions are pinned in `mise.toml` (`mise install`, then `lefthook install` once per clone). `lefthook.yml` runs on pre-commit: `shellcheck`
-on `install.sh`, `zsh -n` on the zsh files, and a staged-diff `gitleaks` scan.
+on `install.sh` and `.claude/scripts/*.sh`, `zsh -n` on the zsh files, and a staged-diff `gitleaks` scan.
 `.github/workflows/ci.yml` runs the same plus a full-history gitleaks scan with a
 pinned, checksummed binary (keep its version in sync with `mise.toml`). gitleaks is feature-complete upstream; move to
 betterleaks once it reaches 1.x.
+
+## Claude worktree cleanup
+
+`.claude/scripts/cleanup-worktrees.sh [-n] [repo-dir]` removes git worktrees whose
+PR is merged or closed (needs `gh`). It skips the main checkout, open PRs, dirty
+trees, and branches with commits newer than any PR head. `install.sh` links it into
+`~/.claude/scripts/` if you say yes at the Claude prompt.
