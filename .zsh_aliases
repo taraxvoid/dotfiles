@@ -36,6 +36,9 @@ alias jc="just --choose"
 alias vz="vim ~/.zshrc"
 alias ve="vim ~/.zshenv"
 
+# dashlane CLI https://cli.dashlane.com/install
+alias dc='dcli'
+
 # github CLI
 alias grem="git remote -v"
 # One table of every open PR (mine, review requests, bots like dependabot/release-please)
