@@ -19,7 +19,7 @@ case $root in
 esac
 [ -f "$root/lefthook.yml" ] || [ -f "$root/lefthook.yaml" ] || [ -f "$root/.lefthook.yml" ] || exit 0
 hooks=$(git rev-parse --git-path hooks)
-grep -qs LEFTHOOK "$hooks"/* && exit 0
+grep -qs 'LEFTHOO[K]' "$hooks"/* && exit 0
 cd "$root" || exit 0
 if command -v mise >/dev/null 2>&1; then
   mise exec -- lefthook install >/dev/null 2>&1

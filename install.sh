@@ -124,7 +124,9 @@ copy_hook() { # copy_hook <dest>
 copy_hook "$HOME/.config/git/template/hooks/post-checkout"
 for d in "$HOME"/projects/personal/*/ "$HOME"/projects/ravenflight/*/; do
   [ -e "$d/.git" ] || continue
-  copy_hook "$(git -C "$d" rev-parse --path-format=absolute --git-path hooks)/post-checkout"
+  # a repo with core.hooksPath (husky) never runs .git/hooks, so leave it alone
+  [ -z "$(git -C "$d" config core.hooksPath)" ] || continue
+  copy_hook "$(git -C "$d" rev-parse --path-format=absolute --git-common-dir)/hooks/post-checkout"
 done
 
 if [ "$OS" = Linux ] && systemctl --user show-environment >/dev/null 2>&1; then
