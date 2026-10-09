@@ -110,7 +110,7 @@ if (( $+commands[fzf] )); then
   fi
 fi
 command -v flux >/dev/null && . <(flux completion zsh)
-# just completion: recipe names only, see ~/.zsh/completions/_just
+# tool completions (just, mise, uv, bun, ...) are generated into ~/.zsh/completions by install.sh
 
 # Bind Up and Down arrow keys for Fish-like history searching. Terminals in
 # application mode (Crostini, ghostty, tmux) send ^[OA/^[OB instead of ^[[A/^[[B.
