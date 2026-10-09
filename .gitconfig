@@ -5,6 +5,7 @@
 	email = 1711810+taraxvoid@users.noreply.github.com
 [init]
 	defaultBranch = main
+	templateDir = ~/.config/git/template
 [pull]
 	rebase = false
 [push]

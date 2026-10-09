@@ -1,0 +1,12 @@
+#!/bin/sh
+# Fetch all remotes of every repo one level under ~/projects/<tier>/ (worktrees
+# share these repos' remote refs). Run by git-autofetch.timer.
+if [ -z "$SSH_AUTH_SOCK" ]; then
+  # shellcheck disable=SC2012 # newest agent socket by mtime; names are ssh-generated
+  SSH_AUTH_SOCK=$(ls -t /tmp/ssh-*/agent.* 2>/dev/null | head -1); export SSH_AUTH_SOCK
+fi
+for d in "$HOME"/projects/*/*/; do
+  [ -e "$d/.git" ] || continue
+  GIT_TERMINAL_PROMPT=0 timeout 120 git -C "$d" fetch --all --prune --quiet 2>&1 \
+    | sed "s|^|${d##"$HOME"/}: |"
+done

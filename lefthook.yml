@@ -2,7 +2,7 @@ pre-commit:
   parallel: true
   commands:
     shellcheck:
-      glob: "{install.sh,.claude/scripts/*.sh}"
+      glob: "{install.sh,.claude/scripts/*.sh,.local/bin/*,.config/git/template/hooks/*}"
       run: shellcheck {staged_files}
     zsh-syntax:
       glob: "{.zshrc,.zshenv,.zsh_aliases}"

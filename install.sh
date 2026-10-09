@@ -25,13 +25,6 @@ OS=$(uname -s)
 # Pinned like .zsh_plugins.txt: bump on purpose (review the diff, change the SHA).
 ANTIDOTE_URL=https://github.com/mattmc3/antidote
 ANTIDOTE_SHA=9bb69ab99c6f05d6e6ae237f7ce222eeeb5b4a14 # v2.3.0
-# starship is a Rust binary, not a zsh plugin, so antidote can't provide it.
-# brew on macOS; on Linux a checksummed release tarball goes in ~/.local/bin.
-STARSHIP_VERSION=1.26.0
-# shellcheck disable=SC2034 # indirect expansion via sha_var
-STARSHIP_SHA256_x86_64=b7c232b0e8249d8e55a40beb79c5c43a7d370f3f9408bd215deb0170daeaadf3
-# shellcheck disable=SC2034 # indirect expansion via sha_var
-STARSHIP_SHA256_aarch64=dc30189378d2f2e287384e8a692d3f95ad1df64cf0e8c36aa9201516028aed6b
 NERDFONT_VERSION=3.5.1
 NERDFONT_SHA256=04d5e8f903693f9dd13e16f867e994834e681eb3c72c0d337a770dcda09010cf # JetBrainsMono.tar.xz
 
@@ -98,6 +91,77 @@ done
 # if this machine has none of its own.
 [ -e "$HOME/.config/dashlane" ] || link .config/dashlane
 
+# --- dev tiers: sandbox, mise trust, git hooks, auto-fetch -------------------
+# Repos live in ~/projects/{personal,ravenflight,untrusted} (worktrees mirror that
+# under ~/worktrees). personal and ravenflight are trusted: mise auto-trusts their
+# mise.toml and lefthook hooks install themselves. untrusted gets neither; use sbx.
+link .config/mise-global.toml "$HOME/.config/mise/config.toml"
+link .local/bin/sbx
+link .local/bin/git-autofetch
+mkdir -p "$HOME"/projects/{personal,ravenflight,untrusted} "$HOME"/worktrees/{personal,ravenflight,untrusted}
+
+# --- mise, uv, bun, and the CLI tools mise provides --------------------------
+# mise, uv and bun come from their vendors and update themselves (`mise self-update`,
+# `uv self update`, `bun upgrade`), so they are installed only when missing. They are
+# deliberately not in the global mise config: a mise copy of uv/bun would shadow the
+# vendor one and hide unpinned-version mistakes in projects. Everything else
+# (neovim, fzf, rg, zoxide, eza, just, yq, starship) is pinned in
+# .config/mise-global.toml and installed by `mise install` (aqua backend, which
+# verifies release checksums), because Debian's apt versions are years old.
+if [ "$OS" = Darwin ] && command -v brew >/dev/null; then
+  command -v mise >/dev/null || brew install --quiet mise
+  command -v uv >/dev/null || brew install --quiet uv
+  command -v bun >/dev/null || brew install --quiet oven-sh/bun/bun
+else
+  PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
+  if ! command -v mise >/dev/null; then
+    say "installing mise"
+    curl -fsSL https://mise.run | sh >/dev/null
+  fi
+  if ! command -v uv >/dev/null; then
+    say "installing uv"
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh >/dev/null
+  fi
+  if ! command -v bun >/dev/null; then
+    say "installing bun"
+    curl -fsSL https://bun.sh/install | SHELL=/bin/sh bash >/dev/null
+  fi
+fi
+if command -v mise >/dev/null; then
+  say "mise install (global tools)"
+  mise install --yes --quiet || echo "warning: mise install failed; re-run after fixing" >&2
+  mise reshim
+fi
+
+# post-checkout is copied, not linked: git copies it into every new repo's .git/hooks,
+# and a link into a checkout of this repo would dangle when that checkout goes away.
+# Only files carrying the managed-by marker are overwritten.
+copy_hook() { # copy_hook <dest>
+  local dest=$1
+  if [ -e "$dest" ] && ! grep -q 'managed-by: dotfiles' "$dest"; then
+    say "leaving $dest alone (not managed by dotfiles)"
+    return
+  fi
+  cmp -s "$DOTFILES/.config/git/template/hooks/post-checkout" "$dest" 2>/dev/null && return
+  mkdir -p "$(dirname "$dest")"
+  cp "$DOTFILES/.config/git/template/hooks/post-checkout" "$dest"
+  say "installed $dest"
+}
+copy_hook "$HOME/.config/git/template/hooks/post-checkout"
+for d in "$HOME"/projects/personal/*/ "$HOME"/projects/ravenflight/*/; do
+  [ -e "$d/.git" ] || continue
+  # a repo with core.hooksPath (husky) never runs .git/hooks, so leave it alone
+  [ -z "$(git -C "$d" config core.hooksPath)" ] || continue
+  copy_hook "$(git -C "$d" rev-parse --path-format=absolute --git-common-dir)/hooks/post-checkout"
+done
+
+if [ "$OS" = Linux ] && systemctl --user show-environment >/dev/null 2>&1; then
+  link .config/systemd/user/git-autofetch.service
+  link .config/systemd/user/git-autofetch.timer
+  systemctl --user daemon-reload
+  systemctl --user enable --now git-autofetch.timer >/dev/null 2>&1 || say "could not enable git-autofetch.timer"
+fi
+
 # --- Claude files (opt-in) --------------------------------------------------
 # link() backs up whatever is already at the destination. Scripts are linked one
 # by one so other scripts in ~/.claude/scripts (e.g. hooks) are left alone.
@@ -126,7 +190,7 @@ if [ "$OS" != Darwin ]; then
   pinned_clone "$ANTIDOTE_URL" "$ANTIDOTE_SHA" "$HOME/.zsh/antidote"
 fi
 
-# --- starship + Nerd Font ---------------------------------------------------
+# --- Nerd Font ---------------------------------------------------
 fetch_verified() { # fetch_verified <url> <sha256> <dest>
   curl -fsSL "$1" -o "$3"
   echo "$2  $3" | sha256sum -c --quiet - || { echo "checksum mismatch: $1" >&2; exit 1; }
@@ -134,23 +198,12 @@ fetch_verified() { # fetch_verified <url> <sha256> <dest>
 
 if [ "$OS" = Darwin ]; then
   if command -v brew >/dev/null; then
-    command -v starship >/dev/null || brew install --quiet starship
     brew list --cask font-jetbrains-mono-nerd-font >/dev/null 2>&1 \
       || brew install --quiet --cask font-jetbrains-mono-nerd-font
   fi
 else
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' EXIT
-  if ! command -v starship >/dev/null || [ "$(starship --version | awk 'NR==1{print $2}')" != "$STARSHIP_VERSION" ]; then
-    arch=$(uname -m)
-    sha_var=STARSHIP_SHA256_$arch
-    [ -n "${!sha_var:-}" ] || { echo "no pinned starship checksum for $arch" >&2; exit 1; }
-    say "installing starship $STARSHIP_VERSION"
-    fetch_verified "https://github.com/starship/starship/releases/download/v$STARSHIP_VERSION/starship-$arch-unknown-linux-musl.tar.gz" \
-      "${!sha_var}" "$tmp/starship.tar.gz"
-    mkdir -p "$HOME/.local/bin"
-    tar -xzf "$tmp/starship.tar.gz" -C "$HOME/.local/bin" starship
-  fi
   fontdir=$HOME/.local/share/fonts/JetBrainsMonoNerd
   if [ ! -e "$fontdir/.v$NERDFONT_VERSION" ]; then
     say "installing JetBrainsMono Nerd Font $NERDFONT_VERSION"
