@@ -1,0 +1,39 @@
+# Global git config. Per-machine or private settings (signing keys, credentials,
+# work identities) go in ~/.gitconfig.local, which is not tracked.
+[user]
+	name = void
+	email = 1711810+taraxvoid@users.noreply.github.com
+[init]
+	defaultBranch = main
+[pull]
+	rebase = false
+[push]
+	autoSetupRemote = true
+[alias]
+	br = branch
+	ci = commit
+	cim = commit -m
+	co = checkout
+	cob = checkout -b
+	ft = fetch --all
+	pl = pull
+	pul = pull
+	ps = push
+	psh = push
+	pu = push
+	st = status
+	sta = stash
+	stal = stash list
+	stap = stash pop
+	sw = switch -
+	worktrees = !git worktree list
+	prunetrees = !git worktree prune
+# gh as the HTTPS credential helper (resolved from PATH so it works with brew or apt)
+[credential "https://github.com"]
+	helper =
+	helper = !gh auth git-credential
+[credential "https://gist.github.com"]
+	helper =
+	helper = !gh auth git-credential
+[include]
+	path = ~/.gitconfig.local

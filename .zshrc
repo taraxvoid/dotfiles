@@ -52,15 +52,31 @@ export HOMEBREW_NO_ENV_HINTS=1
 
 fpath=( "$HOME/.zsh/completions" $fpath )
 
-# full compinit (with its slow security audit) at most once a day; otherwise
-# trust the cached ~/.zcompdump with -C. Delete ~/.zcompdump to force a rebuild
-# after adding completions.
+# antidote (zsh plugins): brew on macOS, pinned clone from install.sh on Linux.
+# Only sourced here (defines the function); `antidote load` runs after compinit.
+_zfind "$_brew/opt/antidote/share/antidote/antidote.zsh" "$HOME/.zsh/antidote/antidote.zsh" && source $REPLY
+# zsh-completions must be on fpath *before* compinit or its completions never
+# register (a dir added to fpath afterwards is ignored until the next rebuild)
+(( $+functions[antidote] )) && () {
+  local d=$(antidote path zsh-users/zsh-completions 2>/dev/null)
+  [[ -d $d/src ]] && fpath=("$d/src" $fpath)
+}
+
+# full compinit (with its slow security audit) when the cache is over a day old or
+# fpath changed (e.g. a plugin was just cloned); otherwise trust the cached
+# ~/.zcompdump with -C. The (#qN.mh+24) glob qualifier is only evaluated with
+# extendedglob; without it the test is always true and the cache is never used.
 autoload -Uz compinit
-if [[ -n ${HOME}/.zcompdump(#qN.mh+24) ]]; then
-  compinit
-else
-  compinit -C
-fi
+() {
+  setopt local_options extendedglob
+  local sig=$HOME/.zcompdump.fpath
+  if [[ -n ${HOME}/.zcompdump(#qN.mh+24) || ! -r $sig || $(<$sig) != "$fpath" ]]; then
+    compinit
+    print -r -- "$fpath" >| $sig
+  else
+    compinit -C
+  fi
+}
 
 # This forces word navigation/deletion to respect slashes, periods, etc.
 autoload -U select-word-style
@@ -95,9 +111,6 @@ if (( $+commands[fzf] )); then
 fi
 command -v flux >/dev/null && . <(flux completion zsh)
 # just completion: recipe names only, see ~/.zsh/completions/_just
-
-# load antidote (zsh plugins): brew on macOS, pinned clone from install.sh on Linux
-_zfind "$_brew/opt/antidote/share/antidote/antidote.zsh" "$HOME/.zsh/antidote/antidote.zsh" && source $REPLY
 
 # Bind Up and Down arrow keys for Fish-like history searching. Terminals in
 # application mode (Crostini, ghostty, tmux) send ^[OA/^[OB instead of ^[[A/^[[B.
