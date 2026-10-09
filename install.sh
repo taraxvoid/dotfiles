@@ -163,7 +163,7 @@ gen_completion rustup rustup completions zsh rustup
 gen_completion cargo rustup completions zsh cargo
 # mise's completions call out to `usage` at tab time; pinned like the other tools
 USAGE_VERSION=6.12.1
-if command -v mise >/dev/null && [ "$(mise ls --global --no-header usage 2>/dev/null | awk '{print }')" != "$USAGE_VERSION" ]; then
+if command -v mise >/dev/null && [ "$(mise ls --global --no-header usage 2>/dev/null | awk '{print $2}')" != "$USAGE_VERSION" ]; then
   say "installing usage $USAGE_VERSION"
   mise use -g "usage@$USAGE_VERSION" >/dev/null || echo "warning: could not install usage; mise completions won't work" >&2
 fi
