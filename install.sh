@@ -2,7 +2,7 @@
 # Idempotent setup for these dotfiles on macOS or Debian/Ubuntu (incl. ChromeOS
 # Crostini). Safe to re-run; re-run it from the checkout you want ~ to point at.
 #
-#   ./install.sh           link dotfiles, install zsh plugins
+#   ./install.sh           link dotfiles, install zsh plugins, generate completions
 #   ./install.sh --chsh    also make zsh the login shell
 #   ./install.sh -y        answer yes to every prompt (also: --yes)
 #
@@ -215,6 +215,55 @@ else
     command -v fc-cache >/dev/null && fc-cache -f "$fontdir"
   fi
 fi
+
+# --- completions -----------------------------------------------------------
+# Generated once here instead of `eval "$(tool completion zsh)"` in .zshrc, which
+# costs a process spawn per tool on every shell start. Written to ~/.zsh/completions
+# (first on fpath in .zshrc). Tools whose package already ships a completion (gh,
+# rg, fd, eza, zoxide via apt/brew) are left alone. Re-run after upgrading a tool.
+# Not covered: wrangler, astro, biome, vitest, playwright (per-project or no zsh
+# generator), claude (none), flux (sourced in .zshrc when installed).
+comp_dir=$HOME/.zsh/completions
+mkdir -p "$comp_dir"
+# install.sh runs under bash, so put the user tool dirs on PATH the way .zshenv does
+PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:$HOME/.bun/bin:$HOME/.cargo/bin:$PATH"
+
+# gen_completion <name> <command...>: write _name if the tool exists and its
+# output looks like a zsh completion; keep the old file if generation fails.
+gen_completion() {
+  local name=$1; shift
+  command -v "$1" >/dev/null || return 0
+  local out
+  out=$(cd "$DOTFILES" && "$@" 2>/dev/null) || return 0
+  case $out in "#compdef"*) ;; *) return 0 ;; esac
+  if [ "$out" != "$(cat "$comp_dir/_$name" 2>/dev/null)" ]; then
+    printf '%s\n' "$out" >"$comp_dir/_$name"
+    comps_changed=1
+    say "completion: $name"
+  fi
+}
+comps_changed=0
+gen_completion mise mise completion zsh
+gen_completion uv uv generate-shell-completion zsh
+gen_completion uvx uvx --generate-shell-completion zsh
+gen_completion bun env SHELL=zsh bun completions
+gen_completion pnpm pnpm completion zsh
+gen_completion just just --completions zsh
+gen_completion lefthook lefthook completion zsh
+gen_completion gitleaks gitleaks completion zsh
+gen_completion typst typst completions zsh
+gen_completion yq yq completion zsh
+gen_completion starship starship completions zsh
+gen_completion rustup rustup completions zsh rustup
+gen_completion cargo rustup completions zsh cargo
+# mise's completions call out to `usage` at tab time; pinned like the other tools
+USAGE_VERSION=6.12.1
+if command -v mise >/dev/null && [ "$(mise ls --global --no-header usage 2>/dev/null | awk '{print $2}')" != "$USAGE_VERSION" ]; then
+  say "installing usage $USAGE_VERSION"
+  mise use -g "usage@$USAGE_VERSION" >/dev/null || echo "warning: could not install usage; mise completions won't work" >&2
+fi
+# .zshrc trusts the cached ~/.zcompdump for a day, so drop it to pick up changes
+[ "$comps_changed" = 1 ] && rm -f "$HOME"/.zcompdump*
 
 # --- login shell ------------------------------------------------------------
 if [ "$CHSH" = 1 ]; then
