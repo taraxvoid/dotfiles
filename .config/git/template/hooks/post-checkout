@@ -1,0 +1,29 @@
+#!/bin/sh
+# managed-by: dotfiles (install.sh refreshes this copy; local edits are overwritten)
+#
+# Installs lefthook's git hooks the first time a repo or worktree is checked out.
+# git runs post-checkout on clone, on `git worktree add` and on every checkout or
+# switch, so this covers new clones and new worktrees. Hooks live in the shared
+# git dir, so once is enough per repo; after that this is a cheap no-op.
+#
+# Only runs inside the first-party trees below. A lefthook.yml is code that runs
+# on every commit, so repos from anywhere else (~/projects/untrusted) must never
+# get hooks installed automatically. Keep this list in step with
+# trusted_config_paths in .config/mise-global.toml.
+[ "${3:-1}" = 1 ] || exit 0
+root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+case $root in
+  "$HOME"/projects/personal/* | "$HOME"/projects/ravenflight/* | \
+  "$HOME"/worktrees/personal/* | "$HOME"/worktrees/ravenflight/*) ;;
+  *) exit 0 ;;
+esac
+[ -f "$root/lefthook.yml" ] || [ -f "$root/lefthook.yaml" ] || [ -f "$root/.lefthook.yml" ] || exit 0
+hooks=$(git rev-parse --git-path hooks)
+grep -qs LEFTHOOK "$hooks"/* && exit 0
+cd "$root" || exit 0
+if command -v mise >/dev/null 2>&1; then
+  mise exec -- lefthook install >/dev/null 2>&1
+elif command -v lefthook >/dev/null 2>&1; then
+  lefthook install >/dev/null 2>&1
+fi
+exit 0

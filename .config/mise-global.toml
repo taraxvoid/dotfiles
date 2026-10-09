@@ -1,0 +1,18 @@
+[tools]
+node = "latest"
+pnpm = "12.8.1"
+usage = "latest"
+
+[settings]
+auto_update = true
+# A mise.toml can set env vars, run hooks and define tasks, so mise refuses to read
+# an untrusted one (and therefore never auto-installs its tools). Only the
+# first-party trees are trusted by path. ~/projects/untrusted is deliberately
+# absent: use `sbx` there. Keep in step with the post-checkout hook in
+# .config/git/template/hooks. Repo configs cannot change this setting.
+trusted_config_paths = [
+  "~/projects/personal",
+  "~/projects/ravenflight",
+  "~/worktrees/personal",
+  "~/worktrees/ravenflight",
+]

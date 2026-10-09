@@ -49,3 +49,35 @@ betterleaks once it reaches 1.x.
 PR is merged or closed (needs `gh`). It skips the main checkout, open PRs, dirty
 trees, and branches with commits newer than any PR head. `install.sh` links it into
 `~/.claude/scripts/` if you say yes at the Claude prompt.
+
+## Project trust tiers
+
+Repos live in `~/projects/<tier>/<repo>` and worktrees mirror that as
+`~/worktrees/<tier>/<repo>/<branch>`:
+
+- `personal`, `ravenflight`: first-party. mise reads their `mise.toml` without
+  prompting (`trusted_config_paths` in `.config/mise-global.toml`, linked to
+  `~/.config/mise/config.toml`), so `bun run dev` and friends auto-install any
+  pinned tool that is missing. Nothing is trusted on `cd`; tools install when you
+  run a command that needs them. Caveat: trust is by path, so a worktree where you
+  check out someone else's branch or PR in these trees inherits it. Review such
+  branches under `untrusted`.
+- `untrusted`: third-party code. mise will not read its config, lefthook hooks are
+  never installed, and nothing runs until you do it on purpose, preferably through
+  `sbx`.
+
+`sbx [--offline] [cmd...]` (from inside an `untrusted` tree) runs a command, or a
+shell, in a bubblewrap sandbox: `/` read-only, a throwaway `$HOME` (no `~/.ssh`,
+`~/.config/gh`, `~/.claude`, ssh-agent or tokens), scrubbed environment, only the
+`untrusted` trees writable, mise trust and tool installs confined to the sandbox
+(`~/.local/share/sbx`). It narrows what a hostile install script or dev server can
+touch; it is not a VM. Needs `bubblewrap`.
+
+`.config/git/template/hooks/post-checkout` installs lefthook's git hooks when a repo
+is cloned or a worktree is created (git runs `post-checkout` for both), only inside
+the two first-party trees. `install.sh` sets it as the git template, so new clones
+get it, and copies it into existing first-party repos.
+
+`git-autofetch.timer` (systemd user timer, Linux) runs `git fetch --all --prune` in
+every repo under `~/projects/*/*` every 10 minutes. It needs a running ssh-agent
+for SSH remotes.

@@ -98,6 +98,42 @@ done
 # if this machine has none of its own.
 [ -e "$HOME/.config/dashlane" ] || link .config/dashlane
 
+# --- dev tiers: sandbox, mise trust, git hooks, auto-fetch -------------------
+# Repos live in ~/projects/{personal,ravenflight,untrusted} (worktrees mirror that
+# under ~/worktrees). personal and ravenflight are trusted: mise auto-trusts their
+# mise.toml and lefthook hooks install themselves. untrusted gets neither; use sbx.
+link .config/mise-global.toml "$HOME/.config/mise/config.toml"
+link .local/bin/sbx
+link .local/bin/git-autofetch
+mkdir -p "$HOME"/projects/{personal,ravenflight,untrusted} "$HOME"/worktrees/{personal,ravenflight,untrusted}
+
+# post-checkout is copied, not linked: git copies it into every new repo's .git/hooks,
+# and a link into a checkout of this repo would dangle when that checkout goes away.
+# Only files carrying the managed-by marker are overwritten.
+copy_hook() { # copy_hook <dest>
+  local dest=$1
+  if [ -e "$dest" ] && ! grep -q 'managed-by: dotfiles' "$dest"; then
+    say "leaving $dest alone (not managed by dotfiles)"
+    return
+  fi
+  cmp -s "$DOTFILES/.config/git/template/hooks/post-checkout" "$dest" 2>/dev/null && return
+  mkdir -p "$(dirname "$dest")"
+  cp "$DOTFILES/.config/git/template/hooks/post-checkout" "$dest"
+  say "installed $dest"
+}
+copy_hook "$HOME/.config/git/template/hooks/post-checkout"
+for d in "$HOME"/projects/personal/*/ "$HOME"/projects/ravenflight/*/; do
+  [ -e "$d/.git" ] || continue
+  copy_hook "$(git -C "$d" rev-parse --path-format=absolute --git-path hooks)/post-checkout"
+done
+
+if [ "$OS" = Linux ] && systemctl --user show-environment >/dev/null 2>&1; then
+  link .config/systemd/user/git-autofetch.service
+  link .config/systemd/user/git-autofetch.timer
+  systemctl --user daemon-reload
+  systemctl --user enable --now git-autofetch.timer >/dev/null 2>&1 || say "could not enable git-autofetch.timer"
+fi
+
 # --- Claude files (opt-in) --------------------------------------------------
 # link() backs up whatever is already at the destination. Scripts are linked one
 # by one so other scripts in ~/.claude/scripts (e.g. hooks) are left alone.

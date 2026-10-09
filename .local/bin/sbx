@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Run a command (default: a shell) in a bubblewrap sandbox for code you did not
+# write. Only usable from inside ~/projects/untrusted or ~/worktrees/untrusted.
+#
+#   sbx [--offline] [cmd args...]     e.g.  sbx bun install   sbx bun run dev
+#
+# Inside: / is read-only, $HOME is a throwaway dir (~/.local/share/sbx/home) so
+# none of your ~/.ssh, ~/.config/gh, ~/.claude, dashlane files or ssh-agent
+# exist; the environment is scrubbed; only the untrusted trees are writable. mise
+# trusts the untrusted trees inside the sandbox only and installs tools into
+# ~/.local/share/sbx/mise, never into your real mise dir. Network is on unless
+# --offline. This limits what a hostile postinstall or dev server can read or
+# change; it is not a VM, so do not treat it as protection against kernel exploits.
+set -euo pipefail
+
+die() { echo "sbx: $*" >&2; exit 1; }
+command -v bwrap >/dev/null || die "bubblewrap not installed (apt install bubblewrap)"
+
+net=--share-net
+if [ "${1:-}" = --offline ]; then net=; shift; fi
+[ "${1:-}" = -- ] && shift
+
+roots=("$HOME/projects/untrusted" "$HOME/worktrees/untrusted")
+cwd=$(pwd -P)
+ok=0
+for r in "${roots[@]}"; do
+  case $cwd in "$r" | "$r"/*) ok=1 ;; esac
+done
+[ "$ok" = 1 ] || die "run from inside ${roots[0]} or ${roots[1]} (cwd: $cwd)"
+
+state=$HOME/.local/share/sbx
+mkdir -p "$state"/home "$state"/mise "${roots[@]}"
+
+args=(--unshare-all --die-with-parent --new-session
+  --ro-bind /usr /usr --ro-bind /etc /etc
+  --proc /proc --dev /dev --tmpfs /tmp)
+[ -n "$net" ] && args+=("$net")
+for d in bin lib lib64 sbin; do # merged-/usr layouts keep these as symlinks
+  if [ -L "/$d" ]; then args+=(--symlink "$(readlink "/$d")" "/$d"); elif [ -d "/$d" ]; then args+=(--ro-bind "/$d" "/$d"); fi
+done
+args+=(--bind "$state/home" "$HOME")
+[ -x "$HOME/.local/bin/mise" ] && args+=(--ro-bind "$HOME/.local/bin/mise" "$HOME/.local/bin/mise")
+args+=(--bind "$state/mise" "$HOME/.local/share/mise")
+for r in "${roots[@]}"; do args+=(--bind "$r" "$r"); done
+trusted=$(IFS=:; echo "${roots[*]}")
+args+=(--chdir "$cwd" --clearenv
+  --setenv HOME "$HOME" --setenv USER "${USER:-user}" --setenv TERM "${TERM:-xterm}"
+  --setenv LANG "${LANG:-C.UTF-8}" --setenv SBX 1
+  --setenv PATH "$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+  --setenv MISE_TRUSTED_CONFIG_PATHS "$trusted")
+
+[ $# -gt 0 ] || set -- "${SHELL:-bash}"
+if [ -x "$HOME/.local/bin/mise" ]; then
+  exec bwrap "${args[@]}" "$HOME/.local/bin/mise" exec -- "$@"
+fi
+exec bwrap "${args[@]}" "$@"

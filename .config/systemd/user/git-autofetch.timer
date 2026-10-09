@@ -1,0 +1,9 @@
+[Unit]
+Description=Periodic git auto-fetch
+
+[Timer]
+OnStartupSec=1min
+OnUnitActiveSec=10min
+
+[Install]
+WantedBy=timers.target
