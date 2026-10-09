@@ -1,6 +1,7 @@
 # Needs a Nerd Font in the terminal (install.sh installs JetBrainsMono Nerd Font)
 add_newline = false
 command_timeout = 500
+scan_timeout = 500
 
 format = """$directory$git_branch$git_status$nodejs$python$rust$golang$cmd_duration$line_break$character"""
 

@@ -88,7 +88,6 @@ alias grf=_gh_rerun_failed_branch
 
 alias gpm="gh pr merge --squash"
 alias gpd="gh pr diff"
-alias gpn="gh pr create --title"
 alias gpl="gh pr list"
 alias gil="gh issue list"
 alias gco="git checkout"
@@ -161,13 +160,13 @@ alias gpv="gh pr view"
 alias gpw="gh pr checks --watch"
 # gpb: open the PR in the browser; if the branch has none yet, open the create-PR page instead
 gpb() { gh pr view --web 2>/dev/null || gh pr create --web; }
+alias gpn="gh pr create --fill"
+alias gpndt="gh pr create --draft --title"
 alias gpe="gh pr edit"
-alias gpnd="gh pr create --draft --title"
-alias gpnf="gh pr create --fill"
-alias gprdy="gh pr ready"
+alias gpr="gh pr ready"
 alias gpx="gh pr close --delete-branch"
 alias gpma="gh pr merge --squash --auto --delete-branch"
-alias gpmine="gh pr list --author @me"
+alias gplm="gh pr list --author @me"
 alias gpq="gh pr list --search 'review-requested:@me'"
 alias gpcm="gh pr comment"
 alias gpa="gh pr review --approve"
@@ -192,7 +191,22 @@ alias gid="gh issue develop --checkout"
 alias grvl="gh run view"
 alias grlg="gh run view --log"
 alias grx="gh run cancel"
-alias grr="gh run rerun"   # full rerun (grf = failed only, current branch)
+# full rerun of the current branch's latest run (grf = failed only); any args
+# pass straight through to `gh run rerun` (e.g. a run id, --job, --debug)
+unalias grr 2>/dev/null
+grr() {
+  if (( $# )); then
+    gh run rerun "$@"
+    return
+  fi
+  local run_id
+  run_id=$(_gh_pr_run_id) || return 1
+  if [[ -z "$run_id" ]]; then
+    print -u2 -- "no runs found for branch $(git branch --show-current)"
+    return 1
+  fi
+  gh run rerun "$run_id"
+}
 alias grd="gh run download"
 alias grb='gh run list --branch "$(git branch --show-current)"'
 alias gwfl="gh workflow list"

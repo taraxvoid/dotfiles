@@ -5,8 +5,9 @@
 #   ./install.sh           link dotfiles, install zsh plugins
 #   ./install.sh --chsh    also make zsh the login shell
 #
-# What it deliberately does NOT touch: ~/.config/gh, ~/.config/poolside (they hold
-# per-machine auth state) and ~/.claude (machine-specific hooks). Diff those by hand.
+# What it deliberately does NOT touch: ~/.config/gh/hosts.yml, ~/.config/poolside
+# (they hold per-machine auth state) and ~/.claude (machine-specific hooks). Diff
+# those by hand. ~/.config/gh/config.yml has no secrets, so it is linked.
 set -euo pipefail
 
 DOTFILES=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -63,7 +64,7 @@ pinned_clone() { # pinned_clone <url> <sha> <dest>
 }
 
 # --- dotfiles ---------------------------------------------------------------
-for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .gitconfig .config/git/ignore .config/starship.toml; do
+for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .gitconfig .config/git/ignore .config/starship.toml .config/gh/config.yml; do
   link "$f"
 done
 # dx reads these (references to Dashlane entries, not secrets); link the dir only
