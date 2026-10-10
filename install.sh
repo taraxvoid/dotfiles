@@ -105,13 +105,16 @@ mkdir -p "$HOME"/projects/{personal,ravenflight,untrusted} "$HOME"/worktrees/{pe
 # `uv self update`, `bun upgrade`), so they are installed only when missing. They are
 # deliberately not in the global mise config: a mise copy of uv/bun would shadow the
 # vendor one and hide unpinned-version mistakes in projects. Everything else
-# (neovim, fzf, rg, zoxide, eza, just, yq, starship) is pinned in
+# (neovim, fzf, rg, zoxide, just, yq, starship) is pinned in
 # .config/mise-global.toml and installed by `mise install` (aqua backend, which
 # verifies release checksums), because Debian's apt versions are years old.
+# eza is the exception: the author's apt repo (Linux) or brew (macOS) is used
+# because the release binary ships no zsh completion and the packages do.
 if [ "$OS" = Darwin ] && command -v brew >/dev/null; then
   command -v mise >/dev/null || brew install --quiet mise
   command -v uv >/dev/null || brew install --quiet uv
   command -v bun >/dev/null || brew install --quiet oven-sh/bun/bun
+  command -v eza >/dev/null || brew install --quiet eza
 else
   PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
   if ! command -v mise >/dev/null; then
@@ -178,6 +181,18 @@ if [ "$OS" = Linux ] && command -v apt-get >/dev/null; then
   for p in zsh zsh-autosuggestions zsh-syntax-highlighting; do
     dpkg -s "$p" >/dev/null 2>&1 || need+=("$p")
   done
+  # eza's own apt repo (https://github.com/eza-community/eza/blob/main/INSTALL.md)
+  if [ ! -e /etc/apt/sources.list.d/gierens.list ]; then
+    say "adding eza apt repo"
+    sudo mkdir -p /etc/apt/keyrings
+    curl -fsSL https://raw.githubusercontent.com/eza-community/eza/main/deb.asc \
+      | sudo gpg --dearmor --yes -o /etc/apt/keyrings/gierens.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de stable main" \
+      | sudo tee /etc/apt/sources.list.d/gierens.list >/dev/null
+    sudo chmod 644 /etc/apt/keyrings/gierens.gpg /etc/apt/sources.list.d/gierens.list
+    sudo apt-get update -qq >/dev/null
+  fi
+  dpkg -s eza >/dev/null 2>&1 || need+=(eza)
   if [ ${#need[@]} -gt 0 ]; then
     say "apt install: ${need[*]}"
     sudo apt-get install -y -qq "${need[@]}" >/dev/null
@@ -238,11 +253,9 @@ gen_completion() {
   case $out in "#compdef"*) ;; *) return 0 ;; esac
   if [ "$out" != "$(cat "$comp_dir/_$name" 2>/dev/null)" ]; then
     printf '%s\n' "$out" >"$comp_dir/_$name"
-    comps_changed=1
     say "completion: $name"
   fi
 }
-comps_changed=0
 gen_completion mise mise completion zsh
 gen_completion uv uv generate-shell-completion zsh
 gen_completion uvx uvx --generate-shell-completion zsh
@@ -262,8 +275,10 @@ if command -v mise >/dev/null && [ "$(mise ls --global --no-header usage 2>/dev/
   say "installing usage $USAGE_VERSION"
   mise use -g "usage@$USAGE_VERSION" >/dev/null || echo "warning: could not install usage; mise completions won't work" >&2
 fi
-# .zshrc trusts the cached ~/.zcompdump for a day, so drop it to pick up changes
-[ "$comps_changed" = 1 ] && rm -f "$HOME"/.zcompdump*
+# .zshrc trusts the cached ~/.zcompdump for a day and only notices fpath string
+# changes, not completions added or removed (apt/brew installs, deleted files), so
+# always drop it; the next shell rebuilds it.
+rm -f "$HOME"/.zcompdump*
 
 # --- login shell ------------------------------------------------------------
 if [ "$CHSH" = 1 ]; then
