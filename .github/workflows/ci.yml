@@ -38,7 +38,17 @@ jobs:
         shell: bash
 
       - name: shellcheck
-        run: shellcheck install.sh .claude/scripts/*.sh .local/bin/* .config/git/template/hooks/*
+        # Pinned and checksummed to match mise.toml; apt's shellcheck is older
+        # and flags different things than the local one.
+        run: |
+          version=0.11.0
+          tarball="shellcheck-v${version}.linux.x86_64.tar.xz"
+          sha=8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$tarball" \
+            "https://github.com/koalaman/shellcheck/releases/download/v${version}/${tarball}"
+          echo "${sha}  $RUNNER_TEMP/$tarball" | sha256sum -c -
+          tar -xJf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP" --strip-components=1 "shellcheck-v${version}/shellcheck"
+          "$RUNNER_TEMP/shellcheck" install.sh .claude/scripts/*.sh .local/bin/* .config/git/template/hooks/*
 
       - name: zsh syntax
         run: |
