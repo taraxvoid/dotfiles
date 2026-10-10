@@ -6,13 +6,14 @@
 #   ./install.sh --chsh    also make zsh the login shell
 #   ./install.sh -y        answer yes to every prompt (also: --yes)
 #
-# It asks (default no) before linking the Claude files in .claude/ into ~/.claude;
-# anything already there is moved aside to <name>.pre-dotfiles first. With no
-# terminal on stdin it assumes no unless -y is given.
+# It asks (default no) before linking the Claude files in .claude/ into ~/.claude
+# and merging .claude/settings.shared.json (worktree hooks, deny rules) into
+# ~/.claude/settings.json; anything replaced is kept as <name>.pre-dotfiles first.
+# With no terminal on stdin it assumes no unless -y is given.
 #
 # What it deliberately does NOT touch: ~/.config/gh/hosts.yml, ~/.config/poolside
-# (they hold per-machine auth state) and the rest of ~/.claude (settings.json and
-# hooks are machine-specific). Diff those by hand. ~/.config/gh/config.yml has no
+# (they hold per-machine auth state) and the rest of ~/.claude (the other keys in
+# settings.json are machine-specific). Diff those by hand. ~/.config/gh/config.yml has no
 # secrets, so it is linked.
 #
 # Stays bash (not POSIX sh) for arrays and [[ ]]; keep it bash 3.2 compatible,
@@ -168,9 +169,36 @@ fi
 # --- Claude files (opt-in) --------------------------------------------------
 # link() backs up whatever is already at the destination. Scripts are linked one
 # by one so other scripts in ~/.claude/scripts (e.g. hooks) are left alone.
-if ask "Link Claude files (.claude/CLAUDE.md, .claude/scripts/*) into ~/.claude?"; then
+# settings.json is merged, not linked: Claude Code rewrites it (approved
+# permissions, model, plugins), so only the hooks and deny rules in
+# .claude/settings.shared.json are folded in. See .claude/settings-merge.jq.
+merge_claude_settings() {
+  local dest=$HOME/.claude/settings.json tmp
+  if ! command -v jq >/dev/null; then
+    say "jq not found, skipping $dest merge (install jq and re-run)"
+    return
+  fi
+  tmp=$(mktemp "$dest.XXXXXX")
+  if ! { [ -e "$dest" ] && cat "$dest" || echo '{}'; } |
+    jq --slurpfile shared "$DOTFILES/.claude/settings.shared.json" --arg home "$HOME" \
+      -f "$DOTFILES/.claude/settings-merge.jq" >"$tmp"; then
+    rm -f "$tmp"
+    say "could not merge into $dest (invalid JSON?), left it alone"
+    return
+  fi
+  if [ -e "$dest" ] && jq -e --slurpfile a "$dest" '. == $a[0]' "$tmp" >/dev/null; then
+    rm -f "$tmp"
+    return
+  fi
+  [ -e "$dest" ] && cp "$dest" "$dest.pre-dotfiles"
+  cat "$tmp" >"$dest" # keeps the file's mode and any symlink
+  rm -f "$tmp"
+  say "merged .claude/settings.shared.json into $dest"
+}
+if ask "Link Claude files (.claude/CLAUDE.md, .claude/scripts/*) into ~/.claude and merge settings?"; then
   link .claude/CLAUDE.md
   for f in .claude/scripts/*.sh; do link "$f"; done
+  merge_claude_settings
 else
   say "skipping ~/.claude (pass -y to link it)"
 fi
