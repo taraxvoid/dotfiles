@@ -2,3 +2,7 @@
 gitleaks = "8.30.1" # keep in sync with .github/workflows/ci.yml
 lefthook = "2.1.17"
 shellcheck = "0.11.0"
+
+[tasks.lint]
+description = "Run the same checks as CI over every file (not just staged)"
+run = "lefthook run pre-commit --all-files"

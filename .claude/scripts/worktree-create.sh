@@ -8,7 +8,10 @@ set -euo pipefail
 input=$(cat)
 cwd=$(jq -r '.cwd // empty' <<<"$input")
 name=$(jq -r '.name // empty' <<<"$input")
-[ -n "$cwd" ] && [ -n "$name" ] || { echo "worktree-create: missing cwd or name" >&2; exit 1; }
+if [ -z "$cwd" ] || [ -z "$name" ]; then
+  echo "worktree-create: missing cwd or name" >&2
+  exit 1
+fi
 name=${name//\//-}
 
 common=$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir)
