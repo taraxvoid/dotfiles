@@ -159,7 +159,20 @@ _gh_rerun_failed_branch() {
 alias grf=_gh_rerun_failed_branch
 
 alias gpm="gh pr merge --squash"
-alias gpd="gh pr diff"
+# gpd: with args, plain `gh pr diff`; bare, pick an open PR (same rows as gps,
+# preview = per-file change summary like `git diff --stat`) and page its full
+# diff. Falls back to the current branch's PR with no fzf or no terminal.
+unalias gpd 2>/dev/null
+gpd() {
+  local me pick
+  if (( $# )) || [[ ! -t 1 ]] || (( ! $+commands[fzf] )); then gh pr diff "$@"; return; fi
+  me=$(gh api user --jq .login) || return
+  pick=$(gh pr list --limit 100 --json $_gh_pr_fields \
+    | jq -r --arg me "$me" "$_gh_pr_jq_defs"'sort_by([(.author.login != $me), .number])[] | row' \
+    | fzf --ansi --delimiter=$'\t' --with-nth=2 --prompt='PR diff> ' \
+        --preview='gh pr diff {1} | git apply --stat' --preview-window=down,60%) || return 1
+  gh pr diff --color=always "${pick%%$'\t'*}" | LESS=${LESS:--R} ${=PAGER:-less}
+}
 alias gil="gh issue list"
 alias gf="git fetch --all --tags"
 
