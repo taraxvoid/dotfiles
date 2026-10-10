@@ -63,7 +63,7 @@ while IFS=$'\t' read -r -u 3 path branch head locked; do
 
   if [ "$dry" = 1 ]; then say "would remove $path ($branch)"; continue; fi
   if [ "$locked" = 1 ]; then git -C "$main" worktree unlock "$path"; fi
-  git -C "$main" worktree remove ""
+  git -C "$main" worktree remove "$path"
   say "removed $path ($branch)"
   removed=$((removed + 1))
 done 3<<<"$records" # fd 3: gh/git would otherwise eat the loop's stdin
