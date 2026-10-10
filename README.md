@@ -20,12 +20,13 @@ The zsh config detects what is installed instead of branching on OS:
   `zsh-syntax-highlighting`, and clones antidote at a pinned commit
   into `~/.zsh/`. JetBrainsMono Nerd Font (into `~/.local/share/fonts`) is
   downloaded at a pinned version with a checksum. Bump that pin in `install.sh` on purpose.
-- Both: CLI tools (neovim, fzf, rg, zoxide, eza, just, yq, starship) are pinned in
+- Both: CLI tools (neovim, fzf, rg, zoxide, just, yq, starship) are pinned in
   `.config/mise-global.toml` and installed by `mise install`, since Debian's apt
   versions are years old. mise, uv and bun come from their vendors' installers
   (brew on macOS) when missing and update themselves; keep uv and bun out of the
   mise config so a stray global copy can't mask an unpinned version in a project.
-  No third-party apt mirrors.
+  The one third-party apt repo is eza's own (`deb.gierens.de`, added by
+  `install.sh`; brew on macOS), since the release binary lacks the zsh completion.
 - Prompt icons need a Nerd Font in the terminal itself. On Crostini the Terminal
   app renders text, so fonts in the container don't count: install the font on
   the ChromeOS side (or use a terminal that reads fontconfig) and select it.
