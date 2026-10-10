@@ -49,6 +49,17 @@ on `install.sh` and `.claude/scripts/*.sh`, `zsh -n` on the zsh files, and a sta
 pinned, checksummed binary (keep its version in sync with `mise.toml`). gitleaks is feature-complete upstream; move to
 betterleaks once it reaches 1.x.
 
+## Claude worktree hooks
+
+`.claude/scripts/worktree-create.sh` and `worktree-remove.sh` are the WorktreeCreate and
+WorktreeRemove hooks: new worktrees go to `~/worktrees/<tier>/<repo>/<name>` on branch
+`worktree-<name>` (tier = repo's dir under `~/projects`), and removal is a no-op.
+`require-worktree.sh` is a PreToolUse hook that blocks Edit/Write/NotebookEdit and
+`git commit` in a repo's main checkout (override with `CLAUDE_ALLOW_MAIN_EDITS=1`).
+The `hooks` block in `~/.claude/settings.json` is machine-specific; wire it as:
+`WorktreeCreate` and `WorktreeRemove` run the matching script; `PreToolUse` runs
+`require-worktree.sh` for `Edit|Write|NotebookEdit` and for `Bash` with `if: Bash(git commit*)`.
+
 ## Claude worktree cleanup
 
 `.claude/scripts/cleanup-worktrees.sh [-n] [repo-dir]` removes git worktrees whose
