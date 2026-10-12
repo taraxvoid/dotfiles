@@ -158,6 +158,8 @@ _gh_rerun_failed_branch() {
 }
 alias grf=_gh_rerun_failed_branch
 
+alias gma="git merge --abort"
+
 alias gpm="gh pr merge --squash"
 # gpd: with args, plain `gh pr diff`; bare, pick an open PR (same rows as gps,
 # preview = per-file change summary like `git diff --stat`) and page its full
