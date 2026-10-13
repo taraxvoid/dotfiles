@@ -346,6 +346,24 @@ gpo() {
   fi
 }
 
+# gwo: like gpo, but for any worktree rather than open PRs. Bare, shows an fzf
+# picker of all worktrees (preview shows status and recent log) and cd's to the
+# pick. With args it is gco (cd to the branch's worktree, else git checkout).
+unalias gwo 2>/dev/null
+gwo() {
+  local pick
+  if (( $# )); then gco "$@"; return; fi
+  pick=$(git worktree list --porcelain \
+    | awk 'function flush() { if (p != "") print p "\t" b; p = "" }
+        /^worktree /{flush(); p=substr($0,10); b="(detached)"}
+        /^branch /{b=substr($0,8); sub(/^refs\/heads\//,"",b)}
+        END{flush()}' \
+    | fzf --delimiter='\t' --with-nth=2,1 --prompt='worktree> ' \
+        --preview='git -C {1} status -sb; echo; git -C {1} log --oneline --color=always -8' \
+        --preview-window=down,12) || return 1
+  _cd_branch_wt "${pick#*$'\t'}" "${pick%%$'\t'*}"
+}
+
 # gwr: git worktree remove. With args, passes them straight through (so
 # `gwr -f path` works). With none, shows an fzf picker of the other worktrees
 # (tab multi-selects, preview shows status) and removes what you pick.
