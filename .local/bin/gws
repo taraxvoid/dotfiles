@@ -185,7 +185,33 @@ refresh() { # <force 0|1>: scan into the cache unless it is fresh or locked
   scan_all
 }
 
-mode=table all=0 force=0 bg=0
+here() { # <dir>: one line for the worktree holding dir; returns 2 if orphaned
+  local top main repo branch head prs line
+  top=$(git -C "$1" rev-parse --show-toplevel 2>/dev/null) || return 0
+  main=$(dirname "$(git -C "$1" rev-parse --path-format=absolute --git-common-dir)")
+  if [ "$top" = "$main" ]; then echo "main checkout"; return 0; fi
+  repo=$(basename "$main")
+  branch=$(git -C "$top" symbolic-ref -q --short HEAD || true)
+  head=$(git -C "$top" rev-parse HEAD)
+  if ! git -C "$main" remote get-url origin >/dev/null 2>&1; then
+    echo "${branch:-HEAD}: unknown (no origin remote)"
+    return 0
+  fi
+  prs='[]'
+  if [ -n "$branch" ] && ! prs=$(cd "$main" && gh pr list --head "$branch" --state all \
+    --json headRefName,state,headRefOid,number 2>/dev/null); then
+    echo "$branch: unknown (gh pr list failed)"
+    return 0
+  fi
+  line=$(classify "$main" "$repo" "$top" "$branch" "$head" "$prs" | jq -r '
+    (if .branch == "" then "HEAD" else .branch end) + ": " + .state
+    + (if .reason != "" then " (" + .reason + ")" else "" end)
+    + (if .local_changes then ", local changes" else "" end)')
+  echo "$line"
+  case $line in *": orphaned"*) return 2 ;; esac
+}
+
+mode=table all=0 force=0 bg=0 dir=$PWD
 while [ $# -gt 0 ]; do
   case $1 in
     -a | --all) all=1 ;;
@@ -193,6 +219,10 @@ while [ $# -gt 0 ]; do
     --refresh) mode=refresh ;;
     -f | --force) force=1 ;;
     --bg) bg=1 ;;
+    --here)
+      mode=here
+      if [ $# -gt 1 ] && [ "${2#-}" = "$2" ]; then dir=$2; shift; fi
+      ;;
     __scan-repo)
       # internal: xargs runs one of these per repo (GNU xargs runs it once with
       # no argument when there are no repos)
@@ -208,6 +238,7 @@ done
 command -v jq >/dev/null || { echo "gws: jq not found" >&2; exit 1; }
 
 case $mode in
+  here) rc=0; here "$dir" || rc=$?; exit "$rc" ;;
   refresh)
     if [ "$bg" = 1 ]; then
       args=(--refresh)

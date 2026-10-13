@@ -236,3 +236,60 @@ state_of() { item_for "$1" | jq -r '.state + "|" + .reason'; }
   run gws --nope
   [ "$status" -eq 64 ]
 }
+@test "--here on an orphan prints the reason and exits 2" {
+  main=$(make_repo personal/app)
+  wt=$(add_worktree "$main" worktree-feat)
+  run gws --here "$wt"
+  [ "$status" -eq 2 ]
+  [ "$output" = "worktree-feat: orphaned (never pushed)" ]
+}
+
+@test "--here on a tracked worktree exits 0" {
+  main=$(make_repo personal/app)
+  wt=$(add_worktree "$main" worktree-feat --push)
+  set_prs "$main" '[{"headRefName":"worktree-feat","state":"OPEN","headRefOid":"x","number":4}]'
+  run gws --here "$wt"
+  [ "$status" -eq 0 ]
+  [ "$output" = "worktree-feat: tracked" ]
+}
+
+@test "--here defaults to the current directory" {
+  main=$(make_repo personal/app)
+  wt=$(add_worktree "$main" worktree-feat)
+  cd "$wt"
+  run gws --here
+  [ "$status" -eq 2 ]
+}
+
+@test "--here in a main checkout exits 0" {
+  main=$(make_repo personal/app)
+  run gws --here "$main"
+  [ "$status" -eq 0 ]
+  [ "$output" = "main checkout" ]
+}
+
+@test "--here outside git exits 0 silently" {
+  run gws --here "$BATS_TEST_TMPDIR"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "--here fails open when gh fails" {
+  main=$(make_repo personal/app)
+  wt=$(add_worktree "$main" worktree-feat --push)
+  touch "$FAKE_GH/app/fail"
+  run gws --here "$wt"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"unknown"* ]]
+}
+
+@test "--here handles a path with a space" {
+  main=$(make_repo personal/app)
+  wt="$BATS_TEST_TMPDIR/with space/feat"
+  mkdir -p "$BATS_TEST_TMPDIR/with space"
+  git -C "$main" worktree add -q -b worktree-sp "$wt" main
+  git -C "$wt" commit -q --allow-empty -m w
+  run gws --here "$wt"
+  [ "$status" -eq 2 ]
+  [ "$output" = "worktree-sp: orphaned (never pushed)" ]
+}
