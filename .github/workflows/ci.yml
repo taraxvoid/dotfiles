@@ -48,7 +48,10 @@ jobs:
             "https://github.com/koalaman/shellcheck/releases/download/v${version}/${tarball}"
           echo "${sha}  $RUNNER_TEMP/$tarball" | sha256sum -c -
           tar -xJf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP" --strip-components=1 "shellcheck-v${version}/shellcheck"
-          "$RUNNER_TEMP/shellcheck" install.sh .claude/scripts/*.sh .local/bin/* .config/git/template/hooks/*
+          "$RUNNER_TEMP/shellcheck" install.sh scripts/*.sh .claude/scripts/*.sh .local/bin/* .config/git/template/hooks/*
+
+      - name: ssh config
+        run: scripts/check-ssh.sh
 
       - name: zsh syntax
         run: |

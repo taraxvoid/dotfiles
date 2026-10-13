@@ -87,6 +87,10 @@ pinned_clone() { # pinned_clone <url> <sha> <dest>
 for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .gitconfig .config/git/ignore .config/starship.toml .config/gh/config.yml; do
   link "$f"
 done
+# ssh refuses a config that others can write; ~/.ssh itself must be private.
+# Other accounts and private hosts go in the untracked ~/.ssh/config.local.
+mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+link .ssh/config
 # dx reads these (references to Dashlane entries, not secrets); link the dir only
 # if this machine has none of its own.
 [ -e "$HOME/.config/dashlane" ] || link .config/dashlane
