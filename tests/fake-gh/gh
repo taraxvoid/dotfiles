@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Stand-in for gh in tests. gws runs gh from a repo's main checkout, so data is
+# looked up by that checkout's dir name under $FAKE_GH/<name>/:
+#   prs.json   printed by `gh pr list` (filtered by --head when given)
+#   issue-<N>  state printed by `gh issue view <N>`
+#   fail       if present, every call fails
+# Every call is appended to $FAKE_GH/calls.
+set -euo pipefail
+dir=$FAKE_GH/$(basename "$(git rev-parse --show-toplevel)")
+printf '%s\n' "$*" >>"$FAKE_GH/calls"
+[ ! -e "$dir/fail" ] || exit 1
+case "$1 $2" in
+  "pr list")
+    head=
+    while [ $# -gt 0 ]; do
+      if [ "$1" = --head ]; then head=$2; fi
+      shift
+    done
+    prs=$(cat "$dir/prs.json" 2>/dev/null || echo '[]')
+    if [ -n "$head" ]; then
+      jq -c --arg h "$head" 'map(select(.headRefName == $h))' <<<"$prs"
+    else
+      printf '%s\n' "$prs"
+    fi
+    ;;
+  "issue view") cat "$dir/issue-$3" 2>/dev/null || exit 1 ;;
+  *) echo "fake gh: unsupported: $*" >&2; exit 1 ;;
+esac
