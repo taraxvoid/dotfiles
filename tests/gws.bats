@@ -164,3 +164,75 @@ state_of() { item_for "$1" | jq -r '.state + "|" + .reason'; }
   [ "$(jq -r '[.items[].repo] | sort | join(",")' "$GWS_CACHE")" = "personal/app,ravenflight/site" ]
   [ "$(jq -r .totals.orphaned "$GWS_CACHE")" = 2 ]
 }
+@test "table lists orphans and a totals line, hides tracked without -a" {
+  main=$(make_repo personal/app)
+  add_worktree "$main" lost >/dev/null
+  add_worktree "$main" kept --push >/dev/null
+  set_prs "$main" '[{"headRefName":"kept","state":"OPEN","headRefOid":"x","number":1}]'
+  run gws
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"lost"*"never pushed"* ]]
+  [[ "$output" != *"kept"* ]]
+  [[ "$output" == *"1 orphaned, 0 unknown, 1 tracked, 0 done"* ]]
+  run gws -a
+  [[ "$output" == *"kept"* ]]
+}
+
+@test "table suggests cleanup-worktrees.sh when items are done" {
+  main=$(make_repo personal/app)
+  wt=$(add_worktree "$main" fin --push)
+  set_prs "$main" "[{\"headRefName\":\"fin\",\"state\":\"MERGED\",\"headRefOid\":\"$(git -C "$wt" rev-parse HEAD)\",\"number\":2}]"
+  run gws
+  [[ "$output" == *"cleanup-worktrees.sh"* ]]
+}
+
+@test "no repos gives zero totals" {
+  run gws --json
+  [ "$status" -eq 0 ]
+  [ "$(jq -c .totals "$GWS_CACHE")" = '{"done":0,"tracked":0,"orphaned":0,"unknown":0}' ]
+}
+
+@test "--refresh writes the cache quietly and skips a fresh one" {
+  main=$(make_repo personal/app)
+  add_worktree "$main" a >/dev/null
+  run gws --refresh
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  [ -f "$GWS_CACHE" ]
+  [ "$(gh_calls 'pr list')" = 1 ]
+  gws --refresh
+  [ "$(gh_calls 'pr list')" = 1 ]
+  gws --refresh -f
+  [ "$(gh_calls 'pr list')" = 2 ]
+}
+
+@test "--refresh exits quietly while another scan holds the lock" {
+  make_repo personal/app >/dev/null
+  mkdir -p "$GWS_CACHE.lock"
+  run gws --refresh -f
+  [ "$status" -eq 0 ]
+  [ ! -f "$GWS_CACHE" ]
+}
+
+@test "--refresh takes over a stale lock" {
+  make_repo personal/app >/dev/null
+  mkdir -p "$GWS_CACHE.lock"
+  touch -t 202001010000 "$GWS_CACHE.lock"
+  run gws --refresh -f
+  [ "$status" -eq 0 ]
+  [ -f "$GWS_CACHE" ]
+  [ ! -d "$GWS_CACHE.lock" ]
+}
+
+@test "--refresh --bg returns at once and the scan lands" {
+  make_repo personal/app >/dev/null
+  run gws --refresh --bg
+  [ "$status" -eq 0 ]
+  for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "$GWS_CACHE" ] && break; sleep 0.5; done
+  [ -f "$GWS_CACHE" ]
+}
+
+@test "unknown argument exits 64" {
+  run gws --nope
+  [ "$status" -eq 64 ]
+}

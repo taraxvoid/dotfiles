@@ -151,10 +151,48 @@ scan_all() { # scan every repo in parallel and write the cache atomically
   mv "$tmp" "$cache"
 }
 
-mode=table
+render() { # <all 0|1>: table of items from the cache
+  jq -r --argjson all "$1" '
+    def tilde: if startswith(env.HOME) then "~" + ltrimstr(env.HOME) else . end;
+    def row: [.state, .repo,
+      (if .path == "" then "(no worktree)" else (.path | tilde) end),
+      (if .branch == "" then "-" else .branch end),
+      (.reason + (if .local_changes then " (local changes)" else "" end))] | @tsv;
+    (.items | map(select($all == 1 or .state == "orphaned" or .state == "unknown"))
+      | sort_by(.state != "orphaned", .state != "unknown") | .[] | row)
+  ' "$cache" | column -t -s "$(printf '\t')"
+  jq -r '
+    "\(.totals.orphaned) orphaned, \(.totals.unknown) unknown, \(.totals.tracked) tracked, \(.totals.done) done (scanned \(.scanned_at))",
+    (if .totals.done > 0 then "done items can be removed with cleanup-worktrees.sh <repo>" else empty end)
+  ' "$cache"
+}
+
+mtime() { date -r "$1" +%s; } # works with GNU and BSD date
+
+refresh() { # <force 0|1>: scan into the cache unless it is fresh or locked
+  local lock=$cache.lock
+  if [ "$1" = 0 ] && [ -f "$cache" ] && [ $(($(date +%s) - $(mtime "$cache"))) -lt 900 ]; then
+    return 0
+  fi
+  mkdir -p "$(dirname "$cache")"
+  if ! mkdir "$lock" 2>/dev/null; then
+    # a lock older than 10 minutes was left by a killed scan
+    if [ ! -d "$lock" ] || [ $(($(date +%s) - $(mtime "$lock"))) -le 600 ]; then return 0; fi
+    rmdir "$lock" 2>/dev/null || true
+    mkdir "$lock" 2>/dev/null || return 0
+  fi
+  trap 'rmdir "$cache.lock" 2>/dev/null || true' EXIT
+  scan_all
+}
+
+mode=table all=0 force=0 bg=0
 while [ $# -gt 0 ]; do
   case $1 in
+    -a | --all) all=1 ;;
     --json) mode=json ;;
+    --refresh) mode=refresh ;;
+    -f | --force) force=1 ;;
+    --bg) bg=1 ;;
     __scan-repo)
       # internal: xargs runs one of these per repo (GNU xargs runs it once with
       # no argument when there are no repos)
@@ -170,6 +208,15 @@ done
 command -v jq >/dev/null || { echo "gws: jq not found" >&2; exit 1; }
 
 case $mode in
+  refresh)
+    if [ "$bg" = 1 ]; then
+      args=(--refresh)
+      if [ "$force" = 1 ]; then args+=(-f); fi
+      nohup "$self" "${args[@]}" </dev/null >/dev/null 2>&1 &
+      exit 0
+    fi
+    refresh "$force"
+    ;;
   json) scan_all; cat "$cache" ;;
-  table) scan_all; cat "$cache" ;; # replaced by render in Task 2
+  table) scan_all; render "$all" ;;
 esac
