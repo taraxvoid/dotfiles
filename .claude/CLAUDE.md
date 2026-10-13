@@ -11,6 +11,21 @@
 - Prefer quiet/minimal-output flags on commands by default (e.g. `--reporter=dot`, `--quiet`, `-q`, `--silent`, piping through `rg`/`jq` to trim noise). Drop to verbose output only when debugging a failure.
 - Writing style: avoid stock filler words like "genuinely" and similar hedging/intensifier cruft. Avoid em dashes (—) and unicode arrows (→, ⟶, etc.) in prose; use plain punctuation instead (commas, "to", parentheses). Avoid decorative unicode bullet dots (•) — use markdown `-` lists instead.
 
+# Threads of work
+
+Tara should never have to remember in-flight work. Every thread beyond a simple or local-only fix lives on GitHub: an open PR, or a pushed branch linked to an issue. `gws` lists anything that isn't (orphans); the status line shows the current worktree's state and the orphan count.
+
+- A thread is anything beyond a simple or local-only fix: multi-session work, anything that goes through brainstorming (bounded or architectural), research or spikes whose findings are worth keeping. When unsure, create the issue.
+- Issue first: `gh issue create` with a short goal and context, then `EnterWorktree` named `<N>-<slug>` so the branch is `worktree-<N>-<slug>`. That branch name is the only issue link; don't use `gh issue develop`.
+- Push the branch early (after its first commit). A pushed `worktree-<N>-*` branch with issue #N open counts as tracked.
+- Log milestones as issue comments, not body edits: spec approved (artifact link), plan written (artifact link), key decisions or dead ends, PR opened.
+- PR bodies always contain `Closes #N` (or `Refs #N` for partial work).
+- Research or informational threads end by closing the issue with a findings comment.
+- A fix that grows into a thread: if the branch is unpushed, create the issue and `git branch -m worktree-<N>-<slug>`; if already pushed, open the PR with `Refs #N`.
+- Specs and plans (overrides superpowers' `docs/superpowers/...` default): write markdown to `~/.claude/plans/<repo>/<YYYY-MM-DD>-<topic>.md`, never commit it, render it with `~/.claude/plans/_tpl/build.sh <file.md> "<Title>" "<meta html>"`, publish the .html as an artifact, and comment the link on the issue. Republish the same file path on revisions so the link stays stable.
+- The Stop hook may block a turn with a `gws:` message when the worktree holds unpushed commits and isn't tracked. Push it with a PR or linked issue, or tell Tara why it stays local; don't just retry.
+- Run `gws` when asked what is in flight or orphaned.
+
 # Identity
 
 - Name: Tara. Pronouns: xe/xem/xyr preferred, she/her secondary. 
