@@ -326,7 +326,7 @@ _cd_branch_wt() { # _cd_branch_wt <branch> <worktree path>
 # Smart PR checkout: if the PR's head branch is already checked out in a
 # worktree (or here), cd there instead of failing; otherwise gh pr checkout.
 # Takes the same args as `gh pr checkout` (number, URL, or branch). With no
-# args, shows an fzf picker of open PRs.
+# args, shows an fzf picker of open PRs (preview shows the PR and its checks).
 gpo() {
   local branch wt pick
   if (( $# )); then
@@ -334,7 +334,9 @@ gpo() {
   else
     pick=$(gh pr list --json number,headRefName,title \
       -q '.[] | "\(.number)\t\(.headRefName)\t\(.title)"' \
-      | fzf --delimiter='\t' --with-nth=1,3 --prompt='PR> ') || return 1
+      | fzf --delimiter='\t' --with-nth=1,3 --prompt='PR> ' \
+          --preview='gh pr view {1}; echo; gh pr checks {1}' \
+          --preview-window=down,60%) || return 1
     set -- "${pick%%$'\t'*}"
     branch=$(cut -f2 <<<"$pick")
   fi
