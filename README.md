@@ -36,7 +36,7 @@ The zsh config detects what is installed instead of branching on OS:
   tool exists. `dx` needs the Dashlane `dcli`.
 
 `install.sh` leaves `~/.config/gh/hosts.yml` and `~/.config/poolside` alone
-(per-machine auth). It asks, default no, before linking `.claude/CLAUDE.md` and
+(per-machine auth). It links `.ssh/config` but never keys or `~/.ssh/config.local`. It asks, default no, before linking `.claude/CLAUDE.md` and
 `.claude/scripts/*.sh` into `~/.claude` (existing files are moved to
 `*.pre-dotfiles`); `-y` answers yes. The rest of `~/.claude` (settings, hooks)
 is machine-specific, diff it by hand.
@@ -45,6 +45,13 @@ is machine-specific, diff it by hand.
 
 Tool versions are pinned in `mise.toml` (`mise install`, then `lefthook install` once per clone). `lefthook.yml` runs on pre-commit: `shellcheck`
 on `install.sh` and `.claude/scripts/*.sh`, `zsh -n` on the zsh files, and a staged-diff `gitleaks` scan.
+`scripts/check-ssh.sh` guards `.ssh/config` (linked to `~/.ssh/config`): it is the only
+file allowed under `.ssh/`, with no key material, only allowlisted directives (no
+`ProxyCommand`, `LocalCommand`, `SetEnv`, ...) and `IdentityFile` paths under `~/.ssh/`.
+Private hosts and other accounts go in the untracked `~/.ssh/config.local`, which it
+includes. `scripts/check-private-strings.sh` fails a commit whose staged changes add any
+string listed in the untracked `~/.config/dotfiles/private-strings` (one per line,
+case-insensitive); it is local-only, since CI cannot have the list without publishing it.
 `.github/workflows/ci.yml` runs the same plus a full-history gitleaks scan with a
 pinned, checksummed binary (keep its version in sync with `mise.toml`). gitleaks is feature-complete upstream; move to
 betterleaks once it reaches 1.x.

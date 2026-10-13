@@ -2,10 +2,15 @@ pre-commit:
   parallel: true
   commands:
     shellcheck:
-      glob: "{install.sh,.claude/scripts/*.sh,.local/bin/*,.config/git/template/hooks/*}"
+      glob: "{install.sh,scripts/*.sh,.claude/scripts/*.sh,.local/bin/*,.config/git/template/hooks/*}"
       run: shellcheck {staged_files}
     zsh-syntax:
       glob: "{.zshrc,.zshenv,.zsh_aliases}"
       run: zsh -n {staged_files}
     gitleaks:
       run: gitleaks git --pre-commit --staged --redact --no-banner -l warn
+    ssh-config:
+      glob: ".ssh/*"
+      run: scripts/check-ssh.sh --staged {staged_files}
+    private-strings:
+      run: scripts/check-private-strings.sh
