@@ -3,7 +3,8 @@
 # when work is at risk: the session's cwd is a non-main worktree whose HEAD has
 # commits on no remote, and `gws --here` calls it orphaned. Then it blocks the
 # stop once per worktree HEAD so Claude pushes it with a PR or linked issue, or
-# says why it should stay local. Fails open: any error lets the stop through.
+# says why it should stay local. Fails open: any error or a check slower than
+# GWS_HOOK_TIMEOUT seconds (default 8) lets the stop through.
 set -o pipefail
 
 input=$(cat)
@@ -23,10 +24,21 @@ marks=${XDG_CACHE_HOME:-$HOME/.cache}/gws-nudged
 mark=$marks/$(printf '%s' "$top" | tr '/ ' '%_')
 [ "$(cat "$mark" 2>/dev/null)" != "$head" ] || exit 0
 
-line=$("$gws" --here "$top")
+# Mark first, so a check that hangs or fails is not retried every turn at this HEAD
+mkdir -p "$marks" && printf '%s\n' "$head" >"$mark" || exit 0
+# gh can hang (offline); cut gws off well before Claude Code's hook timeout.
+# Background job plus a sleeping killer, since macOS has no timeout(1).
+out=$marks/.out.$$
+"$gws" --here "$top" >"$out" 2>/dev/null &
+pid=$!
+(sleep "${GWS_HOOK_TIMEOUT:-8}"; kill "$pid" 2>/dev/null) >/dev/null 2>&1 &
+killer=$!
+wait "$pid"
 rc=$?
+kill "$killer" 2>/dev/null
+line=$(cat "$out" 2>/dev/null)
+rm -f "$out"
 [ "$rc" = 2 ] || exit 0
-mkdir -p "$marks" && printf '%s\n' "$head" >"$mark"
 jq -cn --arg l "$line" '{decision: "block", reason: ("gws: " + $l
   + ". Push it and open a PR, or link an issue (branch worktree-<N>-<slug>, renamed before its first push), or tell Tara why it should stay local.")}'
 exit 0

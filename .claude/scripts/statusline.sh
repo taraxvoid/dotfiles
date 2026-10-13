@@ -27,6 +27,11 @@ if top=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null); then
           else .state end' "$cache")
     fi
     st=${st:-not scanned}
+    # the cache only refreshes at session start; a push since then shows here
+    if [ "$st" = "orphan: never pushed" ] && b=$(git -C "$top" symbolic-ref -q --short HEAD) &&
+      git -C "$top" rev-parse -q --verify "refs/remotes/origin/$b" >/dev/null; then
+      st="pushed since scan"
+    fi
     if [ -n "$(git -C "$top" status --porcelain 2>/dev/null | head -1)" ]; then st="$st, local changes"; fi
     parts+=("$st")
   fi

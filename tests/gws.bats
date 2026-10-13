@@ -293,3 +293,16 @@ state_of() { item_for "$1" | jq -r '.state + "|" + .reason'; }
   [ "$status" -eq 2 ]
   [ "$output" = "worktree-sp: orphaned (never pushed)" ]
 }
+
+@test "a repo with bad gh output is unknown and the rest of the scan lands" {
+  a=$(make_repo personal/app)
+  b=$(make_repo personal/other)
+  add_worktree "$a" x >/dev/null
+  wt=$(add_worktree "$b" y)
+  touch "$FAKE_GH/app/garbage"
+  run gws --json
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.items[] | select(.repo == "personal/app") | .state + "|" + .reason' "$GWS_CACHE")" = "unknown|gh pr list returned bad JSON" ]
+  [ "$(item_for "$wt" | jq -r .state)" = orphaned ]
+  [ -z "$(ls "$GWS_CACHE".?????? 2>/dev/null)" ]
+}

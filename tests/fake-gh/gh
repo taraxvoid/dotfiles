@@ -4,13 +4,17 @@
 #   prs.json   printed by `gh pr list` (filtered by --head when given)
 #   issue-<N>  state printed by `gh issue view <N>`
 #   fail       if present, every call fails
+#   garbage    if present, `gh pr list` prints text that is not JSON
+#   sleep      if present, every call sleeps this many seconds first
 # Every call is appended to $FAKE_GH/calls.
 set -euo pipefail
 dir=$FAKE_GH/$(basename "$(git rev-parse --show-toplevel)")
 printf '%s\n' "$*" >>"$FAKE_GH/calls"
 [ ! -e "$dir/fail" ] || exit 1
+if [ -e "$dir/sleep" ]; then sleep "$(cat "$dir/sleep")"; fi
 case "$1 $2" in
   "pr list")
+    if [ -e "$dir/garbage" ]; then echo "not json"; exit 0; fi
     head=
     while [ $# -gt 0 ]; do
       if [ "$1" = --head ]; then head=$2; fi

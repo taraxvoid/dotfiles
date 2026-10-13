@@ -66,3 +66,11 @@ cache() { # cache <path> <state> <reason> <pr|null> <issue|null> <orphans>
   mkdir -p "$BATS_TEST_TMPDIR/plain dir"
   [ "$(line "$BATS_TEST_TMPDIR/plain dir")" = "$BATS_TEST_TMPDIR/plain dir" ]
 }
+
+@test "a worktree pushed since the scan is not shown as never pushed" {
+  main=$(make_repo personal/app)
+  wt=$(add_worktree "$main" worktree-feat)
+  cache "$wt" orphaned "never pushed" null null 1
+  git -C "$wt" push -q -u origin worktree-feat
+  [ "$(line "$wt")" = "app/worktree-feat · pushed since scan · 1 orphan" ]
+}

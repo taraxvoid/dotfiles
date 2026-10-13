@@ -22,6 +22,14 @@ set -euo pipefail
 
 roots=${GWS_ROOTS:-$HOME/projects}
 cache=${GWS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/gws.json}
+# one EXIT trap for both: scan_all's temp file and refresh's lock
+tmp='' lock_held=''
+cleanup() {
+  if [ -n "$tmp" ]; then rm -f "$tmp"; fi
+  if [ -n "$lock_held" ]; then rmdir "$cache.lock" 2>/dev/null || true; fi
+}
+trap cleanup EXIT
+
 self=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")
 
 # item <repo> <path> <branch> <state> <reason> <pr> <issue> <local_changes 0|1>
@@ -113,6 +121,10 @@ scan_repo() {
     item "$repo" "$main" "" unknown "gh pr list failed" "" "" 0
     return
   fi
+  if ! jq -e 'type == "array"' <<<"$prs" >/dev/null 2>&1; then
+    item "$repo" "$main" "" unknown "gh pr list returned bad JSON" "" "" 0
+    return
+  fi
   records=$(worktree_records "$main")
   # fd 3: gh and git would otherwise eat the loop's stdin
   while IFS=$'\037' read -r -u 3 path branch head; do
@@ -139,7 +151,6 @@ discover() { # print each main checkout under the roots, NUL-separated
 }
 
 scan_all() { # scan every repo in parallel and write the cache atomically
-  local tmp
   mkdir -p "$(dirname "$cache")"
   tmp=$(mktemp "$cache.XXXXXX")
   discover | xargs -0 -n 1 -P "${GWS_JOBS:-8}" "$self" __scan-repo |
@@ -181,7 +192,7 @@ refresh() { # <force 0|1>: scan into the cache unless it is fresh or locked
     rmdir "$lock" 2>/dev/null || true
     mkdir "$lock" 2>/dev/null || return 0
   fi
-  trap 'rmdir "$cache.lock" 2>/dev/null || true' EXIT
+  lock_held=1
   scan_all
 }
 
@@ -225,10 +236,19 @@ while [ $# -gt 0 ]; do
       ;;
     __scan-repo)
       # internal: xargs runs one of these per repo (GNU xargs runs it once with
-      # no argument when there are no repos)
-      if [ $# -gt 1 ]; then scan_repo "$2"; fi
+      # no argument when there are no repos). The repo is scanned in a child
+      # so set -e stays live there; if it fails, the repo is reported instead
+      # of failing the whole scan.
+      if [ $# -gt 1 ]; then
+        if out=$("$self" __scan-repo-inner "$2"); then
+          printf '%s\n' "$out"
+        else
+          item "${2#"$roots"/}" "$2" "" unknown "scan failed" "" "" 0
+        fi
+      fi
       exit 0
       ;;
+    __scan-repo-inner) scan_repo "$2"; exit 0 ;;
     -h | --help) sed -n '2,/^set -/p' "$0" | sed '$d;s/^# \{0,1\}//'; exit 0 ;;
     *) echo "gws: unknown argument: $1 (see gws --help)" >&2; exit 64 ;;
   esac

@@ -67,3 +67,18 @@ hook() { jq -cn --arg cwd "$1" --argjson active "${2:-false}" '{cwd: $cwd, stop_
   run hook "$wt"
   [ -z "$output" ]
 }
+
+@test "a hanging gh is cut off well under the hook timeout and not retried at the same HEAD" {
+  main=$(make_repo personal/app)
+  wt=$(add_worktree "$main" worktree-feat --push)
+  git -C "$wt" commit -q --allow-empty -m more
+  echo 30 >"$FAKE_GH/app/sleep"
+  start=$(date +%s)
+  run env GWS_HOOK_TIMEOUT=2 bash -c "jq -cn --arg cwd '$wt' '{cwd: \$cwd}' | stop-orphan-check.sh"
+  [ -z "$output" ]
+  [ $(($(date +%s) - start)) -lt 10 ]
+  calls=$(gh_calls)
+  run hook "$wt"
+  [ -z "$output" ]
+  [ "$(gh_calls)" = "$calls" ]
+}
