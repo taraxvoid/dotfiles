@@ -1,0 +1,14 @@
+{
+  "statusLine": {
+    "type": "command",
+    "command": "$HOME/.claude/scripts/statusline.sh"
+  },
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "$HOME/.local/bin/gws --refresh --bg" }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "$HOME/.claude/scripts/stop-orphan-check.sh", "timeout": 20 }] }
+    ]
+  }
+}
