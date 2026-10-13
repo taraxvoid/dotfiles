@@ -1,0 +1,273 @@
+#!/usr/bin/env bash
+# gws: list Claude worktrees and unpushed branches that are not tracked on
+# GitHub. Read-only. Works on macOS (bash 3.2) and Linux; needs git, jq, gh.
+#
+#   gws                  orphans first, then a line of totals
+#   gws -a               every item
+#   gws --json           the scan as JSON
+#   gws --refresh [-f]   scan into the cache quietly; skips if the cache is
+#                        under 15 minutes old unless -f
+#   gws --refresh --bg   same, detached (for the SessionStart hook)
+#   gws --here [dir]     one line for the worktree holding dir (default cwd);
+#                        exits 2 if it is orphaned
+#
+# An item is a non-main worktree, or a local branch with commits on no remote
+# and no worktree, in any repo at $GWS_ROOTS/*/* (default ~/projects/*/*).
+#   done      a merged or closed PR has this HEAD
+#   tracked   pushed and an open PR, or branch worktree-<N>-* with issue #N open
+#   orphaned  anything else, with a reason
+#   unknown   the repo could not be checked
+# The scan is cached at $GWS_CACHE (default ${XDG_CACHE_HOME:-~/.cache}/gws.json).
+set -euo pipefail
+
+roots=${GWS_ROOTS:-$HOME/projects}
+cache=${GWS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/gws.json}
+# one EXIT trap for both: scan_all's temp file and refresh's lock
+tmp='' lock_held=''
+cleanup() {
+  if [ -n "$tmp" ]; then rm -f "$tmp"; fi
+  if [ -n "$lock_held" ]; then rmdir "$cache.lock" 2>/dev/null || true; fi
+}
+trap cleanup EXIT
+
+self=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")
+
+# item <repo> <path> <branch> <state> <reason> <pr> <issue> <local_changes 0|1>
+item() {
+  jq -cn --arg repo "$1" --arg path "$2" --arg branch "$3" --arg state "$4" \
+    --arg reason "$5" --arg pr "$6" --arg issue "$7" --arg lc "$8" \
+    '{repo: $repo, path: $path, branch: $branch, state: $state, reason: $reason,
+      pr: (if $pr == "" then null else ($pr | tonumber) end),
+      issue: (if $issue == "" then null else ($issue | tonumber) end),
+      local_changes: ($lc == "1")}'
+}
+
+# worktree_records <main>: path, branch, head for each non-main worktree, split by
+# \037 (a tab would collapse the empty branch of a detached worktree under read)
+worktree_records() {
+  git -C "$1" worktree list --porcelain | awk '
+    function flush() { if (path != "" && n > 1) printf "%s\037%s\037%s\n", path, branch, head; path = branch = head = "" }
+    /^worktree / { flush(); n++; path = substr($0, 10) }
+    /^HEAD /     { head = substr($0, 6) }
+    /^branch /   { branch = substr($0, 8); sub(/^refs\/heads\//, "", branch) }
+    END          { flush() }
+  '
+}
+
+# classify <main> <repo> <path> <branch> <head> <prs-json>: print one item
+classify() {
+  local main=$1 repo=$2 path=$3 branch=$4 head=$5 prs=$6
+  local lc=0 pushed=0 open finished closed n st
+  if [ -n "$path" ] && [ -n "$(git -C "$path" status --porcelain 2>/dev/null)" ]; then lc=1; fi
+  if [ -z "$branch" ]; then
+    item "$repo" "$path" "" orphaned "detached HEAD" "" "" "$lc"
+    return
+  fi
+  if git -C "$main" rev-parse -q --verify "refs/remotes/origin/$branch" >/dev/null; then
+    pushed=1
+    if [ "$(git -C "$main" rev-list --count "origin/$branch..$head")" != 0 ]; then lc=1; fi
+  fi
+  n=$(printf '%s\n' "$branch" | sed -n 's/^worktree-\([0-9][0-9]*\)-.*/\1/p')
+
+  open=$(jq -r --arg b "$branch" \
+    'first(.[] | select(.headRefName == $b and .state == "OPEN") | .number) // empty' <<<"$prs")
+  if [ -n "$open" ]; then
+    item "$repo" "$path" "$branch" tracked "" "$open" "$n" "$lc"
+    return
+  fi
+  finished=$(jq -r --arg b "$branch" --arg h "$head" \
+    'first(.[] | select(.headRefName == $b and .state != "OPEN" and .headRefOid == $h) | .number) // empty' <<<"$prs")
+  if [ -n "$finished" ]; then
+    item "$repo" "$path" "$branch" "done" "" "$finished" "$n" "$lc"
+    return
+  fi
+  closed=$(jq -r --arg b "$branch" \
+    'first(.[] | select(.headRefName == $b and .state != "OPEN") | .number) // empty' <<<"$prs")
+  if [ "$pushed" = 0 ]; then
+    if [ -n "$closed" ]; then
+      item "$repo" "$path" "$branch" orphaned "commits after merged PR" "$closed" "$n" "$lc"
+    else
+      item "$repo" "$path" "$branch" orphaned "never pushed" "" "$n" "$lc"
+    fi
+    return
+  fi
+  if [ -n "$n" ]; then
+    if ! st=$(cd "$main" && gh issue view "$n" --json state --jq .state 2>/dev/null); then
+      item "$repo" "$path" "$branch" unknown "could not read issue #$n" "" "$n" "$lc"
+    elif [ "$st" = OPEN ]; then
+      item "$repo" "$path" "$branch" tracked "" "" "$n" "$lc"
+    else
+      item "$repo" "$path" "$branch" orphaned "issue #$n closed" "" "$n" "$lc"
+    fi
+    return
+  fi
+  if [ -n "$closed" ]; then
+    item "$repo" "$path" "$branch" orphaned "commits after merged PR" "$closed" "" "$lc"
+  else
+    item "$repo" "$path" "$branch" orphaned "pushed, no PR/issue" "" "" "$lc"
+  fi
+}
+
+# scan_repo <main>: print one item per line for a repo's worktrees and branches
+scan_repo() {
+  local main=$1 repo prs records branches checked_out path branch head
+  repo=${main#"$roots"/}
+  if ! git -C "$main" remote get-url origin >/dev/null 2>&1; then
+    item "$repo" "$main" "" unknown "no origin remote" "" "" 0
+    return
+  fi
+  if ! prs=$(cd "$main" && gh pr list --state all --limit 200 \
+    --json headRefName,state,headRefOid,number 2>/dev/null); then
+    item "$repo" "$main" "" unknown "gh pr list failed" "" "" 0
+    return
+  fi
+  if ! jq -e 'type == "array"' <<<"$prs" >/dev/null 2>&1; then
+    item "$repo" "$main" "" unknown "gh pr list returned bad JSON" "" "" 0
+    return
+  fi
+  records=$(worktree_records "$main")
+  # fd 3: gh and git would otherwise eat the loop's stdin
+  while IFS=$'\037' read -r -u 3 path branch head; do
+    [ -n "$path" ] || continue
+    classify "$main" "$repo" "$path" "$branch" "$head" "$prs"
+  done 3<<<"$records"
+
+  checked_out=$(printf '%s\n%s\n' "$(git -C "$main" symbolic-ref -q --short HEAD || true)" \
+    "$(printf '%s\n' "$records" | cut -d $'\037' -f2)")
+  branches=$(git -C "$main" for-each-ref --format='%(refname:short)%09%(objectname)' refs/heads)
+  while IFS=$'\t' read -r -u 3 branch head; do
+    [ -n "$branch" ] || continue
+    if printf '%s\n' "$checked_out" | grep -qxF -- "$branch"; then continue; fi
+    [ "$(git -C "$main" rev-list --count "$head" --not --remotes)" != 0 ] || continue
+    classify "$main" "$repo" "" "$branch" "$head" "$prs"
+  done 3<<<"$branches"
+}
+
+discover() { # print each main checkout under the roots, NUL-separated
+  local d
+  for d in "$roots"/*/*/; do
+    if [ -d "$d.git" ]; then printf '%s\0' "${d%/}"; fi
+  done
+}
+
+scan_all() { # scan every repo in parallel and write the cache atomically
+  mkdir -p "$(dirname "$cache")"
+  tmp=$(mktemp "$cache.XXXXXX")
+  discover | xargs -0 -n 1 -P "${GWS_JOBS:-8}" "$self" __scan-repo |
+    jq -s --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{
+      scanned_at: $at,
+      items: sort_by(.repo, .path, .branch),
+      totals: (reduce .[] as $i ({done: 0, tracked: 0, orphaned: 0, unknown: 0}; .[$i.state] += 1))
+    }' >"$tmp"
+  mv "$tmp" "$cache"
+}
+
+render() { # <all 0|1>: table of items from the cache
+  jq -r --argjson all "$1" '
+    def tilde: if startswith(env.HOME) then "~" + ltrimstr(env.HOME) else . end;
+    def row: [.state, .repo,
+      (if .path == "" then "(no worktree)" else (.path | tilde) end),
+      (if .branch == "" then "-" else .branch end),
+      (.reason + (if .local_changes then " (local changes)" else "" end))] | @tsv;
+    (.items | map(select($all == 1 or .state == "orphaned" or .state == "unknown"))
+      | sort_by(.state != "orphaned", .state != "unknown") | .[] | row)
+  ' "$cache" | column -t -s "$(printf '\t')"
+  jq -r '
+    "\(.totals.orphaned) orphaned, \(.totals.unknown) unknown, \(.totals.tracked) tracked, \(.totals.done) done (scanned \(.scanned_at))",
+    (if .totals.done > 0 then "done items can be removed with cleanup-worktrees.sh <repo>" else empty end)
+  ' "$cache"
+}
+
+mtime() { date -r "$1" +%s; } # works with GNU and BSD date
+
+refresh() { # <force 0|1>: scan into the cache unless it is fresh or locked
+  local lock=$cache.lock
+  if [ "$1" = 0 ] && [ -f "$cache" ] && [ $(($(date +%s) - $(mtime "$cache"))) -lt 900 ]; then
+    return 0
+  fi
+  mkdir -p "$(dirname "$cache")"
+  if ! mkdir "$lock" 2>/dev/null; then
+    # a lock older than 10 minutes was left by a killed scan
+    if [ ! -d "$lock" ] || [ $(($(date +%s) - $(mtime "$lock"))) -le 600 ]; then return 0; fi
+    rmdir "$lock" 2>/dev/null || true
+    mkdir "$lock" 2>/dev/null || return 0
+  fi
+  lock_held=1
+  scan_all
+}
+
+here() { # <dir>: one line for the worktree holding dir; returns 2 if orphaned
+  local top main repo branch head prs line
+  top=$(git -C "$1" rev-parse --show-toplevel 2>/dev/null) || return 0
+  main=$(dirname "$(git -C "$1" rev-parse --path-format=absolute --git-common-dir)")
+  if [ "$top" = "$main" ]; then echo "main checkout"; return 0; fi
+  repo=$(basename "$main")
+  branch=$(git -C "$top" symbolic-ref -q --short HEAD || true)
+  head=$(git -C "$top" rev-parse HEAD)
+  if ! git -C "$main" remote get-url origin >/dev/null 2>&1; then
+    echo "${branch:-HEAD}: unknown (no origin remote)"
+    return 0
+  fi
+  prs='[]'
+  if [ -n "$branch" ] && ! prs=$(cd "$main" && gh pr list --head "$branch" --state all \
+    --json headRefName,state,headRefOid,number 2>/dev/null); then
+    echo "$branch: unknown (gh pr list failed)"
+    return 0
+  fi
+  line=$(classify "$main" "$repo" "$top" "$branch" "$head" "$prs" | jq -r '
+    (if .branch == "" then "HEAD" else .branch end) + ": " + .state
+    + (if .reason != "" then " (" + .reason + ")" else "" end)
+    + (if .local_changes then ", local changes" else "" end)')
+  echo "$line"
+  case $line in *": orphaned"*) return 2 ;; esac
+}
+
+mode=table all=0 force=0 bg=0 dir=$PWD
+while [ $# -gt 0 ]; do
+  case $1 in
+    -a | --all) all=1 ;;
+    --json) mode=json ;;
+    --refresh) mode=refresh ;;
+    -f | --force) force=1 ;;
+    --bg) bg=1 ;;
+    --here)
+      mode=here
+      if [ $# -gt 1 ] && [ "${2#-}" = "$2" ]; then dir=$2; shift; fi
+      ;;
+    __scan-repo)
+      # internal: xargs runs one of these per repo (GNU xargs runs it once with
+      # no argument when there are no repos). The repo is scanned in a child
+      # so set -e stays live there; if it fails, the repo is reported instead
+      # of failing the whole scan.
+      if [ $# -gt 1 ]; then
+        if out=$("$self" __scan-repo-inner "$2"); then
+          printf '%s\n' "$out"
+        else
+          item "${2#"$roots"/}" "$2" "" unknown "scan failed" "" "" 0
+        fi
+      fi
+      exit 0
+      ;;
+    __scan-repo-inner) scan_repo "$2"; exit 0 ;;
+    -h | --help) sed -n '2,/^set -/p' "$0" | sed '$d;s/^# \{0,1\}//'; exit 0 ;;
+    *) echo "gws: unknown argument: $1 (see gws --help)" >&2; exit 64 ;;
+  esac
+  shift
+done
+
+command -v jq >/dev/null || { echo "gws: jq not found" >&2; exit 1; }
+
+case $mode in
+  here) rc=0; here "$dir" || rc=$?; exit "$rc" ;;
+  refresh)
+    if [ "$bg" = 1 ]; then
+      args=(--refresh)
+      if [ "$force" = 1 ]; then args+=(-f); fi
+      nohup "$self" "${args[@]}" </dev/null >/dev/null 2>&1 &
+      exit 0
+    fi
+    refresh "$force"
+    ;;
+  json) scan_all; cat "$cache" ;;
+  table) scan_all; render "$all" ;;
+esac

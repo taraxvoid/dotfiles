@@ -57,3 +57,9 @@ jobs:
         run: |
           sudo apt-get install -y -qq zsh
           zsh -n .zshrc .zshenv .zsh_aliases
+
+      - name: bats
+        # apt's bats is older than mise's pin but runs these plain-bats tests
+        run: |
+          sudo apt-get install -y -qq bats
+          bats tests/

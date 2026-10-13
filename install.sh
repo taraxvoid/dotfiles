@@ -11,9 +11,10 @@
 # terminal on stdin it assumes no unless -y is given.
 #
 # What it deliberately does NOT touch: ~/.config/gh/hosts.yml, ~/.config/poolside
-# (they hold per-machine auth state) and the rest of ~/.claude (settings.json and
-# hooks are machine-specific). Diff those by hand. ~/.config/gh/config.yml has no
-# secrets, so it is linked.
+# (they hold per-machine auth state) and the rest of ~/.claude. settings.json is
+# machine-specific; the Claude step only merges .claude/settings.fragment.json
+# into it (backed up first). ~/.config/gh/config.yml has no secrets, so it is
+# linked.
 #
 # Stays bash (not POSIX sh) for arrays and [[ ]]; keep it bash 3.2 compatible,
 # that is what macOS ships.
@@ -102,6 +103,7 @@ link .ssh/config
 link .config/mise-global.toml "$HOME/.config/mise/config.toml"
 link .local/bin/sbx
 link .local/bin/git-autofetch
+link .local/bin/gws
 mkdir -p "$HOME"/projects/{personal,ravenflight,untrusted} "$HOME"/worktrees/{personal,ravenflight,untrusted}
 
 # --- mise, uv, bun, and the CLI tools mise provides --------------------------
@@ -172,9 +174,12 @@ fi
 # --- Claude files (opt-in) --------------------------------------------------
 # link() backs up whatever is already at the destination. Scripts are linked one
 # by one so other scripts in ~/.claude/scripts (e.g. hooks) are left alone.
-if ask "Link Claude files (.claude/CLAUDE.md, .claude/scripts/*) into ~/.claude?"; then
+# settings.json stays a per-machine file: only the tracked fragment (status line,
+# gws hooks) is merged into it, with a backup first.
+if ask "Link Claude files (.claude/CLAUDE.md, .claude/scripts/*) and merge .claude/settings.fragment.json into ~/.claude/settings.json?"; then
   link .claude/CLAUDE.md
   for f in .claude/scripts/*.sh; do link "$f"; done
+  say "$("$DOTFILES/.claude/scripts/merge-settings.sh" "$DOTFILES/.claude/settings.fragment.json" "$HOME/.claude/settings.json")"
 else
   say "skipping ~/.claude (pass -y to link it)"
 fi
