@@ -196,9 +196,14 @@ if [ "$OS" = Linux ] && command -v apt-get >/dev/null; then
     sudo mkdir -p /etc/apt/keyrings
     curl -fsSL https://raw.githubusercontent.com/eza-community/eza/main/deb.asc \
       | sudo gpg --dearmor --yes -o /etc/apt/keyrings/gierens.gpg
-    echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de stable main" \
+    echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] https://deb.gierens.de stable main" \
       | sudo tee /etc/apt/sources.list.d/gierens.list >/dev/null
     sudo chmod 644 /etc/apt/keyrings/gierens.gpg /etc/apt/sources.list.d/gierens.list
+    sudo apt-get update -qq >/dev/null
+  elif grep -q 'http://deb.gierens.de' /etc/apt/sources.list.d/gierens.list; then
+    # plain HTTP gets intercepted by filtering proxies, which apt reports as "not signed"
+    say "switching eza apt repo to https"
+    sudo sed -i 's|http://deb.gierens.de|https://deb.gierens.de|' /etc/apt/sources.list.d/gierens.list
     sudo apt-get update -qq >/dev/null
   fi
   dpkg -s eza >/dev/null 2>&1 || need+=(eza)
