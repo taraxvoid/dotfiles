@@ -193,6 +193,7 @@ state_of() { item_for "$1" | jq -r '.state + "|" + .reason'; }
 }
 
 @test "--refresh writes the cache quietly and skips a fresh one" {
+  export GWS_MAX_AGE=900
   main=$(make_repo personal/app)
   add_worktree "$main" a >/dev/null
   run gws --refresh
@@ -203,6 +204,31 @@ state_of() { item_for "$1" | jq -r '.state + "|" + .reason'; }
   gws --refresh
   [ "$(gh_calls 'pr list')" = 1 ]
   gws --refresh -f
+  [ "$(gh_calls 'pr list')" = 2 ]
+}
+
+@test "table and --json reuse a fresh cache; -f rescans" {
+  export GWS_MAX_AGE=900
+  main=$(make_repo personal/app)
+  wt=$(add_worktree "$main" lost)
+  run gws
+  [ "$(gh_calls 'pr list')" = 1 ]
+  [[ "$output" == *"gws -f rescans"* ]]
+  gws --json >/dev/null
+  gws -a >/dev/null
+  [ "$(gh_calls 'pr list')" = 1 ]
+  gws -f >/dev/null
+  [ "$(gh_calls 'pr list')" = 2 ]
+  gws --json -f >/dev/null
+  [ "$(gh_calls 'pr list')" = 3 ]
+}
+
+@test "table rescans a stale cache" {
+  export GWS_MAX_AGE=900
+  make_repo personal/app >/dev/null
+  gws >/dev/null
+  touch -t 202001010000 "$GWS_CACHE"
+  gws >/dev/null
   [ "$(gh_calls 'pr list')" = 2 ]
 }
 

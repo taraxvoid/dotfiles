@@ -2,11 +2,12 @@
 # gws: list Claude worktrees and unpushed branches that are not tracked on
 # GitHub. Read-only. Works on macOS (bash 3.2) and Linux; needs git, jq, gh.
 #
-#   gws                  orphans first, then a line of totals
-#   gws -a               every item
-#   gws --json           the scan as JSON
-#   gws --refresh [-f]   scan into the cache quietly; skips if the cache is
-#                        under 15 minutes old unless -f
+#   gws [-f]             orphans first, then a line of totals
+#   gws -a [-f]          every item
+#   gws --json [-f]      the scan as JSON
+#   gws --refresh [-f]   scan into the cache quietly
+#                        all four reuse a cache under 15 minutes old
+#                        ($GWS_MAX_AGE seconds); -f rescans regardless
 #   gws --refresh --bg   same, detached (for the SessionStart hook)
 #   gws --here [dir]     one line for the worktree holding dir (default cwd);
 #                        exits 2 if it is orphaned
@@ -24,6 +25,7 @@
 set -euo pipefail
 
 roots=${GWS_ROOTS:-$HOME/projects}
+max_age=${GWS_MAX_AGE:-900}
 cache=${GWS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/gws.json}
 # one EXIT trap for both: scan_all's temp file and refresh's lock
 tmp='' lock_held=''
@@ -183,7 +185,7 @@ render() { # <all 0|1>: table of items from the cache
       | sort_by(.state != "orphaned", .state != "unknown") | .[] | row)
   ' "$cache" | column -t -s "$(printf '\t')"
   jq -r '
-    "\(.totals.orphaned) orphaned, \(.totals.unknown) unknown, \(.totals.tracked) tracked, \(.totals.done) done (scanned \(.scanned_at))",
+    "\(.totals.orphaned) orphaned, \(.totals.unknown) unknown, \(.totals.tracked) tracked, \(.totals.done) done (scanned \(.scanned_at); gws -f rescans)",
     (if .totals.done > 0 then "gws --clean lists what removing the done items would delete" else empty end)
   ' "$cache"
 }
@@ -236,11 +238,13 @@ clean() { # <yes 0|1>: remove done worktrees and branches, rechecking each first
 
 mtime() { date -r "$1" +%s; } # works with GNU and BSD date
 
+fresh() { # is the cache younger than max_age?
+  [ -s "$cache" ] && [ $(($(date +%s) - $(mtime "$cache"))) -lt "$max_age" ]
+}
+
 refresh() { # <force 0|1>: scan into the cache unless it is fresh or locked
   local lock=$cache.lock
-  if [ "$1" = 0 ] && [ -f "$cache" ] && [ $(($(date +%s) - $(mtime "$cache"))) -lt 900 ]; then
-    return 0
-  fi
+  if [ "$1" = 0 ] && fresh; then return 0; fi
   mkdir -p "$(dirname "$cache")"
   if ! mkdir "$lock" 2>/dev/null; then
     # a lock older than 10 minutes was left by a killed scan
@@ -326,7 +330,7 @@ case $mode in
     fi
     refresh "$force"
     ;;
-  json) scan_all; cat "$cache" ;;
+  json) if [ "$force" = 1 ] || ! fresh; then scan_all; fi; cat "$cache" ;;
   clean) clean "$yes" ;;
-  table) scan_all; render "$all" ;;
+  table) if [ "$force" = 1 ] || ! fresh; then scan_all; fi; render "$all" ;;
 esac
