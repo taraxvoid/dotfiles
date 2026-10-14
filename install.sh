@@ -142,6 +142,21 @@ if command -v mise >/dev/null; then
   mise reshim
 fi
 
+# --- release cooldowns -------------------------------------------------------
+# Every package manager refuses releases younger than 3 days, which blunts
+# "publish a poisoned version and wait for installs" attacks: bun via the linked
+# ~/.bunfig.toml, uv via ~/.config/uv/uv.toml, mise via its global config, npm
+# and pnpm via their user config files here (~/.npmrc also holds the npm login
+# token, so it is set in place rather than linked).
+link .config/uv/uv.toml
+PATH="$HOME/.local/share/mise/shims:$PATH"
+if command -v npm >/dev/null && [ "$(npm config get min-release-age 2>/dev/null)" != 3 ]; then
+  npm config set min-release-age 3 --location=user && say "npm: min-release-age 3 (days)"
+fi
+if command -v pnpm >/dev/null && [ "$(pnpm config get minimum-release-age 2>/dev/null)" != 4320 ]; then
+  pnpm config set minimum-release-age 4320 --global >/dev/null && say "pnpm: minimum-release-age 4320 (minutes)"
+fi
+
 # post-checkout is copied, not linked: git copies it into every new repo's .git/hooks,
 # and a link into a checkout of this repo would dangle when that checkout goes away.
 # Only files carrying the managed-by marker are overwritten.
@@ -283,12 +298,8 @@ gen_completion yq yq completion zsh
 gen_completion starship starship completions zsh
 gen_completion rustup rustup completions zsh rustup
 gen_completion cargo rustup completions zsh cargo
-# mise's completions call out to `usage` at tab time; pinned like the other tools
-USAGE_VERSION=6.12.1
-if command -v mise >/dev/null && [ "$(mise ls --global --no-header usage 2>/dev/null | awk '{print $2}')" != "$USAGE_VERSION" ]; then
-  say "installing usage $USAGE_VERSION"
-  mise use -g "usage@$USAGE_VERSION" >/dev/null || echo "warning: could not install usage; mise completions won't work" >&2
-fi
+# (mise's completions call `usage` at tab time; it is pinned in the global mise
+# config and installed by `mise install` above)
 # .zshrc trusts the cached ~/.zcompdump for a day and only notices fpath string
 # changes, not completions added or removed (apt/brew installs, deleted files), so
 # always drop it; the next shell rebuilds it.

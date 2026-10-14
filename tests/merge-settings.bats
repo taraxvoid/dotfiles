@@ -44,3 +44,28 @@ setup() {
   merge-settings.sh "$frag" "$s"
   [ "$(jq '.hooks.Stop | length' "$s")" = 1 ]
 }
+
+@test "adds every guardrail hook and the worktree deny rules to a fresh file" {
+  echo '{}' >"$s"
+  merge-settings.sh "$frag" "$s"
+  [ "$(jq '.hooks.PreToolUse | length' "$s")" = 2 ]
+  [ "$(jq -r '.hooks.PreToolUse[1].hooks[0].if' "$s")" = 'Bash(git commit*)' ]
+  [ "$(jq -r '.hooks.WorktreeCreate[0].hooks[0].command' "$s")" = '$HOME/.claude/scripts/worktree-create.sh' ]
+  [ "$(jq '.hooks.WorktreeRemove | length' "$s")" = 1 ]
+  [ "$(jq -r '.permissions.deny[0]' "$s")" = 'Bash(git worktree remove*)' ]
+}
+
+@test "deny rules are appended once, keeping existing ones and their order" {
+  echo '{"permissions":{"deny":["Bash(curl*)","Bash(git worktree prune*)"],"allow":["Read"]}}' >"$s"
+  merge-settings.sh "$frag" "$s"
+  merge-settings.sh "$frag" "$s"
+  [ "$(jq -c '.permissions.deny' "$s")" = '["Bash(curl*)","Bash(git worktree prune*)","Bash(git worktree remove*)","Bash(rm -rf ~/worktrees*)"]' ]
+  [ "$(jq -c '.permissions.allow' "$s")" = '["Read"]' ]
+}
+
+@test "a machine that already wired the hooks by hand gets no duplicates" {
+  jq '{hooks: {PreToolUse: .hooks.PreToolUse, WorktreeCreate: .hooks.WorktreeCreate}}' "$frag" >"$s"
+  merge-settings.sh "$frag" "$s"
+  [ "$(jq '.hooks.PreToolUse | length' "$s")" = 2 ]
+  [ "$(jq '.hooks.WorktreeCreate | length' "$s")" = 1 ]
+}

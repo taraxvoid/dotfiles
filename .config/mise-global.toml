@@ -1,7 +1,8 @@
 [tools]
-node = "latest"
+# every tool is pinned to an exact version; bump on purpose (or via Renovate)
+node = "26.10.0"
 pnpm = "12.8.1"
-usage = "latest"
+usage = "6.12.1" # mise's completions call it at tab time
 # CLI tools. Debian's apt versions are years old, so mise (aqua backend: checksum and
 # attestation verified GitHub releases) provides them. uv and bun are deliberately
 # absent: they come from their vendor installers (install.sh), and a mise copy would
@@ -15,7 +16,13 @@ yq = "4.54.1"
 starship = "1.26.0"
 
 [settings]
-auto_update = true
+# Supply-chain cooldown, same 3 days as ~/.bunfig.toml, npm, pnpm and uv
+# (install.sh): a version request like node@26 or latest only resolves to
+# releases at least this old. Exact pins are not filtered; the npm: and pypi:
+# backends pass it on to the package manager for unpinned dependencies.
+# mise's own self-updates use it too.
+minimum_release_age = "3d"
+self_update.auto = true
 # Without this, mise still reads a config that only has [tools] from an untrusted
 # dir, and `bun run dev` there would download and install whatever it pins, outside
 # the sandbox. Paranoid refuses every untrusted config.

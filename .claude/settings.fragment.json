@@ -3,12 +3,35 @@
     "type": "command",
     "command": "$HOME/.claude/scripts/statusline.sh"
   },
+  "permissions": {
+    "deny": [
+      "Bash(git worktree remove*)",
+      "Bash(git worktree prune*)",
+      "Bash(rm -rf ~/worktrees*)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       { "hooks": [{ "type": "command", "command": "$HOME/.local/bin/gws --refresh --bg" }] }
     ],
     "Stop": [
       { "hooks": [{ "type": "command", "command": "$HOME/.claude/scripts/stop-orphan-check.sh", "timeout": 20 }] }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [{ "type": "command", "command": "$HOME/.claude/scripts/require-worktree.sh" }]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "$HOME/.claude/scripts/require-worktree.sh", "if": "Bash(git commit*)" }]
+      }
+    ],
+    "WorktreeCreate": [
+      { "hooks": [{ "type": "command", "command": "$HOME/.claude/scripts/worktree-create.sh", "timeout": 60 }] }
+    ],
+    "WorktreeRemove": [
+      { "hooks": [{ "type": "command", "command": "$HOME/.claude/scripts/worktree-remove.sh" }] }
     ]
   }
 }
