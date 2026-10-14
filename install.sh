@@ -109,10 +109,11 @@ mkdir -p "$HOME"/projects/{personal,ravenflight,untrusted} "$HOME"/worktrees/{pe
 # --- prerequisites ------------------------------------------------------------
 # What the rest of this script and the vendor installers need on a fresh box:
 # jq (merge-settings.sh, gws), unzip (bun's installer), xz (the Nerd Font), gpg
-# (the eza apt key). macOS ships everything here except jq.
+# (the eza apt key), libatomic1 (mise's node builds link it). macOS ships
+# everything here except jq.
 if [ "$OS" = Linux ] && command -v apt-get >/dev/null; then
   need=()
-  for p in ca-certificates curl git gpg jq unzip xz-utils; do
+  for p in ca-certificates curl git gpg jq libatomic1 unzip xz-utils; do
     dpkg -s "$p" >/dev/null 2>&1 || need+=("$p")
   done
   if [ ${#need[@]} -gt 0 ]; then
@@ -312,9 +313,9 @@ gen_completion rustup rustup completions zsh rustup
 gen_completion cargo rustup completions zsh cargo
 # mise's completions call out to `usage` at tab time; pinned like the other tools
 USAGE_VERSION=6.12.1
-if command -v mise >/dev/null && [ "$(mise ls --global --no-header usage 2>/dev/null | awk '{print $2}')" != "$USAGE_VERSION" ]; then
+if command -v mise >/dev/null && [ "$(cd "$HOME" && mise ls --global --no-header usage 2>/dev/null | awk '{print $2}')" != "$USAGE_VERSION" ]; then
   say "installing usage $USAGE_VERSION"
-  mise use -g "usage@$USAGE_VERSION" >/dev/null || echo "warning: could not install usage; mise completions won't work" >&2
+  (cd "$HOME" && mise use -g "usage@$USAGE_VERSION" >/dev/null) || echo "warning: could not install usage; mise completions won't work" >&2
 fi
 # .zshrc trusts the cached ~/.zcompdump for a day and only notices fpath string
 # changes, not completions added or removed (apt/brew installs, deleted files), so
