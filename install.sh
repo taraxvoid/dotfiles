@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 # Idempotent setup for these dotfiles on macOS or Debian/Ubuntu (incl. ChromeOS
-# Crostini). Safe to re-run; re-run it from the checkout you want ~ to point at.
+# Crostini). Safe to re-run, from any checkout or worktree of this repo.
 #
-#   ./install.sh           link dotfiles, install zsh plugins, generate completions
-#   ./install.sh --chsh    also make zsh the login shell
-#   ./install.sh -y        answer yes to every prompt (also: --yes)
+#   ./install.sh              link dotfiles, install zsh plugins, generate completions
+#   ./install.sh --chsh       also make zsh the login shell
+#   ./install.sh -y           answer yes to every prompt (also: --yes)
 #   ./install.sh -n        answer no to every prompt without asking (also: --no)
+#   ./install.sh --from-here  back ~ with this checkout instead of the main one
+#   ./install.sh --link-only  only (re)link, install nothing
+#
+# Every link in ~ goes through one symlink, ~/.dotfiles, which points at the
+# repo's main checkout. Worktrees come and go (cleanup-worktrees.sh removes them),
+# so one only backs ~ when --from-here asks for it, and a run without the flag
+# switches back.
 #
 # It asks (default no) before linking the Claude files in .claude/ into ~/.claude;
 # anything already there is moved aside to <name>.pre-dotfiles first. With no
@@ -21,8 +28,9 @@
 # that is what macOS ships.
 set -euo pipefail
 
-DOTFILES=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 OS=$(uname -s)
+LINKROOT=$HOME/.dotfiles # the one path every link in ~ points through
 
 # Pinned like .zsh_plugins.txt: bump on purpose (review the diff, change the SHA).
 ANTIDOTE_URL=https://github.com/mattmc3/antidote
@@ -33,15 +41,27 @@ NERDFONT_SHA256=04d5e8f903693f9dd13e16f867e994834e681eb3c72c0d337a770dcda09010cf
 CHSH=0
 YES=0
 NO=0
+FROM_HERE=0
+LINK_ONLY=0
 for arg in "$@"; do
   case $arg in
     --chsh) CHSH=1 ;;
     -y | --yes) YES=1 ;;
     -n | --no) NO=1 ;;
-    *) echo "usage: $0 [--chsh] [-y|--yes|-n|--no]" >&2; exit 2 ;;
+    --from-here) FROM_HERE=1 ;;
+    --link-only) LINK_ONLY=1 ;;
+    *) echo "usage: $0 [--chsh] [-y|--yes|-n|--no] [--from-here] [--link-only]" >&2; exit 2 ;;
   esac
 done
 if [ "$YES" = 1 ] && [ "$NO" = 1 ]; then echo "$0: --yes and --no conflict" >&2; exit 2; fi
+
+# DOTFILES is the checkout ~ ends up using: the main checkout (parent of the
+# shared git dir) unless --from-here, or this dir when it is not a git checkout
+DOTFILES=$HERE
+if [ "$FROM_HERE" = 0 ] && common=$(git -C "$HERE" rev-parse --path-format=absolute --git-common-dir 2>/dev/null); then
+  DOTFILES=$(dirname "$common")
+fi
+cd "$DOTFILES"
 
 say() { printf '==> %s\n' "$*"; }
 
@@ -54,13 +74,14 @@ ask() { # ask <question>: default no; -y answers yes, -n no; no tty means no
   [[ $reply == [yY] || $reply == [yY][eE][sS] ]]
 }
 
-link() { # link <repo-relative path> [dest]
-  local src="$DOTFILES/$1" dest="${2:-$HOME/$1}" cur bak
+link() { # link <repo-relative path> [dest]: dest -> ~/.dotfiles/<path>
+  local src="$LINKROOT/$1" dest="${2:-$HOME/$1}" cur bak
   mkdir -p "$(dirname "$dest")"
   cur=$(readlink "$dest" 2>/dev/null || true)
   [ "$cur" = "$src" ] && return
   if [ -n "$cur" ] && [[ $cur == */"$1" ]]; then
-    # points into another checkout of this repo: nothing to keep, just repoint
+    # points straight into a checkout of this repo (the layout from before
+    # ~/.dotfiles): nothing to keep, just repoint
     ln -sfn "$src" "$dest"
     say "relinked $dest -> $src"
     return
@@ -90,6 +111,19 @@ pinned_clone() { # pinned_clone <url> <sha> <dest>
 }
 
 # --- dotfiles ---------------------------------------------------------------
+# ~/.dotfiles itself: (re)point it when it is a link or missing; anything else
+# there is not ours to move
+if [ -L "$LINKROOT" ] || [ ! -e "$LINKROOT" ]; then
+  if [ "$(readlink "$LINKROOT" 2>/dev/null || true)" != "$DOTFILES" ]; then
+    ln -sfn "$DOTFILES" "$LINKROOT"
+    say "$LINKROOT -> $DOTFILES"
+  fi
+else
+  echo "$LINKROOT exists and is not a symlink; move it aside and re-run" >&2
+  exit 1
+fi
+[ "$DOTFILES" = "$HERE" ] || say "using the main checkout; pass --from-here to use $HERE"
+
 for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .gitconfig .config/git/ignore .config/starship.toml .config/gh/config.yml; do
   link "$f"
 done
@@ -98,8 +132,8 @@ done
 mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
 link .ssh/config
 # dx reads these (references to Dashlane entries, not secrets); link the dir only
-# if this machine has none of its own.
-[ -e "$HOME/.config/dashlane" ] || link .config/dashlane
+# if this machine has none of its own (a link means it is already ours).
+if [ -L "$HOME/.config/dashlane" ] || [ ! -e "$HOME/.config/dashlane" ]; then link .config/dashlane; fi
 
 # --- dev tiers: sandbox, mise trust, git hooks, auto-fetch -------------------
 # Repos live in ~/projects/{personal,ravenflight,untrusted} (worktrees mirror that
@@ -110,6 +144,17 @@ link .local/bin/sbx
 link .local/bin/git-autofetch
 link .local/bin/gws
 mkdir -p "$HOME"/projects/{personal,ravenflight,untrusted} "$HOME"/worktrees/{personal,ravenflight,untrusted}
+
+if [ "$LINK_ONLY" = 1 ]; then
+  # repoint what an earlier full run linked (the opt-in Claude files and the
+  # systemd units only if they are links already), install nothing
+  for f in .config/systemd/user/git-autofetch.service .config/systemd/user/git-autofetch.timer \
+    .claude/CLAUDE.md .claude/scripts/*.sh; do
+    if [ -L "$HOME/$f" ]; then link "$f"; fi
+  done
+  say "done (links only)"
+  exit 0
+fi
 
 # --- mise, uv, bun, and the CLI tools mise provides --------------------------
 # mise, uv and bun come from their vendors and update themselves (`mise self-update`,

@@ -9,6 +9,7 @@
 #
 # A worktree is removed only when all of these hold:
 #   - it is not the main checkout and has a branch (not detached)
+#   - ~/.dotfiles does not point at it (install.sh --from-here)
 #   - no PR for the branch is open
 #   - a merged/closed PR has a head commit equal to the worktree's HEAD, so
 #     work added after the merge is never thrown away
@@ -45,10 +46,17 @@ records=$(git -C "$repo" worktree list --porcelain | awk '
   END          { flush() }
 ')
 
+# the checkout every dotfile link in ~ goes through (install.sh --from-here can
+# point it at a worktree); removing that one would break the shell, git and ssh
+backing=$(cd "$HOME/.dotfiles" 2>/dev/null && pwd -P || true)
+
 removed=0
 while IFS=$'\t' read -r -u 3 path branch head locked; do
   [ "$path" = "$main" ] && continue
   if [ -z "$branch" ]; then say "skip   $path (detached HEAD)"; continue; fi
+  if [ -n "$backing" ] && [ "$(cd "$path" 2>/dev/null && pwd -P)" = "$backing" ]; then
+    say "skip   $path ($branch: ~/.dotfiles points here; run install.sh from the main checkout first)"; continue
+  fi
 
   prs=$(cd "$main" && gh pr list --head "$branch" --state all --limit 50 \
     --json state,headRefOid --jq '.[] | "\(.state) \(.headRefOid)"')
