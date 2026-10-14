@@ -178,12 +178,12 @@ state_of() { item_for "$1" | jq -r '.state + "|" + .reason'; }
   [[ "$output" == *"kept"* ]]
 }
 
-@test "table suggests cleanup-worktrees.sh when items are done" {
+@test "table suggests gws --clean when items are done" {
   main=$(make_repo personal/app)
   wt=$(add_worktree "$main" fin --push)
   set_prs "$main" "[{\"headRefName\":\"fin\",\"state\":\"MERGED\",\"headRefOid\":\"$(git -C "$wt" rev-parse HEAD)\",\"number\":2}]"
   run gws
-  [[ "$output" == *"cleanup-worktrees.sh"* ]]
+  [[ "$output" == *"gws --clean"* ]]
 }
 
 @test "no repos gives zero totals" {
@@ -305,4 +305,90 @@ state_of() { item_for "$1" | jq -r '.state + "|" + .reason'; }
   [ "$(jq -r '.items[] | select(.repo == "personal/app") | .state + "|" + .reason' "$GWS_CACHE")" = "unknown|gh pr list returned bad JSON" ]
   [ "$(item_for "$wt" | jq -r .state)" = orphaned ]
   [ -z "$(ls "$GWS_CACHE".?????? 2>/dev/null)" ]
+}
+
+# merged <main> <branch> <head>: a merged PR whose head is <head>
+merged() { set_prs "$1" "[{\"headRefName\":\"$2\",\"state\":\"MERGED\",\"headRefOid\":\"$3\",\"number\":9}]"; }
+
+@test "items carry head and last commit time; table shows age" {
+  main=$(make_repo personal/app)
+  wt=$(add_worktree "$main" lost)
+  gws --json >/dev/null
+  [ "$(item_for "$wt" | jq -r .head)" = "$(git -C "$wt" rev-parse HEAD)" ]
+  [ "$(item_for "$wt" | jq -r '.last_commit | type')" = number ]
+  run gws
+  [[ "$output" == "orphaned  0d"*"lost"* ]]
+}
+
+@test "--clean without --yes changes nothing" {
+  main=$(make_repo personal/app)
+  wt=$(add_worktree "$main" fin --push)
+  merged "$main" fin "$(git -C "$wt" rev-parse HEAD)"
+  run gws --clean
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"would remove personal/app $wt fin"* ]]
+  [ -d "$wt" ]
+  git -C "$main" rev-parse -q --verify refs/heads/fin
+}
+
+@test "--clean --yes removes done worktrees and done bare branches" {
+  main=$(make_repo personal/app)
+  wt=$(add_worktree "$main" fin --push)
+  git -C "$main" checkout -q -b bare
+  git -C "$main" commit -q --allow-empty -m b
+  git -C "$main" checkout -q main
+  set_prs "$main" "[{\"headRefName\":\"fin\",\"state\":\"MERGED\",\"headRefOid\":\"$(git -C "$wt" rev-parse HEAD)\",\"number\":1},
+    {\"headRefName\":\"bare\",\"state\":\"CLOSED\",\"headRefOid\":\"$(git -C "$main" rev-parse bare)\",\"number\":2}]"
+  run gws --clean --yes
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"2 removed, 0 kept"* ]]
+  [ ! -d "$wt" ]
+  run git -C "$main" rev-parse -q --verify refs/heads/fin
+  [ "$status" -ne 0 ]
+  run git -C "$main" rev-parse -q --verify refs/heads/bare
+  [ "$status" -ne 0 ]
+  [ "$(jq .totals.done "$GWS_CACHE")" = 0 ]
+}
+
+@test "--clean --yes never touches orphans, however old" {
+  main=$(make_repo personal/app)
+  wt=$(add_worktree "$main" lost)
+  GIT_COMMITTER_DATE="2020-01-01T00:00:00Z" git -C "$wt" commit -q --allow-empty -m old
+  wt2=$(add_worktree "$main" pushed-only --push)
+  run gws --clean --yes
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"0 removed, 0 kept"* ]]
+  [ -d "$wt" ]
+  [ -d "$wt2" ]
+}
+
+@test "--clean --yes keeps a done worktree with uncommitted files" {
+  main=$(make_repo personal/app)
+  wt=$(add_worktree "$main" fin --push)
+  merged "$main" fin "$(git -C "$wt" rev-parse HEAD)"
+  touch "$wt/notes.txt"
+  run gws --clean --yes
+  [[ "$output" == *"keep    personal/app $wt fin (local changes)"* ]]
+  [ -f "$wt/notes.txt" ]
+}
+
+@test "--clean --yes keeps a branch with commits after the merged PR" {
+  main=$(make_repo personal/app)
+  wt=$(add_worktree "$main" fin --push)
+  merged "$main" fin "$(git -C "$wt" rev-parse HEAD)"
+  git -C "$wt" commit -q --allow-empty -m more
+  run gws --clean --yes
+  [[ "$output" == *"0 removed"* ]]
+  [ -d "$wt" ]
+  [ "$(item_for "$wt" | jq -r .state)" = orphaned ]
+}
+
+@test "--clean --yes removes a locked done worktree" {
+  main=$(make_repo personal/app)
+  wt=$(add_worktree "$main" fin --push)
+  merged "$main" fin "$(git -C "$wt" rev-parse HEAD)"
+  git -C "$main" worktree lock "$wt"
+  run gws --clean --yes
+  [[ "$output" == *"1 removed"* ]]
+  [ ! -d "$wt" ]
 }

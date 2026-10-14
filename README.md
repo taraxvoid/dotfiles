@@ -69,6 +69,13 @@ The `hooks` block in `~/.claude/settings.json` is machine-specific; wire it as:
 
 ## Claude worktree cleanup
 
+`gws --clean` rescans and lists every `done` item (a merged or closed PR's head is
+exactly the branch HEAD) across all repos; `gws --clean --yes` removes those
+worktrees and deletes those local branches. Each one is rechecked first and kept if
+it has local changes, moved since the scan, or its directory is gone. Orphans are
+never removed, however old: the age column in `gws` is for triage only. Ignored
+files in a removed worktree (`node_modules`, `.env.local`) go with it.
+
 `.claude/scripts/cleanup-worktrees.sh [-n] [repo-dir]` removes git worktrees whose
 PR is merged or closed (needs `gh`). It skips the main checkout, open PRs, dirty
 trees, and branches with commits newer than any PR head. `install.sh` links it into
