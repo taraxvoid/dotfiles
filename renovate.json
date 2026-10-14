@@ -1,0 +1,52 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "description": "Bump the hand-pinned versions and SHAs here. Same 3-day cooldown as the package managers; one Monday batch a week.",
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+  "schedule": ["* 0-5 * * 1"],
+  "mise": {
+    "managerFilePatterns": ["/(^|/)\\.?mise\\.toml$/", "/^\\.config/mise-global\\.toml$/"]
+  },
+  "customManagers": [
+    {
+      "description": "zsh plugins pinned to commits in .zsh_plugins.txt (antidote pin:)",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.zsh_plugins\\.txt$/"],
+      "matchStrings": ["(?<depName>[\\w.-]+/[\\w.-]+) [^\\n]*pin:(?<currentDigest>[0-9a-f]{40})"],
+      "datasourceTemplate": "git-refs",
+      "packageNameTemplate": "https://github.com/{{{depName}}}",
+      "currentValueTemplate": "master"
+    },
+    {
+      "description": "antidote, cloned at a pinned tag commit by install.sh",
+      "customType": "regex",
+      "managerFilePatterns": ["/^install\\.sh$/"],
+      "matchStrings": ["ANTIDOTE_SHA=(?<currentDigest>[0-9a-f]{40}) # (?<currentValue>v[\\d.]+)"],
+      "depNameTemplate": "mattmc3/antidote",
+      "datasourceTemplate": "github-tags"
+    },
+    {
+      "description": "the mise version CI runs (jdx/mise-action's version input)",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
+      "matchStrings": ["jdx/mise-action@[0-9a-f]{40} # v[\\d.]+\\n\\s+with:\\n\\s+version: (?<currentValue>[\\d.]+)"],
+      "depNameTemplate": "jdx/mise",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "one PR for all zsh plugin pins",
+      "matchFileNames": [".zsh_plugins.txt"],
+      "groupName": "zsh plugins"
+    },
+    {
+      "description": "one PR for the repo's dev tools (mise.toml) and the mise version CI uses",
+      "matchFileNames": ["mise.toml", ".github/workflows/ci.yml"],
+      "matchDepNames": ["!actions/checkout", "!jdx/mise-action"],
+      "groupName": "dev tools"
+    }
+  ]
+}

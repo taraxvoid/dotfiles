@@ -106,6 +106,24 @@ link .local/bin/git-autofetch
 link .local/bin/gws
 mkdir -p "$HOME"/projects/{personal,ravenflight,untrusted} "$HOME"/worktrees/{personal,ravenflight,untrusted}
 
+# --- prerequisites ------------------------------------------------------------
+# What the rest of this script and the vendor installers need on a fresh box:
+# jq (merge-settings.sh, gws), unzip (bun's installer), xz (the Nerd Font), gpg
+# (the eza apt key). macOS ships everything here except jq.
+if [ "$OS" = Linux ] && command -v apt-get >/dev/null; then
+  need=()
+  for p in ca-certificates curl git gpg jq unzip xz-utils; do
+    dpkg -s "$p" >/dev/null 2>&1 || need+=("$p")
+  done
+  if [ ${#need[@]} -gt 0 ]; then
+    say "apt install: ${need[*]}"
+    sudo apt-get update -qq >/dev/null
+    sudo apt-get install -y -qq "${need[@]}" >/dev/null
+  fi
+elif [ "$OS" = Darwin ] && command -v brew >/dev/null; then
+  command -v jq >/dev/null || brew install --quiet jq
+fi
+
 # --- mise, uv, bun, and the CLI tools mise provides --------------------------
 # mise, uv and bun come from their vendors and update themselves (`mise self-update`,
 # `uv self update`, `bun upgrade`), so they are installed only when missing. They are
