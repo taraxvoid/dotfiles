@@ -7,6 +7,7 @@ My configs
 ./install.sh          # symlink zsh/bun configs into ~, install zsh plugins
 ./install.sh --chsh   # also make zsh the login shell
 ./install.sh -y       # no prompts, answer yes to all
+./install.sh -n       # no prompts, answer no to all
 ```
 
 Safe to re-run; re-run it from whichever checkout `~` should point at (for
@@ -38,7 +39,7 @@ The zsh config detects what is installed instead of branching on OS:
 `install.sh` leaves `~/.config/gh/hosts.yml` and `~/.config/poolside` alone
 (per-machine auth). It links `.ssh/config` but never keys or `~/.ssh/config.local`. It asks, default no, before linking `.claude/CLAUDE.md` and
 `.claude/scripts/*.sh` into `~/.claude` (existing files are moved to
-`*.pre-dotfiles`); `-y` answers yes. The rest of `~/.claude` (settings, hooks)
+`*.pre-dotfiles`); `-y` answers yes, `-n` no. The rest of `~/.claude` (settings, hooks)
 is machine-specific, diff it by hand.
 
 ## Checks

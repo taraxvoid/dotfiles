@@ -5,6 +5,7 @@
 #   ./install.sh           link dotfiles, install zsh plugins, generate completions
 #   ./install.sh --chsh    also make zsh the login shell
 #   ./install.sh -y        answer yes to every prompt (also: --yes)
+#   ./install.sh -n        answer no to every prompt without asking (also: --no)
 #
 # It asks (default no) before linking the Claude files in .claude/ into ~/.claude;
 # anything already there is moved aside to <name>.pre-dotfiles first. With no
@@ -31,18 +32,22 @@ NERDFONT_SHA256=04d5e8f903693f9dd13e16f867e994834e681eb3c72c0d337a770dcda09010cf
 
 CHSH=0
 YES=0
+NO=0
 for arg in "$@"; do
   case $arg in
     --chsh) CHSH=1 ;;
     -y | --yes) YES=1 ;;
-    *) echo "usage: $0 [--chsh] [-y|--yes]" >&2; exit 2 ;;
+    -n | --no) NO=1 ;;
+    *) echo "usage: $0 [--chsh] [-y|--yes|-n|--no]" >&2; exit 2 ;;
   esac
 done
+if [ "$YES" = 1 ] && [ "$NO" = 1 ]; then echo "$0: --yes and --no conflict" >&2; exit 2; fi
 
 say() { printf '==> %s\n' "$*"; }
 
-ask() { # ask <question>: default no; -y answers yes; no tty means no
+ask() { # ask <question>: default no; -y answers yes, -n no; no tty means no
   [ "$YES" = 1 ] && return 0
+  [ "$NO" = 1 ] && return 1
   [ -t 0 ] || return 1
   local reply
   read -r -p "$1 [y/N] " reply
