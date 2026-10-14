@@ -7,10 +7,15 @@ My configs
 ./install.sh          # symlink zsh/bun configs into ~, install zsh plugins
 ./install.sh --chsh   # also make zsh the login shell
 ./install.sh -y       # no prompts, answer yes to all
+./install.sh --from-here  # back ~ with this worktree (to try a branch)
+./install.sh --link-only  # only (re)link, install nothing
 ```
 
-Safe to re-run; re-run it from whichever checkout `~` should point at (for
-example after merging a worktree). Existing real files are moved to
+Safe to re-run, from any checkout or worktree. Every link in `~` points through
+one symlink, `~/.dotfiles`, which points at the repo's main checkout, so a
+worktree being cleaned up never breaks `~`. `--from-here` points it at the
+current worktree instead (`cleanup-worktrees.sh` won't remove that one); a run
+without the flag switches back. Existing real files are moved to
 `<name>.pre-dotfiles` first.
 
 The zsh config detects what is installed instead of branching on OS:
