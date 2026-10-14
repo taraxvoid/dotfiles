@@ -30,7 +30,9 @@ for f in .zshrc .zshenv .zsh_aliases .gitconfig .ssh/config .config/mise/config.
 done
 
 echo "--- interactive zsh"
-# without a terminal, zsh warns that it cannot enable zle; that one is expected
+# from $HOME: in this checkout mise would rightly warn that its mise.toml is not
+# trusted. Without a terminal, zsh warns that it cannot enable zle; also expected.
+cd "$HOME"
 err=$(zsh -i -c 'exit' 2>&1 >/dev/null | grep -v "can't change option: zle" || true)
 [ -z "$err" ] || fail "zsh startup wrote to stderr:"$'\n'"$err"
 zsh -i -c 'whence antidote compinit >/dev/null' 2>/dev/null || fail "antidote or compinit missing in zsh"
