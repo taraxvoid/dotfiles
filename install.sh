@@ -139,6 +139,11 @@ if [ "$OS" = Darwin ] && command -v brew >/dev/null; then
   command -v uv >/dev/null || brew install --quiet uv
   command -v bun >/dev/null || brew install --quiet oven-sh/bun/bun
   command -v eza >/dev/null || brew install --quiet eza
+  # zsh plugins .zshrc sources from brew's prefix (Linux gets them from apt and
+  # the pinned antidote clone below)
+  for f in antidote zsh-autosuggestions zsh-syntax-highlighting; do
+    brew list --formula "$f" >/dev/null 2>&1 || brew install --quiet "$f"
+  done
 else
   PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
   if ! command -v mise >/dev/null; then
@@ -156,8 +161,11 @@ else
 fi
 if command -v mise >/dev/null; then
   say "mise install (global tools)"
-  mise install --yes --quiet || echo "warning: mise install failed; re-run after fixing" >&2
-  mise reshim
+  # from $HOME so mise reads only the global config: run inside this checkout it
+  # would also read the repo's mise.toml, which it refuses (paranoid mode) unless
+  # the clone happens to sit in a trusted tree
+  (cd "$HOME" && mise install --yes --quiet) || echo "warning: mise install failed; re-run after fixing" >&2
+  (cd "$HOME" && mise reshim)
 fi
 
 # post-checkout is copied, not linked: git copies it into every new repo's .git/hooks,
@@ -281,7 +289,8 @@ gen_completion() {
   local name=$1; shift
   command -v "$1" >/dev/null || return 0
   local out
-  out=$(cd "$DOTFILES" && "$@" 2>/dev/null) || return 0
+  # from $HOME, so mise shims resolve the global tool versions (see mise install)
+  out=$(cd "$HOME" && "$@" 2>/dev/null) || return 0
   case $out in "#compdef"*) ;; *) return 0 ;; esac
   if [ "$out" != "$(cat "$comp_dir/_$name" 2>/dev/null)" ]; then
     printf '%s\n' "$out" >"$comp_dir/_$name"
