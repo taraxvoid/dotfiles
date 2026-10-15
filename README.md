@@ -4,10 +4,10 @@ My configs
 ## Setup (macOS, Debian/Ubuntu, ChromeOS Crostini)
 
 ```sh
-./install.sh          # symlink zsh/bun configs into ~, install zsh plugins
+./install.sh          # symlink zsh/bun configs into ~, install zsh plugins, optionally copy Claude scripts and setup
 ./install.sh --chsh   # also make zsh the login shell
-./install.sh -y       # no prompts, answer yes to all
-./install.sh --from-here  # back ~ with this worktree (to try a branch)
+./install.sh [-y/-n|--yes/--no]       # no prompts, answer yes to all
+./install.sh --from-here  # point global configs to those in this branch (for testing)
 ./install.sh --link-only  # only (re)link, install nothing
 ```
 
@@ -43,7 +43,7 @@ The zsh config detects what is installed instead of branching on OS:
 `install.sh` leaves `~/.config/gh/hosts.yml` and `~/.config/poolside` alone
 (per-machine auth). It links `.ssh/config` but never keys or `~/.ssh/config.local`. It asks, default no, before linking `.claude/CLAUDE.md` and
 `.claude/scripts/*.sh` into `~/.claude` (existing files are moved to
-`*.pre-dotfiles`); `-y` answers yes. The rest of `~/.claude` (settings, hooks)
+`*.pre-dotfiles`); `-y` answers yes, `-n` no. The rest of `~/.claude` (settings, hooks)
 is machine-specific, diff it by hand.
 
 ## Checks
@@ -73,6 +73,13 @@ The `hooks` block in `~/.claude/settings.json` is machine-specific; wire it as:
 `require-worktree.sh` for `Edit|Write|NotebookEdit` and for `Bash` with `if: Bash(git commit*)`.
 
 ## Claude worktree cleanup
+
+`gws --clean` rescans and lists every `done` item (a merged or closed PR's head is
+exactly the branch HEAD) across all repos; `gws --clean --yes` removes those
+worktrees and deletes those local branches. Each one is rechecked first and kept if
+it has local changes, moved since the scan, or its directory is gone. Orphans are
+never removed, however old: the age column in `gws` is for triage only. Ignored
+files in a removed worktree (`node_modules`, `.env.local`) go with it.
 
 `.claude/scripts/cleanup-worktrees.sh [-n] [repo-dir]` removes git worktrees whose
 PR is merged or closed (needs `gh`). It skips the main checkout, open PRs, dirty

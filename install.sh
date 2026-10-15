@@ -5,6 +5,7 @@
 #   ./install.sh              link dotfiles, install zsh plugins, generate completions
 #   ./install.sh --chsh       also make zsh the login shell
 #   ./install.sh -y           answer yes to every prompt (also: --yes)
+#   ./install.sh -n        answer no to every prompt without asking (also: --no)
 #   ./install.sh --from-here  back ~ with this checkout instead of the main one
 #   ./install.sh --link-only  only (re)link, install nothing
 #
@@ -39,17 +40,20 @@ NERDFONT_SHA256=04d5e8f903693f9dd13e16f867e994834e681eb3c72c0d337a770dcda09010cf
 
 CHSH=0
 YES=0
+NO=0
 FROM_HERE=0
 LINK_ONLY=0
 for arg in "$@"; do
   case $arg in
     --chsh) CHSH=1 ;;
     -y | --yes) YES=1 ;;
+    -n | --no) NO=1 ;;
     --from-here) FROM_HERE=1 ;;
     --link-only) LINK_ONLY=1 ;;
-    *) echo "usage: $0 [--chsh] [-y|--yes] [--from-here] [--link-only]" >&2; exit 2 ;;
+    *) echo "usage: $0 [--chsh] [-y|--yes|-n|--no] [--from-here] [--link-only]" >&2; exit 2 ;;
   esac
 done
+if [ "$YES" = 1 ] && [ "$NO" = 1 ]; then echo "$0: --yes and --no conflict" >&2; exit 2; fi
 
 # DOTFILES is the checkout ~ ends up using: the main checkout (parent of the
 # shared git dir) unless --from-here, or this dir when it is not a git checkout
@@ -61,8 +65,9 @@ cd "$DOTFILES"
 
 say() { printf '==> %s\n' "$*"; }
 
-ask() { # ask <question>: default no; -y answers yes; no tty means no
+ask() { # ask <question>: default no; -y answers yes, -n no; no tty means no
   [ "$YES" = 1 ] && return 0
+  [ "$NO" = 1 ] && return 1
   [ -t 0 ] || return 1
   local reply
   read -r -p "$1 [y/N] " reply

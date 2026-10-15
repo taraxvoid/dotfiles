@@ -2,14 +2,18 @@
 # gws: list Claude worktrees and unpushed branches that are not tracked on
 # GitHub. Read-only. Works on macOS (bash 3.2) and Linux; needs git, jq, gh.
 #
-#   gws                  orphans first, then a line of totals
-#   gws -a               every item
-#   gws --json           the scan as JSON
-#   gws --refresh [-f]   scan into the cache quietly; skips if the cache is
-#                        under 15 minutes old unless -f
+#   gws [-f]             orphans first, then a line of totals
+#   gws -a [-f]          every item
+#   gws --json [-f]      the scan as JSON
+#   gws --refresh [-f]   scan into the cache quietly
+#                        all four reuse a cache under 15 minutes old
+#                        ($GWS_MAX_AGE seconds); -f rescans regardless
 #   gws --refresh --bg   same, detached (for the SessionStart hook)
 #   gws --here [dir]     one line for the worktree holding dir (default cwd);
 #                        exits 2 if it is orphaned
+#   gws --clean [--yes]  rescan, then list (or with --yes, remove) every done
+#                        item: its worktree and its local branch. Nothing else
+#                        is ever removed; orphans stay put however old they are
 #
 # An item is a non-main worktree, or a local branch with commits on no remote
 # and no worktree, in any repo at $GWS_ROOTS/*/* (default ~/projects/*/*).
@@ -21,6 +25,7 @@
 set -euo pipefail
 
 roots=${GWS_ROOTS:-$HOME/projects}
+max_age=${GWS_MAX_AGE:-900}
 cache=${GWS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/gws.json}
 # one EXIT trap for both: scan_all's temp file and refresh's lock
 tmp='' lock_held=''
@@ -33,13 +38,17 @@ trap cleanup EXIT
 self=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")
 
 # item <repo> <path> <branch> <state> <reason> <pr> <issue> <local_changes 0|1>
+#      [head] [last commit, unix time]
 item() {
   jq -cn --arg repo "$1" --arg path "$2" --arg branch "$3" --arg state "$4" \
     --arg reason "$5" --arg pr "$6" --arg issue "$7" --arg lc "$8" \
+    --arg head "${9:-}" --arg ts "${10:-}" \
     '{repo: $repo, path: $path, branch: $branch, state: $state, reason: $reason,
       pr: (if $pr == "" then null else ($pr | tonumber) end),
       issue: (if $issue == "" then null else ($issue | tonumber) end),
-      local_changes: ($lc == "1")}'
+      local_changes: ($lc == "1"),
+      head: (if $head == "" then null else $head end),
+      last_commit: (if $ts == "" then null else ($ts | tonumber) end)}'
 }
 
 # worktree_records <main>: path, branch, head for each non-main worktree, split by
@@ -57,10 +66,11 @@ worktree_records() {
 # classify <main> <repo> <path> <branch> <head> <prs-json>: print one item
 classify() {
   local main=$1 repo=$2 path=$3 branch=$4 head=$5 prs=$6
-  local lc=0 pushed=0 open finished closed n st
+  local lc=0 pushed=0 open finished closed n st ts
+  ts=$(git -C "$main" log -1 --format=%ct "$head" 2>/dev/null || true)
   if [ -n "$path" ] && [ -n "$(git -C "$path" status --porcelain 2>/dev/null)" ]; then lc=1; fi
   if [ -z "$branch" ]; then
-    item "$repo" "$path" "" orphaned "detached HEAD" "" "" "$lc"
+    item "$repo" "$path" "" orphaned "detached HEAD" "" "" "$lc" "$head" "$ts"
     return
   fi
   if git -C "$main" rev-parse -q --verify "refs/remotes/origin/$branch" >/dev/null; then
@@ -72,39 +82,39 @@ classify() {
   open=$(jq -r --arg b "$branch" \
     'first(.[] | select(.headRefName == $b and .state == "OPEN") | .number) // empty' <<<"$prs")
   if [ -n "$open" ]; then
-    item "$repo" "$path" "$branch" tracked "" "$open" "$n" "$lc"
+    item "$repo" "$path" "$branch" tracked "" "$open" "$n" "$lc" "$head" "$ts"
     return
   fi
   finished=$(jq -r --arg b "$branch" --arg h "$head" \
     'first(.[] | select(.headRefName == $b and .state != "OPEN" and .headRefOid == $h) | .number) // empty' <<<"$prs")
   if [ -n "$finished" ]; then
-    item "$repo" "$path" "$branch" "done" "" "$finished" "$n" "$lc"
+    item "$repo" "$path" "$branch" "done" "" "$finished" "$n" "$lc" "$head" "$ts"
     return
   fi
   closed=$(jq -r --arg b "$branch" \
     'first(.[] | select(.headRefName == $b and .state != "OPEN") | .number) // empty' <<<"$prs")
   if [ "$pushed" = 0 ]; then
     if [ -n "$closed" ]; then
-      item "$repo" "$path" "$branch" orphaned "commits after merged PR" "$closed" "$n" "$lc"
+      item "$repo" "$path" "$branch" orphaned "commits after merged PR" "$closed" "$n" "$lc" "$head" "$ts"
     else
-      item "$repo" "$path" "$branch" orphaned "never pushed" "" "$n" "$lc"
+      item "$repo" "$path" "$branch" orphaned "never pushed" "" "$n" "$lc" "$head" "$ts"
     fi
     return
   fi
   if [ -n "$n" ]; then
     if ! st=$(cd "$main" && gh issue view "$n" --json state --jq .state 2>/dev/null); then
-      item "$repo" "$path" "$branch" unknown "could not read issue #$n" "" "$n" "$lc"
+      item "$repo" "$path" "$branch" unknown "could not read issue #$n" "" "$n" "$lc" "$head" "$ts"
     elif [ "$st" = OPEN ]; then
-      item "$repo" "$path" "$branch" tracked "" "" "$n" "$lc"
+      item "$repo" "$path" "$branch" tracked "" "" "$n" "$lc" "$head" "$ts"
     else
-      item "$repo" "$path" "$branch" orphaned "issue #$n closed" "" "$n" "$lc"
+      item "$repo" "$path" "$branch" orphaned "issue #$n closed" "" "$n" "$lc" "$head" "$ts"
     fi
     return
   fi
   if [ -n "$closed" ]; then
-    item "$repo" "$path" "$branch" orphaned "commits after merged PR" "$closed" "" "$lc"
+    item "$repo" "$path" "$branch" orphaned "commits after merged PR" "$closed" "" "$lc" "$head" "$ts"
   else
-    item "$repo" "$path" "$branch" orphaned "pushed, no PR/issue" "" "" "$lc"
+    item "$repo" "$path" "$branch" orphaned "pushed, no PR/issue" "" "" "$lc" "$head" "$ts"
   fi
 }
 
@@ -165,7 +175,9 @@ scan_all() { # scan every repo in parallel and write the cache atomically
 render() { # <all 0|1>: table of items from the cache
   jq -r --argjson all "$1" '
     def tilde: if startswith(env.HOME) then "~" + ltrimstr(env.HOME) else . end;
-    def row: [.state, .repo,
+    def age: if .last_commit == null then "-" else ((now - .last_commit) / 86400 | floor) as $d
+      | if $d < 14 then "\($d)d" elif $d < 90 then "\($d / 7 | floor)w" else "\($d / 30 | floor)mo" end end;
+    def row: [.state, age, .repo,
       (if .path == "" then "(no worktree)" else (.path | tilde) end),
       (if .branch == "" then "-" else .branch end),
       (.reason + (if .local_changes then " (local changes)" else "" end))] | @tsv;
@@ -173,18 +185,66 @@ render() { # <all 0|1>: table of items from the cache
       | sort_by(.state != "orphaned", .state != "unknown") | .[] | row)
   ' "$cache" | column -t -s "$(printf '\t')"
   jq -r '
-    "\(.totals.orphaned) orphaned, \(.totals.unknown) unknown, \(.totals.tracked) tracked, \(.totals.done) done (scanned \(.scanned_at))",
-    (if .totals.done > 0 then "done items can be removed with cleanup-worktrees.sh <repo>" else empty end)
+    "\(.totals.orphaned) orphaned, \(.totals.unknown) unknown, \(.totals.tracked) tracked, \(.totals.done) done (scanned \(.scanned_at); gws -f rescans)",
+    (if .totals.done > 0 then "gws --clean lists what removing the done items would delete" else empty end)
   ' "$cache"
+}
+
+clean() { # <yes 0|1>: remove done worktrees and branches, rechecking each first
+  local yes=$1 repo path branch head lc main cur what removed=0 kept=0
+  scan_all
+  # fd 3: git would otherwise eat the loop's stdin
+  while IFS=$'\037' read -r -u 3 repo path branch head lc; do
+    main=$roots/$repo
+    what=${path:-"(no worktree)"}
+    if [ "$lc" = true ]; then
+      echo "keep    $repo $what $branch (local changes)"; kept=$((kept + 1)); continue
+    fi
+    cur=$(git -C "$main" rev-parse -q --verify "refs/heads/$branch" || true)
+    if [ "$cur" != "$head" ]; then
+      echo "keep    $repo $what $branch (branch moved since the scan)"; kept=$((kept + 1)); continue
+    fi
+    if [ -n "$path" ]; then
+      if [ ! -d "$path" ]; then
+        echo "keep    $repo $what $branch (worktree directory missing)"; kept=$((kept + 1)); continue
+      fi
+      if ! cur=$(git -C "$path" rev-parse HEAD 2>/dev/null); then
+        echo "keep    $repo $what $branch (worktree unreadable, broken git link?)"; kept=$((kept + 1)); continue
+      fi
+      if [ "$cur" != "$head" ] || [ -n "$(git -C "$path" status --porcelain)" ]; then
+        echo "keep    $repo $what $branch (worktree changed since the scan)"; kept=$((kept + 1)); continue
+      fi
+    fi
+    if [ "$yes" = 0 ]; then echo "would remove $repo $what $branch"; continue; fi
+    if [ -n "$path" ]; then
+      git -C "$main" worktree unlock "$path" 2>/dev/null || true
+      # no --force: git refuses if anything uncommitted appeared meanwhile
+      git -C "$main" worktree remove "$path" || { kept=$((kept + 1)); continue; }
+    fi
+    # -D: a squash or rebase merge leaves the branch unmerged as far as git knows;
+    # the scan proved a merged/closed PR has exactly this head
+    git -C "$main" branch -q -D "$branch"
+    echo "removed $repo $what $branch"
+    removed=$((removed + 1))
+  done 3< <(jq -r '.items[] | select(.state == "done")
+    | [.repo, .path, .branch, .head, (.local_changes | tostring)] | join("\u001f")' "$cache")
+  if [ "$yes" = 1 ]; then
+    echo "$removed removed, $kept kept"
+    if [ "$removed" -gt 0 ]; then scan_all; fi
+  else
+    echo "dry run, $kept kept; run gws --clean --yes to remove"
+  fi
 }
 
 mtime() { date -r "$1" +%s; } # works with GNU and BSD date
 
+fresh() { # is the cache younger than max_age?
+  [ -s "$cache" ] && [ $(($(date +%s) - $(mtime "$cache"))) -lt "$max_age" ]
+}
+
 refresh() { # <force 0|1>: scan into the cache unless it is fresh or locked
   local lock=$cache.lock
-  if [ "$1" = 0 ] && [ -f "$cache" ] && [ $(($(date +%s) - $(mtime "$cache"))) -lt 900 ]; then
-    return 0
-  fi
+  if [ "$1" = 0 ] && fresh; then return 0; fi
   mkdir -p "$(dirname "$cache")"
   if ! mkdir "$lock" 2>/dev/null; then
     # a lock older than 10 minutes was left by a killed scan
@@ -222,7 +282,7 @@ here() { # <dir>: one line for the worktree holding dir; returns 2 if orphaned
   case $line in *": orphaned"*) return 2 ;; esac
 }
 
-mode=table all=0 force=0 bg=0 dir=$PWD
+mode=table all=0 force=0 bg=0 yes=0 dir=$PWD
 while [ $# -gt 0 ]; do
   case $1 in
     -a | --all) all=1 ;;
@@ -230,6 +290,8 @@ while [ $# -gt 0 ]; do
     --refresh) mode=refresh ;;
     -f | --force) force=1 ;;
     --bg) bg=1 ;;
+    --clean) mode=clean ;;
+    --yes) yes=1 ;;
     --here)
       mode=here
       if [ $# -gt 1 ] && [ "${2#-}" = "$2" ]; then dir=$2; shift; fi
@@ -268,6 +330,7 @@ case $mode in
     fi
     refresh "$force"
     ;;
-  json) scan_all; cat "$cache" ;;
-  table) scan_all; render "$all" ;;
+  json) if [ "$force" = 1 ] || ! fresh; then scan_all; fi; cat "$cache" ;;
+  clean) clean "$yes" ;;
+  table) if [ "$force" = 1 ] || ! fresh; then scan_all; fi; render "$all" ;;
 esac
