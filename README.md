@@ -102,12 +102,15 @@ Repos live in `~/projects/<tier>/<repo>` and worktrees mirror that as
   never installed, and nothing runs until you do it on purpose, preferably through
   `sbx`.
 
-`sbx [--offline] [cmd...]` (from inside an `untrusted` tree) runs a command, or a
-shell, in a bubblewrap sandbox: `/` read-only, a throwaway `$HOME` (no `~/.ssh`,
-`~/.config/gh`, `~/.claude`, ssh-agent or tokens), scrubbed environment, only the
-`untrusted` trees writable, mise trust and tool installs confined to the sandbox
-(`~/.local/share/sbx`). It narrows what a hostile install script or dev server can
-touch; it is not a VM. Needs `bubblewrap`.
+`sbx [--offline] [--rw-git] [cmd...]` (from inside an `untrusted` tree) runs a
+command, or a shell, in a bubblewrap sandbox: `/` read-only, a throwaway `$HOME`
+per repo (no `~/.ssh`, `~/.config/gh`, `~/.claude`, ssh-agent or tokens), scrubbed
+environment, only the current repo writable, mise trust and tool installs confined
+to the sandbox (`~/.local/share/sbx`). The repo's `.git` stays read-only, because
+git on the host runs whatever `.git/config` names (`core.fsmonitor`,
+`core.sshCommand`, hooks); `--rw-git` lifts that for a trusted git command only. It
+narrows what a hostile install script or dev server can touch; it is not a VM.
+Needs `bubblewrap`.
 
 `.config/git/template/hooks/post-checkout` installs lefthook's git hooks when a repo
 is cloned or a worktree is created (git runs `post-checkout` for both), only inside
@@ -115,5 +118,6 @@ the two first-party trees. `install.sh` sets it as the git template, so new clon
 get it, and copies it into existing first-party repos.
 
 `git-autofetch.timer` (systemd user timer, Linux) runs `git fetch --all --prune` in
-every repo under `~/projects/*/*` every 10 minutes. It needs a running ssh-agent
+every first-party repo under `~/projects/*/*` every 10 minutes (untrusted repos are
+skipped: fetch them with `sbx --rw-git git fetch`). It needs a running ssh-agent
 for SSH remotes.
