@@ -349,6 +349,7 @@ gen_completion yq yq completion zsh
 gen_completion starship starship completions zsh
 gen_completion rustup rustup completions zsh rustup
 gen_completion cargo rustup completions zsh cargo
+gen_completion cf cf complete zsh # Cloudflare's cf CLI
 # mise's completions call out to `usage` at tab time; pinned like the other tools
 USAGE_VERSION=6.12.1
 if command -v mise >/dev/null && [ "$(mise ls --global --no-header usage 2>/dev/null | awk '{print $2}')" != "$USAGE_VERSION" ]; then

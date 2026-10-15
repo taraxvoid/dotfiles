@@ -9,7 +9,47 @@
 [pull]
 	rebase = false
 [push]
+	default = simple
 	autoSetupRemote = true
+	followTags = true
+[fetch]
+	prune = true
+[rebase]
+	autoSquash = true
+	autoStash = true
+	updateRefs = true
+[merge]
+	conflictStyle = zdiff3
+[rerere]
+	enabled = true
+	autoUpdate = true
+[diff]
+	algorithm = histogram
+	colorMoved = default
+	mnemonicPrefix = true
+	renames = true
+[commit]
+	verbose = true
+[branch]
+	sort = -committerdate
+[tag]
+	sort = version:refname
+[column]
+	ui = auto
+[help]
+	autocorrect = prompt
+# verify every object fetched or pushed. A few old repos fail this on clone; use
+# git -c transfer.fsckObjects=false clone ... for those
+[transfer]
+	fsckObjects = true
+# delta when it runs (mise global config), plain less otherwise. Checked by
+# running it, since a mise shim can exist without an active version.
+[core]
+	pager = delta --version >/dev/null 2>&1 && exec delta || exec less
+[interactive]
+	diffFilter = delta --version >/dev/null 2>&1 && exec delta --color-only || exec cat
+[delta]
+	navigate = true
 [alias]
 	br = branch
 	ci = commit

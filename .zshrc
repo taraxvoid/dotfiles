@@ -10,23 +10,45 @@ source "${ZDOTDIR:-$HOME}/.zsh_aliases"
 _zfind() { local f; for f in "$@"; do [[ -r $f ]] && { REPLY=$f; return 0 } done; return 1 }
 _brew=${HOMEBREW_PREFIX:-/opt/homebrew}
 
+# helper: _cache_eval <name> <cmd...> sources what <cmd...> prints, cached in
+# ~/.cache/zsh/<name>.zsh and regenerated when the tool's binary changes (new
+# path or newer mtime). Saves a process spawn per tool on every shell start.
+# Only for init scripts that print the same text each time (mise's embeds $PATH).
+_cache_eval() {
+  local name=$1 bin=${commands[$2]} f=${XDG_CACHE_HOME:-$HOME/.cache}/zsh/$1.zsh first
+  shift
+  [[ -n $bin ]] || return 1
+  [[ -r $f ]] && read -r first <$f
+  if [[ $first != "# $bin" || $bin -nt $f ]]; then
+    mkdir -p ${f:h}
+    { print -r -- "# $bin"; "$@" } >| $f 2>/dev/null || { rm -f $f; return 1 }
+  fi
+  source $f
+}
+
 # ssh keys: keychain reuses one long-lived ssh-agent across shells and loads every
 # private key in ~/.ssh (prompting once per boot for passphrases). Not installed
 # on macOS, which has its own launchd agent. Exports SSH_AUTH_SOCK via the env file.
+# keychain itself is slow (~130ms), so it only runs when no agent answers yet; a
+# key missing from a live agent is added on first use (AddKeysToAgent in ~/.ssh/config).
 if [[ -o interactive ]] && (( $+commands[keychain] )); then
-  # `~` (glob exclusion) only works with extendedglob, which is off by default
-  () {
-    setopt local_options extendedglob
-    keychain --quiet --agents ssh --ignore-missing ~/.ssh/id*~*.pub(N) 2>/dev/null
-  }
   [[ -r ~/.keychain/${HOST}-sh ]] && source ~/.keychain/${HOST}-sh
+  ssh-add -l &>/dev/null
+  if (( $? == 2 )); then
+    # `~` (glob exclusion) only works with extendedglob, which is off by default
+    () {
+      setopt local_options extendedglob
+      keychain --quiet --agents ssh --ignore-missing ~/.ssh/id*~*.pub(N) 2>/dev/null
+    }
+    [[ -r ~/.keychain/${HOST}-sh ]] && source ~/.keychain/${HOST}-sh
+  fi
 fi
 
 # HISTFILE is only preset by macOS's /etc/zshrc, not on Debian/Ubuntu
 : ${HISTFILE:=$HOME/.zsh_history}
 
-# dedupe PATH entries (zsh ties $path to $PATH)
-typeset -U path PATH
+# dedupe PATH and fpath entries (zsh ties $path to $PATH; first occurrence wins)
+typeset -U path PATH fpath
 
 # Maximum lines kept in memory
 export HISTSIZE=100000
@@ -50,15 +72,22 @@ setopt HIST_REDUCE_BLANKS
 
 export HOMEBREW_NO_ENV_HINTS=1
 
-fpath=( "$HOME/.zsh/completions" $fpath )
+# every completion dir goes on fpath *before* compinit, or its completions never
+# register (a dir added afterwards is ignored until the next rebuild).
+# sentry-cli installs its completion into ~/.local/share/zsh/site-functions.
+fpath=( "$HOME/.zsh/completions" "$HOME/.local/share/zsh/site-functions" $fpath )
 
 # antidote (zsh plugins): brew on macOS, pinned clone from install.sh on Linux.
 # Only sourced here (defines the function); `antidote load` runs after compinit.
 _zfind "$_brew/opt/antidote/share/antidote/antidote.zsh" "$HOME/.zsh/antidote/antidote.zsh" && source $REPLY
-# zsh-completions must be on fpath *before* compinit or its completions never
-# register (a dir added to fpath afterwards is ignored until the next rebuild)
+# zsh-completions, from antidote's clone. Look in its cache dirs (Linux, macOS)
+# directly; `antidote path` costs ~35ms and is only the fallback on a first run.
 (( $+functions[antidote] )) && () {
-  local d=$(antidote path zsh-users/zsh-completions 2>/dev/null)
+  local d
+  for d in ${ANTIDOTE_HOME:-} ~/.cache/antidote ~/Library/Caches/antidote; do
+    [[ -d $d/github.com/zsh-users/zsh-completions/src ]] && { fpath=("$d/github.com/zsh-users/zsh-completions/src" $fpath); return }
+  done
+  d=$(antidote path zsh-users/zsh-completions 2>/dev/null)
   [[ -d $d/src ]] && fpath=("$d/src" $fpath)
 }
 
@@ -86,7 +115,7 @@ select-word-style bash
 [[ -x "$HOME/.local/bin/mise" ]] && eval "$("$HOME/.local/bin/mise" activate zsh)"
 
 # zoxide: `j <part of dir>` jumps to the best frecent match, `ji` is an fzf picker
-(( $+commands[zoxide] )) && eval "$(zoxide init zsh --cmd j)"
+_cache_eval zoxide zoxide init zsh --cmd j
 
 # fzf defaults: fd respects .gitignore and is much faster than find.
 # Debian/Ubuntu ship fd as `fdfind` and bat as `batcat`; fzf runs these strings in
@@ -101,16 +130,14 @@ fi
 [[ -n $_bat ]] && export FZF_CTRL_T_OPTS="--preview '$_bat --color=always --style=numbers --line-range=:200 {}'"
 (( $+commands[eza] )) && export FZF_ALT_C_OPTS="--preview 'eza --tree --level=1 --color=always {}'"
 if (( $+commands[fzf] )); then
-  if fzf --zsh &>/dev/null; then
-    source <(fzf --zsh)
-  else
+  if ! _cache_eval fzf fzf --zsh; then
     # fzf < 0.48 (older Ubuntu/Debian) has no --zsh; use the packaged scripts
     for f in /usr/share/doc/fzf/examples/{key-bindings,completion}.zsh(N); do source $f; done
     unset f
   fi
 fi
-command -v flux >/dev/null && . <(flux completion zsh)
-# tool completions (just, mise, uv, bun, ...) are generated into ~/.zsh/completions by install.sh
+_cache_eval flux flux completion zsh
+# tool completions (just, mise, uv, bun, cf, ...) are generated into ~/.zsh/completions by install.sh
 
 # Bind Up and Down arrow keys for Fish-like history searching. Terminals in
 # application mode (Crostini, ghostty, tmux) send ^[OA/^[OB instead of ^[[A/^[[B.
@@ -160,240 +187,15 @@ _zfind "$_brew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" /usr/s
 unset _brew
 
 # prompt: starship (binary from brew / install.sh), config in ~/.config/starship.toml
-(( $+commands[starship] )) && eval "$(starship init zsh)"
-
-# sentry
-fpath=("$HOME/.local/share/zsh/site-functions" $fpath)
+_cache_eval starship starship init zsh --print-full-init
 
 # re-prioritize custom completions (e.g. _just) over anything brew shellenv/antidote
-# prepended to fpath above, since zsh autoloads from whichever fpath dir it finds first
+# prepended to fpath above, since zsh autoloads from whichever fpath dir it finds
+# first (typeset -U keeps this first copy and drops the later duplicate)
 fpath=( "$HOME/.zsh/completions" $fpath )
 
 [[ -r "$HOME/.turso/env" ]] && . "$HOME/.turso/env"
 
-# PATH order: user-writable tool dirs go after the system dirs so a package that
-# drops a fake `git` or `ls` into one of them can't shadow the real binary.
-# (Runs after the rustup/turso env files above, which prepend their own dirs.)
-() {
-  local -a user_dirs=("$HOME/.local/bin" "$HOME/.bun/bin" "$HOME/.cargo/bin" "$HOME/.turso")
-  path=(${path:|user_dirs} $user_dirs)
-}
-#compdef cf
-compdef _cf cf
-
-# zsh completion for cf -*- shell-script -*-
-
-__cf_debug() {
-    local file="$BASH_COMP_DEBUG_FILE"
-    if [[ -n ${file} ]]; then
-        echo "$*" >> "${file}"
-    fi
-}
-
-_cf() {
-    local shellCompDirectiveError=1
-    local shellCompDirectiveNoSpace=2
-    local shellCompDirectiveNoFileComp=4
-    local shellCompDirectiveFilterFileExt=8
-    local shellCompDirectiveFilterDirs=16
-    local shellCompDirectiveKeepOrder=32
-
-    local lastParam lastChar flagPrefix requestComp out directive comp lastComp noSpace keepOrder
-    local -a completions
-
-    __cf_debug "\n========= starting completion logic =========="
-    __cf_debug "CURRENT: ${CURRENT}, words[*]: ${words[*]}"
-
-    # The user could have moved the cursor backwards on the command-line.
-    # We need to trigger completion from the $CURRENT location, so we need
-    # to truncate the command-line ($words) up to the $CURRENT location.
-    # (We cannot use $CURSOR as its value does not work when a command is an alias.)
-    words=( "${=words[1,CURRENT]}" )
-    __cf_debug "Truncated words[*]: ${words[*]},"
-
-    lastParam=${words[-1]}
-    lastChar=${lastParam[-1]}
-    __cf_debug "lastParam: ${lastParam}, lastChar: ${lastChar}"
-
-    # For zsh, when completing a flag with an = (e.g., cf -n=<TAB>)
-    # completions must be prefixed with the flag
-    setopt local_options BASH_REMATCH
-    if [[ "${lastParam}" =~ '-.*=' ]]; then
-        # We are dealing with a flag with an =
-        flagPrefix="-P ${BASH_REMATCH}"
-    fi
-
-    # Prepare the command to obtain completions, ensuring arguments are quoted for eval
-    local -a args_to_quote=("${(@)words[2,-1]}")
-    if [ "${lastChar}" = "" ]; then
-        # If the last parameter is complete (there is a space following it)
-        # We add an extra empty parameter so we can indicate this to the go completion code.
-        __cf_debug "Adding extra empty parameter"
-        args_to_quote+=("")
-    fi
-
-    # Use Zsh's (q) flag to quote each argument safely for eval
-    local quoted_args=("${(@q)args_to_quote}")
-
-    # Join the main command and the quoted arguments into a single string for eval
-    requestComp="cf complete -- ${quoted_args[*]}"
-
-    __cf_debug "About to call: eval ${requestComp}"
-
-    # Use eval to handle any environment variables and such
-    out=$(eval ${requestComp} 2>/dev/null)
-    __cf_debug "completion output: ${out}"
-
-    # Extract the directive integer following a : from the last line
-    local lastLine
-    while IFS='
-' read -r line; do
-        lastLine=${line}
-    done < <(printf "%s
-" "${out[@]}")
-    __cf_debug "last line: ${lastLine}"
-
-    if [ "${lastLine[1]}" = : ]; then
-        directive=${lastLine[2,-1]}
-        # Remove the directive including the : and the newline
-        local suffix
-        (( suffix=${#lastLine}+2))
-        out=${out[1,-$suffix]}
-    else
-        # There is no directive specified.  Leave $out as is.
-        __cf_debug "No directive found.  Setting to default"
-        directive=0
-    fi
-
-    __cf_debug "directive: ${directive}"
-    __cf_debug "completions: ${out}"
-    __cf_debug "flagPrefix: ${flagPrefix}"
-
-    if [ $((directive & shellCompDirectiveError)) -ne 0 ]; then
-        __cf_debug "Completion received error. Ignoring completions."
-        return
-    fi
-
-    local activeHelpMarker="%"
-    local endIndex=${#activeHelpMarker}
-    local startIndex=$((${#activeHelpMarker}+1))
-    local hasActiveHelp=0
-    while IFS='
-' read -r comp; do
-        # Check if this is an activeHelp statement (i.e., prefixed with $activeHelpMarker)
-        if [ "${comp[1,$endIndex]}" = "$activeHelpMarker" ];then
-            __cf_debug "ActiveHelp found: $comp"
-            comp="${comp[$startIndex,-1]}"
-            if [ -n "$comp" ]; then
-                compadd -x "${comp}"
-                __cf_debug "ActiveHelp will need delimiter"
-                hasActiveHelp=1
-            fi
-            continue
-        fi
-
-        if [ -n "$comp" ]; then
-            # If requested, completions are returned with a description.
-            # The description is preceded by a TAB character.
-            # For zsh's _describe, we need to use a : instead of a TAB.
-            # We first need to escape any : as part of the completion itself.
-            comp=${comp//:/\:}
-
-            local tab="$(printf '\t')"
-            comp=${comp//$tab/:}
-
-            __cf_debug "Adding completion: ${comp}"
-            completions+=${comp}
-            lastComp=$comp
-        fi
-    done < <(printf "%s
-" "${out[@]}")
-
-    # Add a delimiter after the activeHelp statements, but only if:
-    # - there are completions following the activeHelp statements, or
-    # - file completion will be performed (so there will be choices after the activeHelp)
-    if [ $hasActiveHelp -eq 1 ]; then
-        if [ ${#completions} -ne 0 ] || [ $((directive & shellCompDirectiveNoFileComp)) -eq 0 ]; then
-            __cf_debug "Adding activeHelp delimiter"
-            compadd -x "--"
-            hasActiveHelp=0
-        fi
-    fi
-
-    if [ $((directive & shellCompDirectiveNoSpace)) -ne 0 ]; then
-        __cf_debug "Activating nospace."
-        noSpace="-S ''"
-    fi
-
-    if [ $((directive & shellCompDirectiveKeepOrder)) -ne 0 ]; then
-        __cf_debug "Activating keep order."
-        keepOrder="-V"
-    fi
-
-    if [ $((directive & shellCompDirectiveFilterFileExt)) -ne 0 ]; then
-        # File extension filtering
-        local filteringCmd
-        filteringCmd='_files'
-        for filter in ${completions[@]}; do
-            if [ ${filter[1]} != '*' ]; then
-                # zsh requires a glob pattern to do file filtering
-                filter="\*.$filter"
-            fi
-            filteringCmd+=" -g $filter"
-        done
-        filteringCmd+=" ${flagPrefix}"
-
-        __cf_debug "File filtering command: $filteringCmd"
-        _arguments '*:filename:'"$filteringCmd"
-    elif [ $((directive & shellCompDirectiveFilterDirs)) -ne 0 ]; then
-        # File completion for directories only
-        local subdir
-        subdir="${completions[1]}"
-        if [ -n "$subdir" ]; then
-            __cf_debug "Listing directories in $subdir"
-            pushd "${subdir}" >/dev/null 2>&1
-        else
-            __cf_debug "Listing directories in ."
-        fi
-
-        local result
-        _arguments '*:dirname:_files -/'" ${flagPrefix}"
-        result=$?
-        if [ -n "$subdir" ]; then
-            popd >/dev/null 2>&1
-        fi
-        return $result
-    else
-        __cf_debug "Calling _describe"
-        if eval _describe $keepOrder "completions" completions -Q ${flagPrefix} ${noSpace}; then
-            __cf_debug "_describe found some completions"
-
-            # Return the success of having called _describe
-            return 0
-        else
-            __cf_debug "_describe did not find completions."
-            __cf_debug "Checking if we should do file completion."
-            if [ $((directive & shellCompDirectiveNoFileComp)) -ne 0 ]; then
-                __cf_debug "deactivating file completion"
-
-                # Return 0 to indicate completion is finished and prevent zsh from
-                # trying other completion algorithms (which could cause hanging).
-                # We use NoFileComp directive to explicitly disable file completion.
-                return 0
-            else
-                # Perform file completion
-                __cf_debug "Activating file completion"
-
-                # We must return the result of this command, so it must be the
-                # last command, or else we must store its result to return it.
-                _arguments '*:filename:_files'" ${flagPrefix}"
-            fi
-        fi
-    fi
-}
-
-# don't run the completion function when being sourced or eval-ed
-if [ "${funcstack[1]}" = "_cf" ]; then
-    _cf
-fi
-
+# PATH order: user-writable tool dirs go after the system dirs (see .zshenv). Again
+# here because the rustup/turso env files and mise activate above prepend.
+(( $+functions[_path_user_dirs_last] )) && _path_user_dirs_last

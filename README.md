@@ -39,6 +39,13 @@ The zsh config detects what is installed instead of branching on OS:
   whichever exists.
 - Aliases for `eza`, `bat`, `nvim`, `pip3` and `python3` are only defined when the
   tool exists. `dx` needs the Dashlane `dcli`.
+- `gwc [issue] [slug]` starts an issue by hand the way Claude does: worktree
+  `<N>-<slug>` on branch `worktree-<N>-<slug>` (same `worktree-create.sh`),
+  pushed so `gws` counts it as tracked.
+- git pages through delta (pinned in the global mise config) when it runs, and
+  falls back to less.
+- Generated init scripts (zoxide, fzf, starship) are cached in `~/.cache/zsh`
+  and regenerated when the tool's binary changes; delete that dir to force it.
 
 `install.sh` leaves `~/.config/gh/hosts.yml` and `~/.config/poolside` alone
 (per-machine auth). It links `.ssh/config` but never keys or `~/.ssh/config.local`. It asks, default no, before linking `.claude/CLAUDE.md` and
@@ -97,7 +104,8 @@ Repos live in `~/projects/<tier>/<repo>` and worktrees mirror that as
   pinned tool that is missing. Nothing is trusted on `cd`; tools install when you
   run a command that needs them. Caveat: trust is by path, so a worktree where you
   check out someone else's branch or PR in these trees inherits it. Review such
-  branches under `untrusted`.
+  branches under `untrusted`; `gpo` asks (default no) before checking out
+  someone else's PR here.
 - `untrusted`: third-party code. mise will not read its config, lefthook hooks are
   never installed, and nothing runs until you do it on purpose, preferably through
   `sbx`.
