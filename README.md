@@ -50,8 +50,14 @@ The zsh config detects what is installed instead of branching on OS:
 `install.sh` leaves `~/.config/gh/hosts.yml` and `~/.config/poolside` alone
 (per-machine auth). It links `.ssh/config` but never keys or `~/.ssh/config.local`. It asks, default no, before linking `.claude/CLAUDE.md` and
 `.claude/scripts/*.sh` into `~/.claude` (existing files are moved to
-`*.pre-dotfiles`); `-y` answers yes, `-n` no. The rest of `~/.claude` (settings, hooks)
-is machine-specific, diff it by hand.
+`*.pre-dotfiles`); `-y` answers yes, `-n` no. The same step merges
+`.claude/settings.fragment.json` (status line, every hook below, the worktree
+deny rules) into `~/.claude/settings.json`, backing it up first; the rest of that
+file stays machine-specific.
+
+Every package manager refuses releases younger than 3 days: bun (`.bunfig.toml`),
+uv (`.config/uv/uv.toml`), mise (`minimum_release_age` in the global config),
+and npm and pnpm (set in their user config by `install.sh`).
 
 ## Checks
 
@@ -75,9 +81,10 @@ WorktreeRemove hooks: new worktrees go to `~/worktrees/<tier>/<repo>/<name>` on 
 `worktree-<name>` (tier = repo's dir under `~/projects`), and removal is a no-op.
 `require-worktree.sh` is a PreToolUse hook that blocks Edit/Write/NotebookEdit and
 `git commit` in a repo's main checkout (override with `CLAUDE_ALLOW_MAIN_EDITS=1`).
-The `hooks` block in `~/.claude/settings.json` is machine-specific; wire it as:
-`WorktreeCreate` and `WorktreeRemove` run the matching script; `PreToolUse` runs
-`require-worktree.sh` for `Edit|Write|NotebookEdit` and for `Bash` with `if: Bash(git commit*)`.
+All of them are wired in `.claude/settings.fragment.json`, which `install.sh`
+merges into `~/.claude/settings.json`: `WorktreeCreate` and `WorktreeRemove` run
+the matching script; `PreToolUse` runs `require-worktree.sh` for
+`Edit|Write|NotebookEdit` and for `Bash` with `if: Bash(git commit*)`.
 
 ## Claude worktree cleanup
 

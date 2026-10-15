@@ -2,7 +2,8 @@
 # merge-settings.sh <fragment.json> <settings.json>
 # Merge a tracked settings fragment into a machine's Claude settings.json:
 # statusLine is replaced, each hook entry is appended to its event unless one of
-# its commands is already registered there, and every other key is left alone.
+# its commands is already registered there, permissions.deny rules missing from
+# settings are appended, and every other key is left alone.
 # Backs settings.json up to settings.json.bak.<timestamp> before changing it and
 # does nothing when it is already up to date, so re-running is safe.
 set -euo pipefail
@@ -13,6 +14,8 @@ frag=$1 settings=$2
 new=$(jq --slurpfile f "$frag" '
   $f[0] as $frag
   | (if $frag.statusLine then .statusLine = $frag.statusLine else . end)
+  | (if $frag.permissions.deny then .permissions.deny = (reduce $frag.permissions.deny[] as $d
+      (.permissions.deny // []; if any(.[]; . == $d) then . else . + [$d] end)) else . end)
   | .hooks = (reduce (($frag.hooks // {}) | to_entries[]) as $e (.hooks // {};
       ([.[$e.key][]?.hooks[]?.command]) as $have
       | .[$e.key] = ((.[$e.key] // []) + [$e.value[]

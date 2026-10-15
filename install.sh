@@ -236,6 +236,21 @@ if command -v mise >/dev/null; then
   mise reshim
 fi
 
+# --- release cooldowns -------------------------------------------------------
+# Every package manager refuses releases younger than 3 days, which blunts
+# "publish a poisoned version and wait for installs" attacks: bun via the linked
+# ~/.bunfig.toml, uv via ~/.config/uv/uv.toml, mise via its global config, npm
+# and pnpm via their user config files here (~/.npmrc also holds the npm login
+# token, so it is set in place rather than linked).
+link .config/uv/uv.toml
+PATH="$HOME/.local/share/mise/shims:$PATH"
+if command -v npm >/dev/null && [ "$(npm config get min-release-age 2>/dev/null)" != 3 ]; then
+  npm config set min-release-age 3 --location=user && say "npm: min-release-age 3 (days)"
+fi
+if command -v pnpm >/dev/null && [ "$(pnpm config get minimum-release-age 2>/dev/null)" != 4320 ]; then
+  pnpm config set minimum-release-age 4320 --global >/dev/null && say "pnpm: minimum-release-age 4320 (minutes)"
+fi
+
 # post-checkout is copied, not linked: git copies it into every new repo's .git/hooks,
 # and a link into a checkout of this repo would dangle when that checkout goes away.
 # Only files carrying the managed-by marker are overwritten.
