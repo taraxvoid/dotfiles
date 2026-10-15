@@ -28,9 +28,10 @@ setup() {
   command -v mise >/dev/null || skip "mise not installed"
   "$wt/install.sh" --link-only >/dev/null
   [ "$(readlink "$HOME/.config/mise/conf.d/dotfiles.toml")" = "$HOME/.dotfiles/.config/mise-bootstrap.toml" ]
-  # every [dotfiles] entry is in place after the plain link pass, so nothing drifts
+  # every [dotfiles] entry is in place after the plain link pass, so nothing drifts.
+  # -C: from the test's cwd mise would walk up into the real ~/.config/mise
   run env XDG_CONFIG_HOME="$HOME/.config" XDG_STATE_HOME="$HOME/.local/state" \
-    mise dot status --json
+    mise -C "$HOME" dot status --json
   [ "$status" -eq 0 ]
   [ "$(jq '.files | length' <<<"$output")" -gt 0 ]
   [ "$(jq -r '[.files[] | select(.state != "applied") | .target] | join(" ")' <<<"$output")" = "" ]
