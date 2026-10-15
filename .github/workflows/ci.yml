@@ -72,6 +72,8 @@ jobs:
       - name: install.sh smoke test
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # fresh container: mise refuses the checkout's mise.toml until trusted
+          export MISE_TRUSTED_CONFIG_PATHS="$GITHUB_WORKSPACE"
           # keep that through install.sh replacing ~/.gitconfig with a link
           export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0='*'
           scripts/smoke-install.sh
