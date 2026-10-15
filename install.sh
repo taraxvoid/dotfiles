@@ -151,6 +151,47 @@ if [ "$LINK_ONLY" = 1 ]; then
   exit 0
 fi
 
+# --- Linux packages ---------------------------------------------------------
+# Runs before anything below fetches from vendors: the bun installer needs unzip,
+# the eza repo needs curl and gpg, the Nerd Font needs xz. A fresh Debian/Crostini
+# can lack any of these.
+if [ "$OS" = Linux ] && command -v apt-get >/dev/null; then
+  need=()
+  for p in ca-certificates curl git gpg unzip xz-utils; do
+    dpkg -s "$p" >/dev/null 2>&1 || need+=("$p")
+  done
+  if [ ${#need[@]} -gt 0 ]; then
+    say "apt install (base): ${need[*]}"
+    sudo apt-get update -qq >/dev/null
+    sudo apt-get install -y -qq "${need[@]}" >/dev/null
+  fi
+  need=()
+  for p in zsh zsh-autosuggestions zsh-syntax-highlighting; do
+    dpkg -s "$p" >/dev/null 2>&1 || need+=("$p")
+  done
+  # eza's own apt repo (https://github.com/eza-community/eza/blob/main/INSTALL.md)
+  if [ ! -e /etc/apt/sources.list.d/gierens.list ]; then
+    say "adding eza apt repo"
+    sudo mkdir -p /etc/apt/keyrings
+    curl -fsSL https://raw.githubusercontent.com/eza-community/eza/main/deb.asc \
+      | sudo gpg --dearmor --yes -o /etc/apt/keyrings/gierens.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] https://deb.gierens.de stable main" \
+      | sudo tee /etc/apt/sources.list.d/gierens.list >/dev/null
+    sudo chmod 644 /etc/apt/keyrings/gierens.gpg /etc/apt/sources.list.d/gierens.list
+    sudo apt-get update -qq >/dev/null
+  elif grep -q 'http://deb.gierens.de' /etc/apt/sources.list.d/gierens.list; then
+    # plain HTTP gets intercepted by filtering proxies, which apt reports as "not signed"
+    say "switching eza apt repo to https"
+    sudo sed -i 's|http://deb.gierens.de|https://deb.gierens.de|' /etc/apt/sources.list.d/gierens.list
+    sudo apt-get update -qq >/dev/null
+  fi
+  dpkg -s eza >/dev/null 2>&1 || need+=(eza)
+  if [ ${#need[@]} -gt 0 ]; then
+    say "apt install: ${need[*]}"
+    sudo apt-get install -y -qq "${need[@]}" >/dev/null
+  fi
+fi
+
 # --- mise, uv, bun, and the CLI tools mise provides --------------------------
 # mise, uv and bun come from their vendors and update themselves (`mise self-update`,
 # `uv self update`, `bun upgrade`), so they are installed only when missing. They are
@@ -227,35 +268,6 @@ if ask "Link Claude files (.claude/CLAUDE.md, .claude/scripts/*) and merge .clau
   say "$("$DOTFILES/.claude/scripts/merge-settings.sh" "$DOTFILES/.claude/settings.fragment.json" "$HOME/.claude/settings.json")"
 else
   say "skipping ~/.claude (pass -y to link it)"
-fi
-
-# --- Linux packages ---------------------------------------------------------
-if [ "$OS" = Linux ] && command -v apt-get >/dev/null; then
-  need=()
-  for p in zsh zsh-autosuggestions zsh-syntax-highlighting; do
-    dpkg -s "$p" >/dev/null 2>&1 || need+=("$p")
-  done
-  # eza's own apt repo (https://github.com/eza-community/eza/blob/main/INSTALL.md)
-  if [ ! -e /etc/apt/sources.list.d/gierens.list ]; then
-    say "adding eza apt repo"
-    sudo mkdir -p /etc/apt/keyrings
-    curl -fsSL https://raw.githubusercontent.com/eza-community/eza/main/deb.asc \
-      | sudo gpg --dearmor --yes -o /etc/apt/keyrings/gierens.gpg
-    echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] https://deb.gierens.de stable main" \
-      | sudo tee /etc/apt/sources.list.d/gierens.list >/dev/null
-    sudo chmod 644 /etc/apt/keyrings/gierens.gpg /etc/apt/sources.list.d/gierens.list
-    sudo apt-get update -qq >/dev/null
-  elif grep -q 'http://deb.gierens.de' /etc/apt/sources.list.d/gierens.list; then
-    # plain HTTP gets intercepted by filtering proxies, which apt reports as "not signed"
-    say "switching eza apt repo to https"
-    sudo sed -i 's|http://deb.gierens.de|https://deb.gierens.de|' /etc/apt/sources.list.d/gierens.list
-    sudo apt-get update -qq >/dev/null
-  fi
-  dpkg -s eza >/dev/null 2>&1 || need+=(eza)
-  if [ ${#need[@]} -gt 0 ]; then
-    say "apt install: ${need[*]}"
-    sudo apt-get install -y -qq "${need[@]}" >/dev/null
-  fi
 fi
 
 # --- plugins brew provides on macOS (so only clone off-Mac) -----------------
