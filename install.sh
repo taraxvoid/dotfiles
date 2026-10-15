@@ -124,7 +124,7 @@ else
 fi
 [ "$DOTFILES" = "$HERE" ] || say "using the main checkout; pass --from-here to use $HERE"
 
-for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .gitconfig .config/git/ignore .config/starship.toml .config/gh/config.yml; do
+for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .gitconfig .config/git/ignore .config/starship.toml .config/gh/config.yml .config/uv/uv.toml; do
   link "$f"
 done
 # ssh refuses a config that others can write; ~/.ssh itself must be private.
@@ -140,6 +140,9 @@ if [ -L "$HOME/.config/dashlane" ] || [ ! -e "$HOME/.config/dashlane" ]; then li
 # under ~/worktrees). personal and ravenflight are trusted: mise auto-trusts their
 # mise.toml and lefthook hooks install themselves. untrusted gets neither; use sbx.
 link .config/mise-global.toml "$HOME/.config/mise/config.toml"
+# Declarative mirror of the links above plus the apt packages, for `mise bootstrap
+# status --missing` drift checks (#45). conf.d so machine-local files sit beside it.
+link .config/mise-bootstrap.toml "$HOME/.config/mise/conf.d/dotfiles.toml"
 link .local/bin/sbx
 link .local/bin/git-autofetch
 link .local/bin/gws
@@ -239,10 +242,9 @@ fi
 # --- release cooldowns -------------------------------------------------------
 # Every package manager refuses releases younger than 3 days, which blunts
 # "publish a poisoned version and wait for installs" attacks: bun via the linked
-# ~/.bunfig.toml, uv via ~/.config/uv/uv.toml, mise via its global config, npm
+# ~/.bunfig.toml, uv via ~/.config/uv/uv.toml (both linked above), mise via its global config, npm
 # and pnpm via their user config files here (~/.npmrc also holds the npm login
 # token, so it is set in place rather than linked).
-link .config/uv/uv.toml
 PATH="$HOME/.local/share/mise/shims:$PATH"
 if command -v npm >/dev/null && [ "$(npm config get min-release-age 2>/dev/null)" != 3 ]; then
   npm config set min-release-age 3 --location=user && say "npm: min-release-age 3 (days)"

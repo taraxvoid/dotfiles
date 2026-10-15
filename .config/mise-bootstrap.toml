@@ -1,0 +1,50 @@
+# Declarative half of machine setup, applied by `mise bootstrap` (install.sh runs
+# it after installing mise). Linked to ~/.config/mise/conf.d/dotfiles.toml so it
+# sits beside machine-local conf.d files (e.g. local-history.toml) without owning
+# them. Spike for #45: only links, apt packages and the eza repo live here so far;
+# everything else is still in install.sh.
+#
+# Dotfile entries without `source` read from dotfiles.root (default ~/.dotfiles,
+# the one symlink install.sh points at the checkout), so ~/.zshrc links to
+# ~/.dotfiles/.zshrc exactly as install.sh's link() did.
+
+[dotfiles]
+"~/.zshrc" = {}
+"~/.zshenv" = {}
+"~/.zsh_aliases" = {}
+"~/.zsh_plugins.txt" = {}
+"~/.bunfig.toml" = {}
+"~/.gitconfig" = {}
+"~/.config/git/ignore" = {}
+"~/.config/starship.toml" = {}
+"~/.config/gh/config.yml" = {}
+"~/.config/uv/uv.toml" = {}
+# install.sh creates ~/.ssh (0700) first; ssh refuses a config others can write
+"~/.ssh/config" = {}
+"~/.local/bin/sbx" = {}
+"~/.local/bin/git-autofetch" = {}
+"~/.local/bin/gws" = {}
+
+# Base packages first: the vendor installers need unzip, the Nerd Font xz.
+# bsdextrautils is for column (gws). Skipped where apt-get is absent (macOS).
+[bootstrap.packages]
+"apt:bsdextrautils" = "latest"
+"apt:ca-certificates" = "latest"
+"apt:curl" = "latest"
+"apt:git" = "latest"
+"apt:gpg" = "latest"
+"apt:unzip" = "latest"
+"apt:xz-utils" = "latest"
+"apt:zsh" = "latest"
+"apt:zsh-autosuggestions" = "latest"
+"apt:zsh-syntax-highlighting" = "latest"
+# from the author's repo below: the release binary ships no zsh completion
+"apt:eza" = "latest"
+
+# https://github.com/eza-community/eza/blob/main/INSTALL.md
+[bootstrap.apt.sources.eza]
+uris = "https://deb.gierens.de"
+suites = "stable"
+components = "main"
+key = "https://raw.githubusercontent.com/eza-community/eza/main/deb.asc"
+fingerprint = "1548 BC8A 4B4D 2688 F9B0 DAF7 EC29 E209 0CE3 FD43"
