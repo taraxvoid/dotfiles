@@ -2,8 +2,14 @@ pre-commit:
   parallel: true
   commands:
     shellcheck:
-      glob: "{install.sh,scripts/*.sh,.claude/scripts/*.sh,.local/bin/*,.config/git/template/hooks/*}"
+      glob: "{install.sh,scripts/*.sh,.claude/scripts/*.sh,.local/bin/*,.config/git/template/hooks/*,tests/fake-gh/gh}"
       run: shellcheck {staged_files}
+    actionlint:
+      glob: ".github/workflows/*.{yml,yaml}"
+      run: actionlint {staged_files}
+    zizmor:
+      glob: ".github/workflows/*.{yml,yaml}"
+      run: zizmor --offline --no-progress {staged_files}
     zsh-syntax:
       glob: "{.zshrc,.zshenv,.zsh_aliases}"
       run: zsh -n {staged_files}

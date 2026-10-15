@@ -62,7 +62,8 @@ and npm and pnpm (set in their user config by `install.sh`).
 ## Checks
 
 Tool versions are pinned in `mise.toml` (`mise install`, then `lefthook install` once per clone). `lefthook.yml` runs on pre-commit: `shellcheck`
-on `install.sh` and `.claude/scripts/*.sh`, `zsh -n` on the zsh files, and a staged-diff `gitleaks` scan.
+on the shell scripts, `zsh -n` on the zsh files, `actionlint` and `zizmor` on the
+workflows, and a staged-diff `gitleaks` scan.
 `scripts/check-ssh.sh` guards `.ssh/config` (linked to `~/.ssh/config`): it is the only
 file allowed under `.ssh/`, with no key material, only allowlisted directives (no
 `ProxyCommand`, `LocalCommand`, `SetEnv`, ...) and `IdentityFile` paths under `~/.ssh/`.
@@ -70,9 +71,17 @@ Private hosts and other accounts go in the untracked `~/.ssh/config.local`, whic
 includes. `scripts/check-private-strings.sh` fails a commit whose staged changes add any
 string listed in the untracked `~/.config/dotfiles/private-strings` (one per line,
 case-insensitive); it is local-only, since CI cannot have the list without publishing it.
-`.github/workflows/ci.yml` runs the same plus a full-history gitleaks scan with a
-pinned, checksummed binary (keep its version in sync with `mise.toml`). gitleaks is feature-complete upstream; move to
-betterleaks once it reaches 1.x.
+`.github/workflows/ci.yml` runs the same tools (installed from `mise.toml` by
+`jdx/mise-action`) plus a full-history gitleaks scan and the bats tests. Its
+install jobs run `scripts/smoke-install.sh` in a clean Debian container and on
+macOS: `install.sh -y` twice (the second run must change nothing), then an
+interactive zsh that must start without errors. gitleaks is feature-complete
+upstream; move to betterleaks once it reaches 1.x.
+
+Renovate (`renovate.json`, weekly, 3-day minimum release age) bumps the mise tools
+in `mise.toml` and the global config, the action SHAs, the mise version CI uses,
+the zsh plugin pins and antidote. The Nerd Font pin carries a sha256 Renovate
+cannot compute, so bump it by hand.
 
 ## Claude worktree hooks
 

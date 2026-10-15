@@ -159,10 +159,11 @@ fi
 # --- Linux packages ---------------------------------------------------------
 # Runs before anything below fetches from vendors: the bun installer needs unzip,
 # the eza repo needs curl and gpg, the Nerd Font needs xz. A fresh Debian/Crostini
-# can lack any of these. bsdextrautils is for column (gws).
+# can lack any of these. bsdextrautils is for column (gws); libatomic1 because
+# mise's node builds link it.
 if [ "$OS" = Linux ] && command -v apt-get >/dev/null; then
   need=()
-  for p in bsdextrautils ca-certificates curl git gpg unzip xz-utils; do
+  for p in bsdextrautils ca-certificates curl git gpg libatomic1 unzip xz-utils; do
     dpkg -s "$p" >/dev/null 2>&1 || need+=("$p")
   done
   if [ ${#need[@]} -gt 0 ]; then
@@ -212,6 +213,11 @@ if [ "$OS" = Darwin ] && command -v brew >/dev/null; then
   command -v uv >/dev/null || brew install --quiet uv
   command -v bun >/dev/null || brew install --quiet oven-sh/bun/bun
   command -v eza >/dev/null || brew install --quiet eza
+  # zsh plugins .zshrc sources from brew's prefix (Linux gets them from apt and
+  # the pinned antidote clone below)
+  for f in antidote zsh-autosuggestions zsh-syntax-highlighting; do
+    brew list --formula "$f" >/dev/null 2>&1 || brew install --quiet "$f"
+  done
 else
   PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
   if ! command -v mise >/dev/null; then
@@ -232,8 +238,11 @@ fi
 PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:$HOME/.bun/bin:$HOME/.cargo/bin:$PATH"
 if command -v mise >/dev/null; then
   say "mise install (global tools)"
-  mise install --yes --quiet || echo "warning: mise install failed; re-run after fixing" >&2
-  mise reshim
+  # from $HOME so mise reads only the global config: run inside this checkout it
+  # would also read the repo's mise.toml, which it refuses (paranoid mode) unless
+  # the clone happens to sit in a trusted tree
+  (cd "$HOME" && mise install --yes --quiet) || echo "warning: mise install failed; re-run after fixing" >&2
+  (cd "$HOME" && mise reshim)
 fi
 
 # --- release cooldowns -------------------------------------------------------
@@ -343,7 +352,8 @@ gen_completion() {
   local name=$1; shift
   command -v "$1" >/dev/null || return 0
   local out
-  out=$(cd "$DOTFILES" && "$@" 2>/dev/null) || return 0
+  # from $HOME, so mise shims resolve the global tool versions (see mise install)
+  out=$(cd "$HOME" && "$@" 2>/dev/null) || return 0
   case $out in "#compdef"*) ;; *) return 0 ;; esac
   if [ "$out" != "$(cat "$comp_dir/_$name" 2>/dev/null)" ]; then
     printf '%s\n' "$out" >"$comp_dir/_$name"
@@ -367,9 +377,9 @@ gen_completion cargo rustup completions zsh cargo
 gen_completion cf cf complete zsh # Cloudflare's cf CLI
 # mise's completions call out to `usage` at tab time; pinned like the other tools
 USAGE_VERSION=6.12.1
-if command -v mise >/dev/null && [ "$(mise ls --global --no-header usage 2>/dev/null | awk '{print $2}')" != "$USAGE_VERSION" ]; then
+if command -v mise >/dev/null && [ "$(cd "$HOME" && mise ls --global --no-header usage 2>/dev/null | awk '{print $2}')" != "$USAGE_VERSION" ]; then
   say "installing usage $USAGE_VERSION"
-  mise use -g "usage@$USAGE_VERSION" >/dev/null || echo "warning: could not install usage; mise completions won't work" >&2
+  (cd "$HOME" && mise use -g "usage@$USAGE_VERSION" >/dev/null) || echo "warning: could not install usage; mise completions won't work" >&2
 fi
 # .zshrc trusts the cached ~/.zcompdump for a day and only notices fpath string
 # changes, not completions added or removed (apt/brew installs, deleted files), so
