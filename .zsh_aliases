@@ -160,7 +160,26 @@ alias grf=_gh_rerun_failed_branch
 
 alias gma="git merge --abort"
 
-alias gpm="gh pr merge --squash"
+# gpm: squash-merge. With a PR (number/URL/branch) as the first arg, or when
+# the current branch has an open PR, it is plain `gh pr merge --squash`.
+# Otherwise pick an open PR (same rows as gps) and confirm before merging.
+# Flags pass through either way (e.g. `gpm --auto`).
+unalias gpm 2>/dev/null
+gpm() {
+  local me pick n
+  if [[ ${1:-} == [^-]* ]] || [[ ! -t 1 ]] || (( ! $+commands[fzf] )) \
+    || [[ -n $(gh pr view --json state -q 'select(.state == "OPEN") | .state' 2>/dev/null) ]]; then
+    gh pr merge --squash "$@"; return
+  fi
+  me=$(gh api user --jq .login) || return
+  pick=$(gh pr list --limit 100 --json $_gh_pr_fields \
+    | jq -r --arg me "$me" "$_gh_pr_jq_defs"'sort_by([(.author.login != $me), .number])[] | row') || return
+  [[ -n "$pick" ]] || { echo "No open PRs"; return }
+  pick=$(print -r -- "$pick" | fzf --ansi --delimiter=$'\t' --with-nth=2 --prompt='PR merge> ' \
+    --preview='gh pr view {1}; echo; gh pr checks {1}' --preview-window=down,60%) || return 1
+  n=${pick%%$'\t'*}
+  read -q "?Squash-merge #$n${*:+ ($*)}? [y/N] " && { echo; gh pr merge $n --squash "$@" }
+}
 # gpd: with args, plain `gh pr diff`; bare, pick an open PR (same rows as gps,
 # preview = per-file change summary like `git diff --stat`) and page its full
 # diff. Falls back to the current branch's PR with no fzf or no terminal.
