@@ -89,7 +89,10 @@ jobs:
           persist-credentials: false
 
       - name: install.sh smoke test
-        run: scripts/smoke-install.sh
+        run: |
+          # mise refuses the checkout's mise.toml until trusted
+          export MISE_TRUSTED_CONFIG_PATHS="$GITHUB_WORKSPACE"
+          scripts/smoke-install.sh
         env:
           MISE_GITHUB_TOKEN: ${{ github.token }}
           HOMEBREW_NO_AUTO_UPDATE: 1
