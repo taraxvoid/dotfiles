@@ -8,6 +8,8 @@ setup_env() {
   export GWS_ROOTS
   export XDG_CACHE_HOME=$BATS_TEST_TMPDIR/cache
   export GWS_CACHE=$XDG_CACHE_HOME/gws.json
+  # tests rescan between calls; the cache tests set their own max age
+  export GWS_MAX_AGE=0
   export FAKE_GH=$BATS_TEST_TMPDIR/gh
   export PATH=$BATS_TEST_DIRNAME/fake-gh:$BATS_TEST_DIRNAME/../.local/bin:$BATS_TEST_DIRNAME/../.claude/scripts:$PATH
   export GIT_CONFIG_GLOBAL=$BATS_TEST_TMPDIR/gitconfig GIT_CONFIG_NOSYSTEM=1

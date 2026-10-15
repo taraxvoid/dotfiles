@@ -1,11 +1,16 @@
 #!/bin/sh
 # Fetch all remotes of every repo one level under ~/projects/<tier>/ (worktrees
 # share these repos' remote refs). Run by git-autofetch.timer.
+#
+# Skips ~/projects/untrusted: fetch runs whatever that repo's .git/config names
+# (core.sshCommand, credential helpers, uploadpack), and sbx --rw-git can let
+# sandboxed code write it. Fetch those by hand: sbx --rw-git git fetch.
 if [ -z "$SSH_AUTH_SOCK" ]; then
   # shellcheck disable=SC2012 # newest agent socket by mtime; names are ssh-generated
   SSH_AUTH_SOCK=$(ls -t /tmp/ssh-*/agent.* 2>/dev/null | head -1); export SSH_AUTH_SOCK
 fi
 for d in "$HOME"/projects/*/*/; do
+  case $d in "$HOME"/projects/untrusted/*) continue ;; esac
   [ -e "$d/.git" ] || continue
   GIT_TERMINAL_PROMPT=0 timeout 120 git -C "$d" fetch --all --prune --quiet 2>&1 \
     | sed "s|^|${d##"$HOME"/}: |"

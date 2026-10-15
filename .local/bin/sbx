@@ -2,23 +2,37 @@
 # Run a command (default: a shell) in a bubblewrap sandbox for code you did not
 # write. Only usable from inside ~/projects/untrusted or ~/worktrees/untrusted.
 #
-#   sbx [--offline] [cmd args...]     e.g.  sbx bun install   sbx bun run dev
+#   sbx [--offline] [--rw-git] [cmd args...]   e.g.  sbx bun install   sbx bun run dev
 #
-# Inside: / is read-only, $HOME is a throwaway dir (~/.local/share/sbx/home) so
-# none of your ~/.ssh, ~/.config/gh, ~/.claude, dashlane files or ssh-agent
-# exist; the environment is scrubbed; only the untrusted trees are writable. mise
-# trusts the untrusted trees inside the sandbox only and installs tools into
+# Inside: / is read-only, $HOME is a throwaway dir per repo
+# (~/.local/share/sbx/home/<repo>) so none of your ~/.ssh, ~/.config/gh,
+# ~/.claude, dashlane files or ssh-agent exist; the environment is scrubbed; only
+# the repo holding cwd is writable (or cwd itself outside any repo). mise trusts
+# the untrusted trees inside the sandbox only and installs tools into
 # ~/.local/share/sbx/mise, never into your real mise dir. Network is on unless
 # --offline. This limits what a hostile postinstall or dev server can read or
 # change; it is not a VM, so do not treat it as protection against kernel exploits.
+#
+# The repo's git dir is read-only inside: git on the host (your prompt, gwl, gws)
+# runs whatever .git/config says (core.fsmonitor, core.sshCommand, hooks), so a
+# writable .git would let sandboxed code run commands outside the sandbox.
+# --rw-git lifts that for a git command that must write (commit, fetch); only use
+# it for commands you trust, never for installs or dev servers.
 set -euo pipefail
 
 die() { echo "sbx: $*" >&2; exit 1; }
 command -v bwrap >/dev/null || die "bubblewrap not installed (apt install bubblewrap)"
 
-net=--share-net
-if [ "${1:-}" = --offline ]; then net=; shift; fi
-[ "${1:-}" = -- ] && shift
+net=--share-net rwgit=0
+while [ $# -gt 0 ]; do
+  case $1 in
+    --offline) net='' ;;
+    --rw-git) rwgit=1 ;;
+    --) shift; break ;;
+    *) break ;;
+  esac
+  shift
+done
 
 roots=("$HOME/projects/untrusted" "$HOME/worktrees/untrusted")
 cwd=$(pwd -P)
@@ -28,8 +42,29 @@ for r in "${roots[@]}"; do
 done
 [ "$ok" = 1 ] || die "run from inside ${roots[0]} or ${roots[1]} (cwd: $cwd)"
 
+# the repo holding cwd: the nearest dir with a .git, stopping at the roots; found
+# without running git, since this repo's git config is what is not trusted
+repo=$cwd
+while [ ! -e "$repo/.git" ]; do
+  case $repo in "${roots[0]}" | "${roots[1]}" | /) repo=$cwd; break ;; esac
+  repo=$(dirname "$repo")
+done
+# its git dirs: .git itself, or for a worktree the dir its .git file names plus
+# the shared dir (commondir) that holds config and hooks
+gitdirs=()
+abs() { case $2 in /*) (cd "$2" && pwd -P) ;; *) (cd "$1/$2" && pwd -P) ;; esac; }
+if [ -d "$repo/.git" ]; then
+  gitdirs+=("$repo/.git")
+elif [ -f "$repo/.git" ]; then
+  gd=$(abs "$repo" "$(sed -n 's/^gitdir: //p' "$repo/.git")") || die "cannot resolve $repo/.git"
+  gitdirs+=("$gd")
+  if [ -f "$gd/commondir" ]; then gitdirs+=("$(abs "$gd" "$(cat "$gd/commondir")")"); fi
+fi
+
 state=$HOME/.local/share/sbx
-mkdir -p "$state"/home "$state"/mise "${roots[@]}"
+# one throwaway HOME per repo, so one repo cannot plant dotfiles for another
+home=$state/home/$(printf '%s' "${repo#"$HOME"/}" | tr '/' '%')
+mkdir -p "$home" "$state"/mise
 
 args=(--unshare-all --die-with-parent --new-session
   --ro-bind /usr /usr --ro-bind /etc /etc
@@ -38,10 +73,16 @@ args=(--unshare-all --die-with-parent --new-session
 for d in bin lib lib64 sbin; do # merged-/usr layouts keep these as symlinks
   if [ -L "/$d" ]; then args+=(--symlink "$(readlink "/$d")" "/$d"); elif [ -d "/$d" ]; then args+=(--ro-bind "/$d" "/$d"); fi
 done
-args+=(--bind "$state/home" "$HOME")
+args+=(--bind "$home" "$HOME")
 [ -x "$HOME/.local/bin/mise" ] && args+=(--ro-bind "$HOME/.local/bin/mise" "$HOME/.local/bin/mise")
 args+=(--bind "$state/mise" "$HOME/.local/share/mise")
-for r in "${roots[@]}"; do args+=(--bind "$r" "$r"); done
+args+=(--bind "$repo" "$repo")
+# after the repo bind, so these read-only mounts sit on top of it
+if [ "$rwgit" = 0 ]; then
+  for g in ${gitdirs[@]+"${gitdirs[@]}"}; do args+=(--ro-bind "$g" "$g"); done
+else
+  for g in ${gitdirs[@]+"${gitdirs[@]}"}; do args+=(--bind "$g" "$g"); done
+fi
 trusted=$(IFS=:; echo "${roots[*]}")
 args+=(--chdir "$cwd" --clearenv
   --setenv HOME "$HOME" --setenv USER "${USER:-user}" --setenv TERM "${TERM:-xterm}"
