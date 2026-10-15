@@ -1,3 +1,4 @@
 # only the ssh config is tracked; keys, known_hosts and config.local stay local
 .ssh/*
 !.ssh/config
+.claude/

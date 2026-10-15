@@ -4,13 +4,18 @@ My configs
 ## Setup (macOS, Debian/Ubuntu, ChromeOS Crostini)
 
 ```sh
-./install.sh          # symlink zsh/bun configs into ~, install zsh plugins
+./install.sh          # symlink zsh/bun configs into ~, install zsh plugins, optionally copy Claude scripts and setup
 ./install.sh --chsh   # also make zsh the login shell
-./install.sh -y       # no prompts, answer yes to all
+./install.sh [-y/-n|--yes/--no]       # no prompts, answer yes to all
+./install.sh --from-here  # point global configs to those in this branch (for testing)
+./install.sh --link-only  # only (re)link, install nothing
 ```
 
-Safe to re-run; re-run it from whichever checkout `~` should point at (for
-example after merging a worktree). Existing real files are moved to
+Safe to re-run, from any checkout or worktree. Every link in `~` points through
+one symlink, `~/.dotfiles`, which points at the repo's main checkout, so a
+worktree being cleaned up never breaks `~`. `--from-here` points it at the
+current worktree instead (`cleanup-worktrees.sh` won't remove that one); a run
+without the flag switches back. Existing real files are moved to
 `<name>.pre-dotfiles` first.
 
 The zsh config detects what is installed instead of branching on OS:
@@ -34,12 +39,25 @@ The zsh config detects what is installed instead of branching on OS:
   whichever exists.
 - Aliases for `eza`, `bat`, `nvim`, `pip3` and `python3` are only defined when the
   tool exists. `dx` needs the Dashlane `dcli`.
+- `gwc [issue] [slug]` starts an issue by hand the way Claude does: worktree
+  `<N>-<slug>` on branch `worktree-<N>-<slug>` (same `worktree-create.sh`),
+  pushed so `gws` counts it as tracked.
+- git pages through delta (pinned in the global mise config) when it runs, and
+  falls back to less.
+- Generated init scripts (zoxide, fzf, starship) are cached in `~/.cache/zsh`
+  and regenerated when the tool's binary changes; delete that dir to force it.
 
 `install.sh` leaves `~/.config/gh/hosts.yml` and `~/.config/poolside` alone
 (per-machine auth). It links `.ssh/config` but never keys or `~/.ssh/config.local`. It asks, default no, before linking `.claude/CLAUDE.md` and
 `.claude/scripts/*.sh` into `~/.claude` (existing files are moved to
-`*.pre-dotfiles`); `-y` answers yes. The rest of `~/.claude` (settings, hooks)
-is machine-specific, diff it by hand.
+`*.pre-dotfiles`); `-y` answers yes, `-n` no. The same step merges
+`.claude/settings.fragment.json` (status line, every hook below, the worktree
+deny rules) into `~/.claude/settings.json`, backing it up first; the rest of that
+file stays machine-specific.
+
+Every package manager refuses releases younger than 3 days: bun (`.bunfig.toml`),
+uv (`.config/uv/uv.toml`), mise (`minimum_release_age` in the global config),
+and npm and pnpm (set in their user config by `install.sh`).
 
 ## Checks
 
@@ -72,11 +90,19 @@ WorktreeRemove hooks: new worktrees go to `~/worktrees/<tier>/<repo>/<name>` on 
 `worktree-<name>` (tier = repo's dir under `~/projects`), and removal is a no-op.
 `require-worktree.sh` is a PreToolUse hook that blocks Edit/Write/NotebookEdit and
 `git commit` in a repo's main checkout (override with `CLAUDE_ALLOW_MAIN_EDITS=1`).
-The `hooks` block in `~/.claude/settings.json` is machine-specific; wire it as:
-`WorktreeCreate` and `WorktreeRemove` run the matching script; `PreToolUse` runs
-`require-worktree.sh` for `Edit|Write|NotebookEdit` and for `Bash` with `if: Bash(git commit*)`.
+All of them are wired in `.claude/settings.fragment.json`, which `install.sh`
+merges into `~/.claude/settings.json`: `WorktreeCreate` and `WorktreeRemove` run
+the matching script; `PreToolUse` runs `require-worktree.sh` for
+`Edit|Write|NotebookEdit` and for `Bash` with `if: Bash(git commit*)`.
 
 ## Claude worktree cleanup
+
+`gws --clean` rescans and lists every `done` item (a merged or closed PR's head is
+exactly the branch HEAD) across all repos; `gws --clean --yes` removes those
+worktrees and deletes those local branches. Each one is rechecked first and kept if
+it has local changes, moved since the scan, or its directory is gone. Orphans are
+never removed, however old: the age column in `gws` is for triage only. Ignored
+files in a removed worktree (`node_modules`, `.env.local`) go with it.
 
 `.claude/scripts/cleanup-worktrees.sh [-n] [repo-dir]` removes git worktrees whose
 PR is merged or closed (needs `gh`). It skips the main checkout, open PRs, dirty
@@ -94,17 +120,21 @@ Repos live in `~/projects/<tier>/<repo>` and worktrees mirror that as
   pinned tool that is missing. Nothing is trusted on `cd`; tools install when you
   run a command that needs them. Caveat: trust is by path, so a worktree where you
   check out someone else's branch or PR in these trees inherits it. Review such
-  branches under `untrusted`.
+  branches under `untrusted`; `gpo` asks (default no) before checking out
+  someone else's PR here.
 - `untrusted`: third-party code. mise will not read its config, lefthook hooks are
   never installed, and nothing runs until you do it on purpose, preferably through
   `sbx`.
 
-`sbx [--offline] [cmd...]` (from inside an `untrusted` tree) runs a command, or a
-shell, in a bubblewrap sandbox: `/` read-only, a throwaway `$HOME` (no `~/.ssh`,
-`~/.config/gh`, `~/.claude`, ssh-agent or tokens), scrubbed environment, only the
-`untrusted` trees writable, mise trust and tool installs confined to the sandbox
-(`~/.local/share/sbx`). It narrows what a hostile install script or dev server can
-touch; it is not a VM. Needs `bubblewrap`.
+`sbx [--offline] [--rw-git] [cmd...]` (from inside an `untrusted` tree) runs a
+command, or a shell, in a bubblewrap sandbox: `/` read-only, a throwaway `$HOME`
+per repo (no `~/.ssh`, `~/.config/gh`, `~/.claude`, ssh-agent or tokens), scrubbed
+environment, only the current repo writable, mise trust and tool installs confined
+to the sandbox (`~/.local/share/sbx`). The repo's `.git` stays read-only, because
+git on the host runs whatever `.git/config` names (`core.fsmonitor`,
+`core.sshCommand`, hooks); `--rw-git` lifts that for a trusted git command only. It
+narrows what a hostile install script or dev server can touch; it is not a VM.
+Needs `bubblewrap`.
 
 `.config/git/template/hooks/post-checkout` installs lefthook's git hooks when a repo
 is cloned or a worktree is created (git runs `post-checkout` for both), only inside
@@ -112,5 +142,6 @@ the two first-party trees. `install.sh` sets it as the git template, so new clon
 get it, and copies it into existing first-party repos.
 
 `git-autofetch.timer` (systemd user timer, Linux) runs `git fetch --all --prune` in
-every repo under `~/projects/*/*` every 10 minutes. It needs a running ssh-agent
+every first-party repo under `~/projects/*/*` every 10 minutes (untrusted repos are
+skipped: fetch them with `sbx --rw-git git fetch`). It needs a running ssh-agent
 for SSH remotes.

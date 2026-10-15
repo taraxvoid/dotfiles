@@ -1,0 +1,7 @@
+# Global uv settings (linked to ~/.config/uv/uv.toml); a project's uv.toml or
+# [tool.uv] overrides these.
+
+# Supply-chain cooldown, same 3 days as bun, npm, pnpm and mise: resolution
+# ignores packages published more recently. Needs a uv that parses durations
+# (0.11 does; older versions warn and resolve without a cutoff).
+exclude-newer = "3 days"
