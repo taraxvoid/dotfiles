@@ -154,10 +154,10 @@ fi
 # --- Linux packages ---------------------------------------------------------
 # Runs before anything below fetches from vendors: the bun installer needs unzip,
 # the eza repo needs curl and gpg, the Nerd Font needs xz. A fresh Debian/Crostini
-# can lack any of these.
+# can lack any of these. bsdextrautils is for column (gws).
 if [ "$OS" = Linux ] && command -v apt-get >/dev/null; then
   need=()
-  for p in ca-certificates curl git gpg unzip xz-utils; do
+  for p in bsdextrautils ca-certificates curl git gpg unzip xz-utils; do
     dpkg -s "$p" >/dev/null 2>&1 || need+=("$p")
   done
   if [ ${#need[@]} -gt 0 ]; then
@@ -197,7 +197,7 @@ fi
 # `uv self update`, `bun upgrade`), so they are installed only when missing. They are
 # deliberately not in the global mise config: a mise copy of uv/bun would shadow the
 # vendor one and hide unpinned-version mistakes in projects. Everything else
-# (neovim, fzf, rg, zoxide, just, yq, starship) is pinned in
+# (neovim, fzf, rg, fd, zoxide, just, jq, yq, starship) is pinned in
 # .config/mise-global.toml and installed by `mise install` (aqua backend, which
 # verifies release checksums), because Debian's apt versions are years old.
 # eza is the exception: the author's apt repo (Linux) or brew (macOS) is used
@@ -222,6 +222,9 @@ else
     curl -fsSL https://bun.sh/install | SHELL=/bin/sh bash >/dev/null
   fi
 fi
+# install.sh runs under bash, so put the user tool dirs on PATH the way .zshenv
+# does; the steps below need the mise tools (jq for the Claude settings merge)
+PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:$HOME/.bun/bin:$HOME/.cargo/bin:$PATH"
 if command -v mise >/dev/null; then
   say "mise install (global tools)"
   mise install --yes --quiet || echo "warning: mise install failed; re-run after fixing" >&2
@@ -265,7 +268,9 @@ fi
 if ask "Link Claude files (.claude/CLAUDE.md, .claude/scripts/*) and merge .claude/settings.fragment.json into ~/.claude/settings.json?"; then
   link .claude/CLAUDE.md
   for f in .claude/scripts/*.sh; do link "$f"; done
-  say "$("$DOTFILES/.claude/scripts/merge-settings.sh" "$DOTFILES/.claude/settings.fragment.json" "$HOME/.claude/settings.json")"
+  # not say "$(...)": set -e ignores a failure inside an argument
+  merged=$("$DOTFILES/.claude/scripts/merge-settings.sh" "$DOTFILES/.claude/settings.fragment.json" "$HOME/.claude/settings.json")
+  say "$merged"
 else
   say "skipping ~/.claude (pass -y to link it)"
 fi
@@ -306,13 +311,11 @@ fi
 # Generated once here instead of `eval "$(tool completion zsh)"` in .zshrc, which
 # costs a process spawn per tool on every shell start. Written to ~/.zsh/completions
 # (first on fpath in .zshrc). Tools whose package already ships a completion (gh,
-# rg, fd, eza, zoxide via apt/brew) are left alone. Re-run after upgrading a tool.
+# rg, eza, zoxide via apt/brew) are left alone. Re-run after upgrading a tool.
 # Not covered: wrangler, astro, biome, vitest, playwright (per-project or no zsh
 # generator), claude (none), flux (sourced in .zshrc when installed).
 comp_dir=$HOME/.zsh/completions
 mkdir -p "$comp_dir"
-# install.sh runs under bash, so put the user tool dirs on PATH the way .zshenv does
-PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:$HOME/.bun/bin:$HOME/.cargo/bin:$PATH"
 
 # gen_completion <name> <command...>: write _name if the tool exists and its
 # output looks like a zsh completion; keep the old file if generation fails.
@@ -333,6 +336,7 @@ gen_completion uvx uvx --generate-shell-completion zsh
 gen_completion bun env SHELL=zsh bun completions
 gen_completion pnpm pnpm completion zsh
 gen_completion just just --completions zsh
+gen_completion fd fd --gen-completions zsh
 gen_completion lefthook lefthook completion zsh
 gen_completion gitleaks gitleaks completion zsh
 gen_completion typst typst completions zsh
