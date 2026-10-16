@@ -120,8 +120,8 @@ gpl() { gps -l "$@"; }
 # Action menu for one PR number (called by gps). Merge, auto-merge and close ask first.
 _gh_pr_act() {
   local n=$1 action
-  action=$(printf '%s\n' view diff checks "failed logs" "checkout (cd to worktree)" "squash merge" \
-    "auto-merge (squash)" approve "review or comment" "update branch" "mark ready" browser close \
+  action=$(printf '%s\n' approve "auto-merge (squash)" browser "checkout (cd to worktree)" checks close \
+    diff "failed logs" "mark ready" "review or comment" "squash merge" "update branch" view \
     | fzf --prompt="#$n> " --height=~40%) || return 1
   case $action in
     view) gh pr view $n ;;
