@@ -122,6 +122,8 @@ _cache_eval zoxide zoxide init zsh --cmd j
 # a subshell where aliases don't exist, so resolve the real binary names here.
 _fd=${${commands[fd]:+fd}:-${commands[fdfind]:+fdfind}}
 _bat=${${commands[bat]:+bat}:-${commands[batcat]:+batcat}}
+# Top-down list with the cursor on the first item, and up/down wrap around.
+export FZF_DEFAULT_OPTS="--layout=reverse --cycle"
 if [[ -n $_fd ]]; then
   export FZF_DEFAULT_COMMAND="$_fd --type f --hidden --follow --exclude .git"
   export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
