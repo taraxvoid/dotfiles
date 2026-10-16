@@ -17,6 +17,7 @@ jq = "1.8.1"
 fd = "10.4.2"
 starship = "1.26.0"
 "aqua:dandavison/delta" = "0.20.1" # git pager (.gitconfig falls back to less without it)
+shellcheck = "0.11.0"
 
 [settings]
 # Supply-chain cooldown, same 3 days as ~/.bunfig.toml, npm, pnpm and uv
