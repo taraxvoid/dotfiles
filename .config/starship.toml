@@ -1,33 +1,53 @@
-# Needs a Nerd Font in the terminal (install.sh installs JetBrainsMono Nerd Font)
+# Plain-text symbols: the terminal (ChromeOS Terminal) has no Nerd Font
+# Outrun palette, tuned for contrast on dark backgrounds (needs truecolor)
 add_newline = false
 command_timeout = 500
 scan_timeout = 500
+palette = "outrun"
 
 format = """$directory$git_branch$git_status$nodejs$python$rust$golang$cmd_duration$line_break$character"""
 
+[palettes.outrun]
+cyan = "#36e2ff"
+pink = "#ff8ae2"
+orange = "#ff9e4a"
+lilac = "#b9a0ff"
+muted = "#9a93c4"
+red = "#ff5370"
+
 [directory]
-truncation_length = 3
+style = "bold cyan"
+truncation_length = 5
 truncation_symbol = "…/"
-read_only = " 󰌾"
+read_only = " (ro)"
+read_only_style = "red"
 
 [git_branch]
-symbol = " "
+symbol = ""
+style = "bold pink"
 
 [git_status]
-style = "bold red"
+style = "bold orange"
 
 [nodejs]
-symbol = " "
+symbol = "node "
+style = "lilac"
 
 [python]
-symbol = " "
+symbol = "py "
+style = "lilac"
 
 [rust]
-symbol = " "
+symbol = "rs "
+style = "lilac"
 
 [golang]
-symbol = " "
+symbol = "go "
+style = "lilac"
+
+[cmd_duration]
+style = "muted"
 
 [character]
-success_symbol = "[➜](bold green)"
-error_symbol = "[➜](bold red)"
+success_symbol = "[❯](bold pink)"
+error_symbol = "[❯](bold red)"
