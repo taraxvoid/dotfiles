@@ -92,12 +92,21 @@ typeset -g _gh_pr_jq_defs='
 # failing, review state, merge state incl. behind/blocked/conflicts, size, age,
 # auto-merge). On a terminal it is an fzf picker (preview = PR + checks) that
 # leads to an action menu; `gps -l`, a pipe, or no fzf prints the plain table.
+# `gps <N>` (or `#N`) skips the picker: it prints that PR's block, then the
+# action menu (block only with -l, a pipe, or no fzf).
 # Other args pass through to `gh pr list` (e.g. `gps --author @me`).
 unalias gps 2>/dev/null
 gps() {
-  local list=0 me rows pick
+  local list=0 me rows pick n
   [[ ${1:-} == (-l|--list) ]] && { list=1; shift }
   me=$(gh api user --jq .login) || return
+  if [[ ${1:-} == (\#|)<-> ]]; then
+    n=${1#\#}
+    rows=$(gh pr view $n --json $_gh_pr_fields) || return
+    print -r -- "$rows" | jq -r --arg me "$me" "$_gh_pr_jq_defs"'block'
+    (( list )) || [[ ! -t 1 ]] || (( ! $+commands[fzf] )) || _gh_pr_act $n
+    return
+  fi
   if (( list )) || [[ ! -t 1 ]] || (( ! $+commands[fzf] )); then
     gh pr list --limit 100 "$@" --json $_gh_pr_fields \
     | jq -r --arg me "$me" "$_gh_pr_jq_defs"'
