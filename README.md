@@ -25,7 +25,7 @@ The zsh config detects what is installed instead of branching on OS:
   `zsh-syntax-highlighting`, and clones antidote at a pinned commit
   into `~/.zsh/`. JetBrainsMono Nerd Font (into `~/.local/share/fonts`) is
   downloaded at a pinned version with a checksum. Bump that pin in `install.sh` on purpose.
-- Both: CLI tools (neovim, fzf, rg, zoxide, just, yq, starship) are pinned in
+- Both: CLI tools (neovim, fzf, rg, bat, zoxide, just, yq, starship) are pinned in
   `.config/mise-global.toml` and installed by `mise install`, since Debian's apt
   versions are years old. mise, uv and bun come from their vendors' installers
   (brew on macOS) when missing and update themselves; keep uv and bun out of the
