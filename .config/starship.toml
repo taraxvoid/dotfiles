@@ -19,30 +19,30 @@ red = "#ff5370"
 style = "bold cyan"
 truncation_length = 5
 truncation_symbol = "…/"
-read_only = " 󰌾"
+read_only = " \U000F033E"
 read_only_style = "red"
 
 [git_branch]
-symbol = " "
+symbol = "\uE0A0 "
 style = "bold pink"
 
 [git_status]
 style = "bold orange"
 
 [nodejs]
-symbol = " "
+symbol = "\uE718 "
 style = "lilac"
 
 [python]
-symbol = " "
+symbol = "\uE73C "
 style = "lilac"
 
 [rust]
-symbol = " "
+symbol = "\U000F1617 "
 style = "lilac"
 
 [golang]
-symbol = " "
+symbol = "\uE627 "
 style = "lilac"
 
 [cmd_duration]
