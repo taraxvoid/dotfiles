@@ -9,7 +9,7 @@ format = """$directory$git_branch$git_status$nodejs$python$rust$golang$cmd_durat
 
 [palettes.outrun]
 cyan = "#36e2ff"
-magenta = "#ff4fd8"
+pink = "#ff8ae2"
 orange = "#ff9e4a"
 lilac = "#b9a0ff"
 muted = "#9a93c4"
@@ -24,7 +24,7 @@ read_only_style = "red"
 
 [git_branch]
 symbol = " "
-style = "bold magenta"
+style = "bold pink"
 
 [git_status]
 style = "bold orange"
@@ -49,5 +49,5 @@ style = "lilac"
 style = "muted"
 
 [character]
-success_symbol = "[❯](bold magenta)"
+success_symbol = "[❯](bold pink)"
 error_symbol = "[❯](bold red)"
