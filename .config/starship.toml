@@ -1,7 +1,6 @@
 # Plain-text symbols: the terminal (ChromeOS Terminal) has no Nerd Font
 # Outrun palette, tuned for contrast on dark backgrounds (needs truecolor)
 add_newline = false
-command_timeout = 500
 scan_timeout = 500
 palette = "outrun"
 
@@ -47,6 +46,7 @@ style = "lilac"
 
 [cmd_duration]
 style = "muted"
+disabled = true
 
 [character]
 success_symbol = "[❯](bold pink)"
