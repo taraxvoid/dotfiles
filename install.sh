@@ -203,7 +203,7 @@ fi
 # `uv self update`, `bun upgrade`), so they are installed only when missing. They are
 # deliberately not in the global mise config: a mise copy of uv/bun would shadow the
 # vendor one and hide unpinned-version mistakes in projects. Everything else
-# (neovim, fzf, rg, fd, zoxide, just, jq, yq, starship) is pinned in
+# (neovim, fzf, rg, fd, sd, zoxide, just, jq, yq, starship) is pinned in
 # .config/mise-global.toml and installed by `mise install` (aqua backend, which
 # verifies release checksums), because Debian's apt versions are years old.
 # eza is the exception: the author's apt repo (Linux) or brew (macOS) is used

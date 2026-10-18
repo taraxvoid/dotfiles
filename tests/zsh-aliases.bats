@@ -65,3 +65,19 @@ z() {
   GIT_TOP=$HOME/projects/untrusted/app GH_AUTHOR=stranger run z 'gpo 5'
   [[ "$output" == *"checked out 5"* ]]
 }
+
+@test "fdsd replaces a literal string in files matching the glob, hidden ones only with -a" {
+  command -v fd >/dev/null && command -v sd >/dev/null || skip "fd and sd not installed"
+  d=$BATS_TEST_TMPDIR/proj; mkdir -p "$d/.hid"
+  echo 'a: foo.x' >"$d/one.yaml"; echo 'a: foo.x' >"$d/.hid/two.yaml"; echo 'a: foo.x' >"$d/three.txt"
+  cd "$d"
+  run zsh -fc 'source "$0"; fdsd foo.x bar "*yaml"' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -eq 0 ]
+  [ "$(cat one.yaml)" = "a: bar" ]
+  [ "$(cat .hid/two.yaml)" = "a: foo.x" ]
+  # eval parses after the sourcing, so the noglob alias keeps *yaml from expanding
+  run zsh -fc 'source "$0"; eval "fdsd foo.x bar *yaml -a"' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -eq 0 ]
+  [ "$(cat .hid/two.yaml)" = "a: bar" ]
+  [ "$(cat three.txt)" = "a: foo.x" ]
+}
