@@ -52,8 +52,11 @@ The zsh config detects what is installed instead of branching on OS:
 `.claude/scripts/*.sh` into `~/.claude` (existing files are moved to
 `*.pre-dotfiles`); `-y` answers yes, `-n` no. The same step merges
 `.claude/settings.fragment.json` (status line, every hook below, the worktree
-deny rules) into `~/.claude/settings.json`, backing it up first; the rest of that
-file stays machine-specific.
+deny rules, and Claude Code's built-in sandbox with its write, network and
+credential allowlists) into `~/.claude/settings.json`, backing it up first; the
+rest of that file stays machine-specific. The sandbox keeps its "retry
+unsandboxed" escape hatch until you set `sandbox.allowUnsandboxedCommands` to
+`false` yourself.
 
 Every package manager refuses releases younger than 3 days: bun (`.bunfig.toml`),
 uv (`.config/uv/uv.toml`), mise (`minimum_release_age` in the global config),
@@ -134,7 +137,13 @@ to the sandbox (`~/.local/share/sbx`). The repo's `.git` stays read-only, becaus
 git on the host runs whatever `.git/config` names (`core.fsmonitor`,
 `core.sshCommand`, hooks); `--rw-git` lifts that for a trusted git command only. It
 narrows what a hostile install script or dev server can touch; it is not a VM.
-Needs `bubblewrap`.
+Needs `bubblewrap` on Linux. On macOS (no `bwrap`) it uses `srt`
+(`@anthropic-ai/sandbox-runtime`, pinned in the global mise config, Seatbelt
+underneath; `SBX_BACKEND=bwrap|srt` forces one): the real `$HOME` stays but is
+unreadable except the repo, its git dirs, mise and bun binaries and a cache dir of
+sbx's own (`~/.local/share/sbx/cache`), the same scrubbed environment, only the
+repo writable, and the network limited to the npm, PyPI and GitHub hosts (add more
+with `SBX_DOMAINS="host ..."`; `--offline` allows none).
 
 `.config/git/template/hooks/post-checkout` installs lefthook's git hooks when a repo
 is cloned or a worktree is created (git runs `post-checkout` for both), only inside

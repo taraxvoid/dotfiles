@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # merge-settings.sh <fragment.json> <settings.json>
 # Merge a tracked settings fragment into a machine's Claude settings.json:
-# statusLine is replaced, each hook entry is appended to its event unless one of
+# statusLine is replaced, sandbox.enabled is set and its allowlists (write dirs,
+# domains, credential files by path, env vars by name) are unioned with what is
+# there (existing entries win), each hook entry is appended to its event unless one of
 # its commands is already registered there, permissions.deny rules missing from
 # settings are appended, and every other key is left alone.
 # Backs settings.json up to settings.json.bak.<timestamp> before changing it and
@@ -14,6 +16,14 @@ frag=$1 settings=$2
 new=$(jq --slurpfile f "$frag" '
   $f[0] as $frag
   | (if $frag.statusLine then .statusLine = $frag.statusLine else . end)
+  | (if $frag.sandbox then
+      def merge($have; $add; f): (($have // []) + [$add[]? | select(. as $x | ($have // []) | all(f != ($x | f)))]);
+      .sandbox.enabled = true
+      | .sandbox.filesystem.allowWrite = merge(.sandbox.filesystem.allowWrite; $frag.sandbox.filesystem.allowWrite; .)
+      | .sandbox.network.allowedDomains = merge(.sandbox.network.allowedDomains; $frag.sandbox.network.allowedDomains; .)
+      | .sandbox.credentials.files = merge(.sandbox.credentials.files; $frag.sandbox.credentials.files; .path)
+      | .sandbox.credentials.envVars = merge(.sandbox.credentials.envVars; $frag.sandbox.credentials.envVars; .name)
+    else . end)
   | (if $frag.permissions.deny then .permissions.deny = (reduce $frag.permissions.deny[] as $d
       (.permissions.deny // []; if any(.[]; . == $d) then . else . + [$d] end)) else . end)
   | .hooks = (reduce (($frag.hooks // {}) | to_entries[]) as $e (.hooks // {};

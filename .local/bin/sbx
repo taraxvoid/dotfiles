@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Run a command (default: a shell) in a bubblewrap sandbox for code you did not
-# write. Only usable from inside ~/projects/untrusted or ~/worktrees/untrusted.
+# Run a command (default: a shell) in a sandbox for code you did not write: bubblewrap
+# where it exists (Linux), srt (sandbox-runtime, Seatbelt) on macOS; the description
+# below is the bwrap one, the srt differences are in its block further down.
+# Only usable from inside ~/projects/untrusted or ~/worktrees/untrusted.
 #
 #   sbx [--offline] [--rw-git] [cmd args...]   e.g.  sbx bun install   sbx bun run dev
 #
@@ -21,7 +23,17 @@
 set -euo pipefail
 
 die() { echo "sbx: $*" >&2; exit 1; }
-command -v bwrap >/dev/null || die "bubblewrap not installed (apt install bubblewrap)"
+# bwrap where it exists (Linux), srt (Anthropic's sandbox-runtime: Seatbelt on macOS)
+# elsewhere; SBX_BACKEND=bwrap|srt forces one
+backend=${SBX_BACKEND:-}
+if [ -z "$backend" ]; then
+  if command -v bwrap >/dev/null; then backend=bwrap; else backend=srt; fi
+fi
+case $backend in
+  bwrap) command -v bwrap >/dev/null || die "bubblewrap not installed (apt install bubblewrap)" ;;
+  srt) command -v srt >/dev/null || die "srt not installed (mise install)" ;;
+  *) die "unknown SBX_BACKEND: $backend" ;;
+esac
 
 net=--share-net rwgit=0
 while [ $# -gt 0 ]; do
@@ -62,6 +74,50 @@ elif [ -f "$repo/.git" ]; then
 fi
 
 state=$HOME/.local/share/sbx
+
+if [ "$backend" = srt ]; then
+  # srt cannot swap in a fresh $HOME, so it denies reads of the real one and
+  # re-opens the repo, its git dirs, mise and bun binaries, and a cache dir of its
+  # own (nothing shared with your real caches). Network is a registry allowlist
+  # (SBX_DOMAINS adds hosts, space separated); --offline allows nothing. The
+  # environment is scrubbed by running srt itself under env -i.
+  command -v jq >/dev/null || die "jq not installed (mise install)"
+  cache=$state/cache
+  mkdir -p "$cache"
+  # srt is a node script: the scrubbed PATH needs the dirs of srt itself and node
+  # (mise which sees past the shims, which would not resolve under the scrubbed env)
+  real() { mise which "$1" 2>/dev/null || command -v "$1"; }
+  srtbin=$(real srt)
+  srtpath=$(dirname "$srtbin")
+  if node=$(real node); then srtpath=$srtpath:$(dirname "$node"); fi
+  doms="registry.npmjs.org pypi.org files.pythonhosted.org github.com *.githubusercontent.com ${SBX_DOMAINS:-}"
+  [ -n "$net" ] || doms=''
+  gitjson=$(printf '%s\n' ${gitdirs[@]+"${gitdirs[@]}"} | jq -R . | jq -s 'map(select(. != ""))')
+  cfg=$(mktemp -d "${TMPDIR:-/tmp}/sbx.XXXXXX")
+  trap 'rm -rf "$cfg"' EXIT
+  jq -n --arg repo "$repo" --arg home "$HOME" --arg cache "$cache" --arg rwgit "$rwgit" \
+    --argjson gits "$gitjson" --arg doms "$doms" '{
+    network: {allowedDomains: ($doms | split(" ") | map(select(. != ""))), deniedDomains: []},
+    filesystem: {
+      denyRead: [$home],
+      allowRead: ([$repo, $cache, "\($home)/.local/share/mise", "\($home)/.local/bin/mise", "\($home)/.bun/bin"] + $gits),
+      allowWrite: ([$repo, $cache] + (if $rwgit == "1" then $gits else [] end)),
+      denyWrite: (if $rwgit == "1" then [] else $gits end)
+    }}' >"$cfg/settings.json"
+  trusted=$(IFS=:; echo "${roots[*]}")
+  cmd=("$@")
+  [ ${#cmd[@]} -gt 0 ] || cmd=("${SHELL:-bash}")
+  [ -x "$HOME/.local/bin/mise" ] && cmd=("$HOME/.local/bin/mise" exec -- "${cmd[@]}")
+  # not exec: the trap above removes the settings dir afterwards
+  env -i HOME="$HOME" USER="${USER:-user}" TERM="${TERM:-xterm}" LANG="${LANG:-C.UTF-8}" SBX=1 \
+    PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:$HOME/.bun/bin:$srtpath:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" \
+    MISE_TRUSTED_CONFIG_PATHS="$trusted" MISE_CACHE_DIR="$cache/mise" MISE_STATE_DIR="$cache/mise-state" \
+    XDG_CACHE_HOME="$cache/xdg" BUN_INSTALL_CACHE_DIR="$cache/bun" UV_CACHE_DIR="$cache/uv" \
+    npm_config_cache="$cache/npm" \
+    "$srtbin" --settings "$cfg/settings.json" -- "${cmd[@]}"
+  exit
+fi
+
 # one throwaway HOME per repo, so one repo cannot plant dotfiles for another
 home=$state/home/$(printf '%s' "${repo#"$HOME"/}" | tr '/' '%')
 mkdir -p "$home" "$state"/mise
