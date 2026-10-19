@@ -172,8 +172,9 @@ bindkey '^[[3~' delete-char
 unset _m
 
 # fzf-tab: case-insensitive + partial-path matching (e.g. proj/syn<TAB> finds
-# projects/synthomaha), with a directory preview for cd
-zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|[._/-]=* r:|=*'
+# projects/synthomaha), with a directory preview for cd. The leading '' tries an
+# exact-case match first so --d<TAB> doesn't get case-folded to --dR.
+zstyle ':completion:*' matcher-list '' 'm:{a-zA-Z}={A-Za-z}' 'r:|[._/-]=* r:|=*'
 zstyle ':completion:*' menu no
 zstyle ':fzf-tab:complete:cd:*' fzf-preview 'ls -1 --color=always $realpath'
 zstyle ':fzf-tab:complete:__zoxide_j:*' fzf-preview 'ls -1 --color=always $realpath'
