@@ -21,6 +21,7 @@ alias which-command=whence
 # <find> with <replace> in every file matching the fd --glob pattern, e.g.
 # `fdsd foo bar *yaml -a`. The alias stops zsh expanding the glob; -a also
 # searches hidden files (fd --hidden). Ignored files are still skipped.
+unalias fdsd 2>/dev/null # re-sourcing (sz) would expand the alias below in the definition
 fdsd() {
   local -a pos fdargs
   local a
