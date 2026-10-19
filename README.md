@@ -52,8 +52,11 @@ The zsh config detects what is installed instead of branching on OS:
 `.claude/scripts/*.sh` into `~/.claude` (existing files are moved to
 `*.pre-dotfiles`); `-y` answers yes, `-n` no. The same step merges
 `.claude/settings.fragment.json` (status line, every hook below, the worktree
-deny rules) into `~/.claude/settings.json`, backing it up first; the rest of that
-file stays machine-specific.
+deny rules, and Claude Code's built-in sandbox with its write, network and
+credential allowlists) into `~/.claude/settings.json`, backing it up first; the
+rest of that file stays machine-specific. The sandbox keeps its "retry
+unsandboxed" escape hatch until you set `sandbox.allowUnsandboxedCommands` to
+`false` yourself.
 
 Every package manager refuses releases younger than 3 days: bun (`.bunfig.toml`),
 uv (`.config/uv/uv.toml`), mise (`minimum_release_age` in the global config),

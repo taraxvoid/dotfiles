@@ -1,4 +1,30 @@
 {
+  "sandbox": {
+    "enabled": true,
+    "filesystem": {
+      "allowWrite": ["~/.cache/uv", "~/.bun/install/cache", "~/.local/share/mise"]
+    },
+    "network": {
+      "allowedDomains": [
+        "github.com",
+        "*.github.com",
+        "*.githubusercontent.com",
+        "registry.npmjs.org",
+        "pypi.org",
+        "files.pythonhosted.org"
+      ]
+    },
+    "credentials": {
+      "files": [
+        { "path": "~/.ssh", "mode": "deny" },
+        { "path": "~/.npmrc", "mode": "deny" }
+      ],
+      "envVars": [
+        { "name": "GITHUB_TOKEN", "mode": "deny" },
+        { "name": "NPM_TOKEN", "mode": "deny" }
+      ]
+    }
+  },
   "statusLine": {
     "type": "command",
     "command": "$HOME/.claude/scripts/statusline.sh"

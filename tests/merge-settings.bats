@@ -69,3 +69,23 @@ setup() {
   [ "$(jq '.hooks.PreToolUse | length' "$s")" = 2 ]
   [ "$(jq '.hooks.WorktreeCreate | length' "$s")" = 1 ]
 }
+
+@test "turns the sandbox on and adds its allowlists to a fresh file" {
+  echo '{}' >"$s"
+  merge-settings.sh "$frag" "$s"
+  [ "$(jq .sandbox.enabled "$s")" = true ]
+  [ "$(jq '.sandbox.network.allowedDomains | index("github.com") != null' "$s")" = true ]
+  [ "$(jq -r '.sandbox.credentials.files[] | select(.path == "~/.ssh") | .mode' "$s")" = deny ]
+  [ "$(jq -r '.sandbox.credentials.envVars[] | select(.name == "GITHUB_TOKEN") | .mode' "$s")" = deny ]
+}
+
+@test "sandbox lists are unioned once and other sandbox keys are kept" {
+  echo '{"sandbox":{"enabled":false,"allowUnsandboxedCommands":false,"network":{"allowedDomains":["example.com","github.com"]},"credentials":{"files":[{"path":"~/.ssh","mode":"mask"}]}}}' >"$s"
+  merge-settings.sh "$frag" "$s"
+  [ "$(jq .sandbox.enabled "$s")" = true ]
+  [ "$(jq .sandbox.allowUnsandboxedCommands "$s")" = false ]
+  [ "$(jq -r '.sandbox.network.allowedDomains[0]' "$s")" = example.com ]
+  [ "$(jq '[.sandbox.network.allowedDomains[] | select(. == "github.com")] | length' "$s")" = 1 ]
+  [ "$(jq '[.sandbox.credentials.files[] | select(.path == "~/.ssh")] | length' "$s")" = 1 ]
+  [ "$(jq -r '.sandbox.credentials.files[] | select(.path == "~/.ssh") | .mode' "$s")" = mask ]
+}
