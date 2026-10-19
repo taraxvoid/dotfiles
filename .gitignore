@@ -7,4 +7,4 @@
 .zsh_plugins.zsh
 
 # claude 'warn on dangerous commands' plugin
-.clawness
+.clawness/
