@@ -111,8 +111,8 @@ autoload -Uz compinit
 autoload -U select-word-style
 select-word-style bash
 
-# absolute path: ~/.local/bin isn't on PATH yet here (it's appended at the end of this file)
-[[ -x "$HOME/.local/bin/mise" ]] && eval "$("$HOME/.local/bin/mise" activate zsh)"
+# absolute path ($_mise_bin, found in .zshenv): ~/.local/bin isn't on PATH yet here
+[[ -n $_mise_bin ]] && eval "$("$_mise_bin" activate zsh)"
 
 # zoxide: `j <part of dir>` jumps to the best frecent match, `ji` is an fzf picker
 _cache_eval zoxide zoxide init zsh --cmd j
@@ -172,8 +172,9 @@ bindkey '^[[3~' delete-char
 unset _m
 
 # fzf-tab: case-insensitive + partial-path matching (e.g. proj/syn<TAB> finds
-# projects/synthomaha), with a directory preview for cd
-zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|[._/-]=* r:|=*'
+# projects/synthomaha), with a directory preview for cd. The leading '' tries an
+# exact-case match first so --d<TAB> doesn't get case-folded to --dR.
+zstyle ':completion:*' matcher-list '' 'm:{a-zA-Z}={A-Za-z}' 'r:|[._/-]=* r:|=*'
 zstyle ':completion:*' menu no
 zstyle ':fzf-tab:complete:cd:*' fzf-preview 'ls -1 --color=always $realpath'
 zstyle ':fzf-tab:complete:__zoxide_j:*' fzf-preview 'ls -1 --color=always $realpath'
