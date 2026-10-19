@@ -11,7 +11,12 @@ export DO_NOT_TRACK=1
 
 # mise shims so non-interactive shells (scripts, tool runners) find mise-managed tools;
 # interactive shells get the full `mise activate` in .zshrc, which takes precedence
-[[ -x "$HOME/.local/bin/mise" ]] && eval "$("$HOME/.local/bin/mise" activate zsh --shims)"
+# mise may come from the vendor installer (~/.local/bin) or brew; .zshrc reuses $_mise_bin
+_mise_bin=
+for _mise_bin in "$HOME/.local/bin/mise" /opt/homebrew/bin/mise /usr/local/bin/mise /home/linuxbrew/.linuxbrew/bin/mise ""; do
+  [[ -x $_mise_bin ]] && break
+done
+[[ -n $_mise_bin ]] && eval "$("$_mise_bin" activate zsh --shims)"
 
 # PATH order: user-writable tool dirs go after the system dirs so a package that
 # drops a fake `git` or `ls` into one of them can't shadow the real binary. mise's
