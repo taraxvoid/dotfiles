@@ -213,6 +213,9 @@ if [ "$OS" = Darwin ] && command -v brew >/dev/null; then
   command -v uv >/dev/null || brew install --quiet uv
   command -v bun >/dev/null || brew install --quiet oven-sh/bun/bun
   command -v eza >/dev/null || brew install --quiet eza
+  # Apple's ssh/ssh-keygen/ssh-agent are built without FIDO2, so -sk (YubiKey) keys
+  # need brew's OpenSSH (which pulls in libfido2)
+  brew list --formula openssh >/dev/null 2>&1 || brew install --quiet openssh
   # zsh plugins .zshrc sources from brew's prefix (Linux gets them from apt and
   # the pinned antidote clone below)
   for f in antidote zsh-autosuggestions zsh-syntax-highlighting; do
