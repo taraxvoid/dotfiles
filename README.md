@@ -137,7 +137,13 @@ to the sandbox (`~/.local/share/sbx`). The repo's `.git` stays read-only, becaus
 git on the host runs whatever `.git/config` names (`core.fsmonitor`,
 `core.sshCommand`, hooks); `--rw-git` lifts that for a trusted git command only. It
 narrows what a hostile install script or dev server can touch; it is not a VM.
-Needs `bubblewrap`.
+Needs `bubblewrap` on Linux. On macOS (no `bwrap`) it uses `srt`
+(`@anthropic-ai/sandbox-runtime`, pinned in the global mise config, Seatbelt
+underneath; `SBX_BACKEND=bwrap|srt` forces one): the real `$HOME` stays but is
+unreadable except the repo, its git dirs, mise and bun binaries and a cache dir of
+sbx's own (`~/.local/share/sbx/cache`), the same scrubbed environment, only the
+repo writable, and the network limited to the npm, PyPI and GitHub hosts (add more
+with `SBX_DOMAINS="host ..."`; `--offline` allows none).
 
 `.config/git/template/hooks/post-checkout` installs lefthook's git hooks when a repo
 is cloned or a worktree is created (git runs `post-checkout` for both), only inside

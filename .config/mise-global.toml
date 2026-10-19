@@ -20,6 +20,7 @@ bat = "0.26.1" # aliased to cat in .zsh_aliases
 starship = "1.26.0"
 "aqua:dandavison/delta" = "0.20.1" # git pager (.gitconfig falls back to less without it)
 shellcheck = "0.11.0"
+"npm:@anthropic-ai/sandbox-runtime" = "0.0.79" # srt: the sbx backend where bwrap is absent (macOS)
 
 [settings]
 # Supply-chain cooldown, same 3 days as ~/.bunfig.toml, npm, pnpm and uv
