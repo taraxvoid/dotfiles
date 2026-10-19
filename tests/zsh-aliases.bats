@@ -81,3 +81,8 @@ z() {
   [ "$(cat .hid/two.yaml)" = "a: bar" ]
   [ "$(cat three.txt)" = "a: foo.x" ]
 }
+
+@test "re-sourcing .zsh_aliases (sz) does not trip over the fdsd alias" {
+  run zsh -fc 'source "$0"; source "$0"' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [[ "$output" != *"parse error"* ]]
+}

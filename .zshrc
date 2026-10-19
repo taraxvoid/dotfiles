@@ -111,8 +111,8 @@ autoload -Uz compinit
 autoload -U select-word-style
 select-word-style bash
 
-# absolute path: ~/.local/bin isn't on PATH yet here (it's appended at the end of this file)
-[[ -x "$HOME/.local/bin/mise" ]] && eval "$("$HOME/.local/bin/mise" activate zsh)"
+# absolute path ($_mise_bin, found in .zshenv): ~/.local/bin isn't on PATH yet here
+[[ -n $_mise_bin ]] && eval "$("$_mise_bin" activate zsh)"
 
 # zoxide: `j <part of dir>` jumps to the best frecent match, `ji` is an fzf picker
 _cache_eval zoxide zoxide init zsh --cmd j
