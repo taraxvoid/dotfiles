@@ -22,7 +22,7 @@ Tara should never have to remember in-flight work. Every thread beyond a simple 
 - PR bodies always contain `Closes #N` (or `Refs #N` for partial work).
 - Research or informational threads end by closing the issue with a findings comment.
 - A fix that grows into a thread: if the branch is unpushed, create the issue and `git branch -m worktree-<N>-<slug>`; if already pushed, open the PR with `Refs #N`.
-- Specs and plans (overrides superpowers' `docs/superpowers/...` default): write markdown to `~/.claude/plans/<repo>/<YYYY-MM-DD>-<topic>.md`, never commit it, render it with `~/.claude/plans/_tpl/build.sh <file.md> "<Title>" "<meta html>"`, publish the .html as an artifact, and comment the link on the issue. Republish the same file path on revisions so the link stays stable.
+- Specs and plans (overrides superpowers' `docs/superpowers/...` default): write markdown to `~/.claude/plans/<repo>/<YYYY-MM-DD>-<topic>.md`, never commit it, write an HTML rendering next to it (same basename, `.html`), publish that as an artifact, and comment the link on the issue. Republish the same file path on revisions so the link stays stable.
 - The Stop hook may block a turn with a `gws:` message when the worktree holds unpushed commits and isn't tracked. Push it with a PR or linked issue, or tell Tara why it stays local; don't just retry.
 - Run `gws` when asked what is in flight or orphaned.
 

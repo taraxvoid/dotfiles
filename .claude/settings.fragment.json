@@ -7,9 +7,6 @@
         "~/.bun/install/cache",
         "~/.local/share/mise",
         "~/.claude/plans"
-      ],
-      "denyWrite": [
-        "~/.claude/plans/_tpl"
       ]
     },
     "network": {
