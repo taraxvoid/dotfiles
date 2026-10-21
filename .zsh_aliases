@@ -191,25 +191,48 @@ alias grf=_gh_rerun_failed_branch
 
 alias gma="git merge --abort"
 
-# gpm: squash-merge. With a PR (number/URL/branch) as the first arg, or when
-# the current branch has an open PR, it is plain `gh pr merge --squash`.
-# Otherwise pick an open PR (same rows as gps) and confirm before merging.
-# Flags pass through either way (e.g. `gpm --auto`).
+# gpm: squash-merge. The PR is the first non-flag arg (number/URL/branch), else
+# the current branch's open PR, else one picked from open PRs (same rows as gps).
+# Always confirms first unless given -y/--yes (dropped before `gh pr merge`) or
+# --auto (passed through). Other flags pass through (e.g. `gpm --admin`).
 unalias gpm 2>/dev/null
 gpm() {
-  local me pick n
-  if [[ ${1:-} == [^-]* ]] || [[ ! -t 1 ]] || (( ! $+commands[fzf] )) \
-    || [[ -n $(gh pr view --json state -q 'select(.state == "OPEN") | .state' 2>/dev/null) ]]; then
-    gh pr merge --squash "$@"; return
+  local me pick target label a skip=0
+  local -a args
+  local -i i
+  for a in "$@"; do
+    case $a in
+      -y|--yes) skip=1 ;;
+      *) [[ $a == --auto ]] && skip=1; args+=("$a") ;;
+    esac
+  done
+  # First non-flag arg is the PR; skip the values of flags that take one.
+  for (( i = 1; i <= $#args; i++ )); do
+    case ${args[i]} in
+      -A|--author-email|-b|--body|-F|--body-file|--match-head-commit|-t|--subject|-R|--repo) (( i++ )) ;;
+      -*) ;;
+      *) target=${args[i]}; args[i]=(); break ;;
+    esac
+  done
+  [[ -n $target ]] || target=$(gh pr view --json number,state -q 'select(.state == "OPEN") | .number' 2>/dev/null)
+  if [[ -z $target ]]; then
+    if [[ ! -t 1 ]] || (( ! $+commands[fzf] )); then
+      gh pr merge --squash "${args[@]}"; return
+    fi
+    me=$(gh api user --jq .login) || return
+    pick=$(gh pr list --limit 100 --json $_gh_pr_fields \
+      | jq -r --arg me "$me" "$_gh_pr_jq_defs"'sort_by([(.author.login != $me), .number])[] | row') || return
+    [[ -n "$pick" ]] || { echo "No open PRs"; return }
+    pick=$(print -r -- "$pick" | fzf --ansi --delimiter=$'\t' --with-nth=2 --prompt='PR merge> ' \
+      --preview='gh pr view {1}; echo; gh pr checks {1}' --preview-window=down,60%) || return 1
+    target=${pick%%$'\t'*}
   fi
-  me=$(gh api user --jq .login) || return
-  pick=$(gh pr list --limit 100 --json $_gh_pr_fields \
-    | jq -r --arg me "$me" "$_gh_pr_jq_defs"'sort_by([(.author.login != $me), .number])[] | row') || return
-  [[ -n "$pick" ]] || { echo "No open PRs"; return }
-  pick=$(print -r -- "$pick" | fzf --ansi --delimiter=$'\t' --with-nth=2 --prompt='PR merge> ' \
-    --preview='gh pr view {1}; echo; gh pr checks {1}' --preview-window=down,60%) || return 1
-  n=${pick%%$'\t'*}
-  read -q "?Squash-merge #$n${*:+ ($*)}? [y/N] " && { echo; gh pr merge $n --squash "$@" }
+  if (( ! skip )); then
+    [[ $target == <-> ]] && label="#$target" || label=$target
+    read -q "?Squash-merge $label${args:+ (${args[*]})}? [y/N] " || { echo; return 1 }
+    echo
+  fi
+  gh pr merge $target --squash "${args[@]}"
 }
 # gpd: with args, plain `gh pr diff`; bare, pick an open PR (same rows as gps,
 # preview = per-file change summary like `git diff --stat`) and page its full
