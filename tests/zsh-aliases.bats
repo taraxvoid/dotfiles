@@ -86,3 +86,9 @@ z() {
   run zsh -fc 'source "$0"; source "$0"' "$BATS_TEST_DIRNAME/../.zsh_aliases"
   [[ "$output" != *"parse error"* ]]
 }
+
+@test "lg launches lazygit" {
+  run zsh -fc 'source "$0"; lazygit() { print -r -- "lazygit $*"; }; eval "lg -p /x"' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -eq 0 ]
+  [ "$output" = "lazygit -p /x" ]
+}

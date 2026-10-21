@@ -51,25 +51,6 @@
 	diffFilter = delta --version >/dev/null 2>&1 && exec delta --color-only || exec cat
 [delta]
 	navigate = true
-[alias]
-	br = branch
-	ci = commit
-	cim = commit -m
-	co = checkout
-	cob = checkout -b
-	ft = fetch --all
-	pl = pull
-	pul = pull
-	ps = push
-	psh = push
-	pu = push
-	st = status
-	sta = stash
-	stal = stash list
-	stap = stash pop
-	sw = switch -
-	worktrees = !git worktree list
-	prunetrees = !git worktree prune
 # gh as the HTTPS credential helper (resolved from PATH so it works with brew or apt)
 [credential "https://github.com"]
 	helper =

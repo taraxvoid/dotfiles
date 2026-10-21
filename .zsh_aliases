@@ -43,10 +43,7 @@ alias l="ls"
 alias ll="ls -l"
 alias la="ls -a"
 (( $+commands[eza] )) && alias ls="eza"
-alias gs="git status"
-alias gb="git branch"
-alias gd="git diff"
-alias gl="git log -5"
+alias lg="lazygit"
 alias gwp="git worktree prune"
 # gwr is a function below (fzf picker)
 # bat is installed as `batcat` on Debian/Ubuntu
@@ -170,8 +167,6 @@ _gh_pr_act() {
     close) read -q "?Close #$n and delete its branch? [y/N] " && { echo; gh pr close $n --delete-branch } ;;
   esac
 }
-alias ga="git add ."
-alias gci="git commit"
 alias grl="gh run list"
 _gh_rerun_failed_branch() {
   local branch run_id
@@ -189,7 +184,6 @@ _gh_rerun_failed_branch() {
 }
 alias grf=_gh_rerun_failed_branch
 
-alias gma="git merge --abort"
 
 # gpm: squash-merge. The PR is the first non-flag arg (number/URL/branch), else
 # the current branch's open PR, else one picked from open PRs (same rows as gps).
