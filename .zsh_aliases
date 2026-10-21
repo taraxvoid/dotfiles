@@ -43,10 +43,7 @@ alias l="ls"
 alias ll="ls -l"
 alias la="ls -a"
 (( $+commands[eza] )) && alias ls="eza"
-alias gs="git status"
-alias gb="git branch"
-alias gd="git diff"
-alias gl="git log -5"
+alias lg="lazygit"
 alias gwp="git worktree prune"
 # gwr is a function below (fzf picker)
 # bat is installed as `batcat` on Debian/Ubuntu
@@ -110,6 +107,26 @@ typeset -g _gh_pr_jq_defs='
     else "#\(.number) \(join_([checks, review, merge]))" end;
 '
 
+# _gh_me: your GitHub login, cached in ~/.cache/zsh/gh-login so gps and friends skip
+# a ~1s `gh api user` round trip. Refetched when gh's hosts.yml is newer (gh auth
+# login/switch rewrites it); a failed lookup caches nothing.
+_gh_me() {
+  local f=${XDG_CACHE_HOME:-$HOME/.cache}/zsh/gh-login hosts=${GH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/gh}/hosts.yml me
+  if [[ -s $f && ! $hosts -nt $f ]]; then
+    cat $f
+    return
+  fi
+  me=$(gh api user --jq .login) && [[ -n $me ]] || return 1
+  mkdir -p ${f:h} && print -r -- $me >| $f
+  print -r -- $me
+}
+
+# _page: pipe stdin through $PAGER (default less) when stdout is a terminal, else
+# plain cat. -F quits at once if the output fits one screen, -X keeps it on screen.
+_page() {
+  if [[ -t 1 ]]; then LESS=${LESS:--FRX} ${=PAGER:-less}; else cat; fi
+}
+
 # gps: open PRs with what you need to decide on a merge (checks and which are
 # failing, review state, merge state incl. behind/blocked/conflicts, size, age,
 # auto-merge). On a terminal it is an fzf picker (preview = PR + checks) that
@@ -121,7 +138,7 @@ unalias gps 2>/dev/null
 gps() {
   local list=0 me rows pick n
   [[ ${1:-} == (-l|--list) ]] && { list=1; shift }
-  me=$(gh api user --jq .login) || return
+  me=$(_gh_me) || return
   if [[ ${1:-} == (\#|)<-> ]]; then
     n=${1#\#}
     rows=$(gh pr view $n --json $_gh_pr_fields) || return
@@ -132,7 +149,8 @@ gps() {
   if (( list )) || [[ ! -t 1 ]] || (( ! $+commands[fzf] )); then
     gh pr list --limit 100 "$@" --json $_gh_pr_fields \
     | jq -r --arg me "$me" "$_gh_pr_jq_defs"'
-      if length == 0 then "No open PRs" else sort_by([(.author.login != $me), .number])[] | block end'
+      if length == 0 then "No open PRs" else sort_by([(.author.login != $me), .number])[] | block end' \
+    | _page
     return
   fi
   rows=$(gh pr list --limit 100 "$@" --json $_gh_pr_fields \
@@ -170,8 +188,6 @@ _gh_pr_act() {
     close) read -q "?Close #$n and delete its branch? [y/N] " && { echo; gh pr close $n --delete-branch } ;;
   esac
 }
-alias ga="git add ."
-alias gci="git commit"
 alias grl="gh run list"
 _gh_rerun_failed_branch() {
   local branch run_id
@@ -189,7 +205,6 @@ _gh_rerun_failed_branch() {
 }
 alias grf=_gh_rerun_failed_branch
 
-alias gma="git merge --abort"
 
 # gpm: squash-merge. The PR is the first non-flag arg (number/URL/branch), else
 # the current branch's open PR, else one picked from open PRs (same rows as gps).
@@ -219,7 +234,7 @@ gpm() {
     if [[ ! -t 1 ]] || (( ! $+commands[fzf] )); then
       gh pr merge --squash "${args[@]}"; return
     fi
-    me=$(gh api user --jq .login) || return
+    me=$(_gh_me) || return
     pick=$(gh pr list --limit 100 --json $_gh_pr_fields \
       | jq -r --arg me "$me" "$_gh_pr_jq_defs"'sort_by([(.author.login != $me), .number])[] | row') || return
     [[ -n "$pick" ]] || { echo "No open PRs"; return }
@@ -241,12 +256,12 @@ unalias gpd 2>/dev/null
 gpd() {
   local me pick
   if (( $# )) || [[ ! -t 1 ]] || (( ! $+commands[fzf] )); then gh pr diff "$@"; return; fi
-  me=$(gh api user --jq .login) || return
+  me=$(_gh_me) || return
   pick=$(gh pr list --limit 100 --json $_gh_pr_fields \
     | jq -r --arg me "$me" "$_gh_pr_jq_defs"'sort_by([(.author.login != $me), .number])[] | row' \
     | fzf --ansi --delimiter=$'\t' --with-nth=2 --prompt='PR diff> ' \
         --preview='gh pr diff {1} | git apply --stat' --preview-window=down,60%) || return 1
-  gh pr diff --color=always "${pick%%$'\t'*}" | LESS=${LESS:--R} ${=PAGER:-less}
+  gh pr diff --color=always "${pick%%$'\t'*}" | _page
 }
 alias gil="gh issue list"
 alias gf="git fetch --all --tags"
@@ -436,7 +451,7 @@ _pr_trust_ok() {
     "$HOME"/projects/(personal|ravenflight)/* | "$HOME"/worktrees/(personal|ravenflight)/*) ;;
     *) return 0 ;;
   esac
-  me=$(gh api user --jq .login 2>/dev/null)
+  me=$(_gh_me 2>/dev/null)
   [[ -n $me && $1 == $me ]] && return 0
   print -u2 "#$2 is by ${1:-an unknown author}. Checking it out in this trusted tree lets its"
   print -u2 "mise.toml and lefthook.yml run. Review it under ~/projects/untrusted instead."

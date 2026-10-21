@@ -1,0 +1,39 @@
+onboarding = false
+
+[terminal]
+new_cwd = "follow"
+
+[theme]
+name = "terminal"
+
+[keys]
+prefix = "ctrl+a"
+cycle_pane_previous = "ctrl+h"
+cycle_pane_next = "ctrl+l"
+previous_agent = "ctrl+comma"
+next_agent = "ctrl+period"
+last_pane = "ctrl+space"
+focus_agent = "prefix+alt+1..9"
+
+previous_tab = ["prefix+p", "ctrl+alt+["]
+next_tab = ["prefix+n", "ctrl+alt+]"]
+
+new_tab = "prefix+c"
+
+# popup commands run via /bin/sh -c, and gps is a zsh function, so go through
+# an interactive zsh
+[[keys.command]]
+key = "ctrl+f"
+type = "popup"
+command = "zsh -ic gps"
+width = "80%"
+height = "80%"
+
+[ui.toast]
+delivery = "herdr"
+
+[ui.sound]
+enabled = false
+
+[ui]
+status_indicators = "dots"
