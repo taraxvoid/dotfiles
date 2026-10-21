@@ -40,6 +40,12 @@ setup() {
   [ "$(jq -r .statusLine.command "$s".bak.*)" = old ]
 }
 
+@test "prints usage and exits 2 without both arguments" {
+  run merge-settings.sh "$frag"
+  [ "$status" -eq 2 ]
+  [[ "$output" == usage:* ]]
+}
+
 @test "creates a missing settings file" {
   merge-settings.sh "$frag" "$s"
   [ "$(jq '.hooks.Stop | length' "$s")" = 1 ]

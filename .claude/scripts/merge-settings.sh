@@ -10,6 +10,7 @@
 # does nothing when it is already up to date, so re-running is safe.
 set -euo pipefail
 
+[ $# -eq 2 ] || { echo "usage: ${0##*/} <fragment.json> <settings.json>" >&2; exit 2; }
 frag=$1 settings=$2
 [ -f "$settings" ] || echo '{}' >"$settings"
 
