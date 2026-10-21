@@ -123,3 +123,11 @@ gh_me() {
   [ "$status" -eq 0 ]
   [ "$output" = "lazygit -p /x" ]
 }
+
+@test "git shortcut aliases are defined" {
+  run zsh -fc 'source "$0"; for a in gs gb gd gl ga gci gma; do print -r -- "$a=$aliases[$a]"; done' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = "gs=git status" ]
+  [ "${lines[3]}" = "gl=git log -5" ]
+  [ "${lines[6]}" = "gma=git merge --abort" ]
+}
