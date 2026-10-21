@@ -1,6 +1,13 @@
 {
   "sandbox": {
     "enabled": true,
+    "allowUnsandboxedCommands": false,
+    "excludedCommands": [
+      "git push *",
+      "git fetch *",
+      "git pull *",
+      "gh *"
+    ],
     "filesystem": {
       "allowWrite": [
         "~/.cache/uv",
