@@ -53,7 +53,8 @@ The zsh config detects what is installed instead of branching on OS:
 `*.pre-dotfiles`); `-y` answers yes, `-n` no. The same step merges
 `.claude/settings.fragment.json` (status line, every hook below, the worktree
 deny rules, and Claude Code's built-in sandbox with its write, network and
-credential allowlists) into `~/.claude/settings.json`, backing it up first; the
+credential allowlists, plus `~/.claude/plans` so plans can be written
+sandboxed) into `~/.claude/settings.json`, backing it up first; the
 rest of that file stays machine-specific. The sandbox keeps its "retry
 unsandboxed" escape hatch until you set `sandbox.allowUnsandboxedCommands` to
 `false` yourself.
