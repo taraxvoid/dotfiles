@@ -75,6 +75,8 @@ setup() {
   merge-settings.sh "$frag" "$s"
   [ "$(jq .sandbox.enabled "$s")" = true ]
   [ "$(jq '.sandbox.network.allowedDomains | index("github.com") != null' "$s")" = true ]
+  [ "$(jq '.sandbox.filesystem.allowWrite | index("~/.claude/plans") != null' "$s")" = true ]
+  [ "$(jq -r '.sandbox.filesystem.denyWrite[0]' "$s")" = "~/.claude/plans/_tpl" ]
   [ "$(jq -r '.sandbox.credentials.files[] | select(.path == "~/.ssh") | .mode' "$s")" = deny ]
   [ "$(jq -r '.sandbox.credentials.envVars[] | select(.name == "GITHUB_TOKEN") | .mode' "$s")" = deny ]
 }
