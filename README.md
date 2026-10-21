@@ -77,9 +77,10 @@ string listed in the untracked `~/.config/dotfiles/private-strings` (one per lin
 case-insensitive); it is local-only, since CI cannot have the list without publishing it.
 `.github/workflows/ci.yml` runs the same tools (installed from `mise.toml` by
 `jdx/mise-action`) plus a full-history gitleaks scan and the bats tests. Its
-install jobs run `scripts/smoke-install.sh` in a clean Debian container and on
-macOS: `install.sh -y` twice (the second run must change nothing), then an
-interactive zsh that must start without errors. gitleaks is feature-complete
+install job runs `scripts/smoke-install.sh` in a clean Debian container:
+`install.sh -y` twice (the second run must change nothing), then an
+interactive zsh that must start without errors. macOS is not in CI (GitHub bills
+its minutes at 10x); run the same script locally after changing `install.sh`. gitleaks is feature-complete
 upstream; move to betterleaks once it reaches 1.x.
 
 Renovate (`renovate.json`, weekly, 3-day minimum release age) bumps the mise tools
