@@ -121,6 +121,12 @@ _gh_me() {
   print -r -- $me
 }
 
+# _page: pipe stdin through $PAGER (default less) when stdout is a terminal, else
+# plain cat. -F quits at once if the output fits one screen, -X keeps it on screen.
+_page() {
+  if [[ -t 1 ]]; then LESS=${LESS:--FRX} ${=PAGER:-less}; else cat; fi
+}
+
 # gps: open PRs with what you need to decide on a merge (checks and which are
 # failing, review state, merge state incl. behind/blocked/conflicts, size, age,
 # auto-merge). On a terminal it is an fzf picker (preview = PR + checks) that
@@ -143,7 +149,8 @@ gps() {
   if (( list )) || [[ ! -t 1 ]] || (( ! $+commands[fzf] )); then
     gh pr list --limit 100 "$@" --json $_gh_pr_fields \
     | jq -r --arg me "$me" "$_gh_pr_jq_defs"'
-      if length == 0 then "No open PRs" else sort_by([(.author.login != $me), .number])[] | block end'
+      if length == 0 then "No open PRs" else sort_by([(.author.login != $me), .number])[] | block end' \
+    | _page
     return
   fi
   rows=$(gh pr list --limit 100 "$@" --json $_gh_pr_fields \
@@ -254,7 +261,7 @@ gpd() {
     | jq -r --arg me "$me" "$_gh_pr_jq_defs"'sort_by([(.author.login != $me), .number])[] | row' \
     | fzf --ansi --delimiter=$'\t' --with-nth=2 --prompt='PR diff> ' \
         --preview='gh pr diff {1} | git apply --stat' --preview-window=down,60%) || return 1
-  gh pr diff --color=always "${pick%%$'\t'*}" | LESS=${LESS:--R} ${=PAGER:-less}
+  gh pr diff --color=always "${pick%%$'\t'*}" | _page
 }
 alias gil="gh issue list"
 alias gf="git fetch --all --tags"
