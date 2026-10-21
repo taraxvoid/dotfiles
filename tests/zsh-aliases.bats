@@ -103,9 +103,10 @@ gh_me() {
 }
 
 @test "_gh_me refetches when gh's hosts.yml is newer than the cache" {
+  export GH_CONFIG_DIR="$HOME/ghcfg" # CI may set XDG_CONFIG_HOME, which moves hosts.yml
   gh_me '_gh_me' >/dev/null
-  mkdir -p "$HOME/.config/gh"
-  touch -t 203001010000 "$HOME/.config/gh/hosts.yml"
+  mkdir -p "$GH_CONFIG_DIR"
+  touch -t 203001010000 "$GH_CONFIG_DIR/hosts.yml"
   GH_LOGIN=other run gh_me '_gh_me'
   [ "$output" = other ]
   [ "$(wc -l <"$HOME/calls")" -eq 2 ]
