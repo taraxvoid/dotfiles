@@ -87,6 +87,36 @@ z() {
   [[ "$output" != *"parse error"* ]]
 }
 
+# _gh_me with a gh stub that counts its `api user` calls in $HOME/calls
+gh_me() {
+  zsh -fc '
+    gh() { print x >>"$HOME/calls"; print -r -- "${GH_LOGIN-me}"; [[ -n ${GH_FAIL-} ]] && return 1 || return 0 }
+    source "$0"
+    '"$1" "$BATS_TEST_DIRNAME/../.zsh_aliases"
+}
+
+@test "_gh_me asks gh once, then answers from the cache" {
+  run gh_me '_gh_me; _gh_me'
+  [ "$status" -eq 0 ]
+  [ "$output" = $'me\nme' ]
+  [ "$(wc -l <"$HOME/calls")" -eq 1 ]
+}
+
+@test "_gh_me refetches when gh's hosts.yml is newer than the cache" {
+  gh_me '_gh_me' >/dev/null
+  mkdir -p "$HOME/.config/gh"
+  touch -t 203001010000 "$HOME/.config/gh/hosts.yml"
+  GH_LOGIN=other run gh_me '_gh_me'
+  [ "$output" = other ]
+  [ "$(wc -l <"$HOME/calls")" -eq 2 ]
+}
+
+@test "_gh_me caches nothing when the lookup fails" {
+  GH_FAIL=1 run gh_me '_gh_me'
+  [ "$status" -ne 0 ]
+  [ ! -e "$HOME/.cache/zsh/gh-login" ]
+}
+
 @test "lg launches lazygit" {
   run zsh -fc 'source "$0"; lazygit() { print -r -- "lazygit $*"; }; eval "lg -p /x"' "$BATS_TEST_DIRNAME/../.zsh_aliases"
   [ "$status" -eq 0 ]

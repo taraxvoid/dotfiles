@@ -107,6 +107,20 @@ typeset -g _gh_pr_jq_defs='
     else "#\(.number) \(join_([checks, review, merge]))" end;
 '
 
+# _gh_me: your GitHub login, cached in ~/.cache/zsh/gh-login so gps and friends skip
+# a ~1s `gh api user` round trip. Refetched when gh's hosts.yml is newer (gh auth
+# login/switch rewrites it); a failed lookup caches nothing.
+_gh_me() {
+  local f=${XDG_CACHE_HOME:-$HOME/.cache}/zsh/gh-login hosts=${GH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/gh}/hosts.yml me
+  if [[ -s $f && ! $hosts -nt $f ]]; then
+    cat $f
+    return
+  fi
+  me=$(gh api user --jq .login) && [[ -n $me ]] || return 1
+  mkdir -p ${f:h} && print -r -- $me >| $f
+  print -r -- $me
+}
+
 # gps: open PRs with what you need to decide on a merge (checks and which are
 # failing, review state, merge state incl. behind/blocked/conflicts, size, age,
 # auto-merge). On a terminal it is an fzf picker (preview = PR + checks) that
@@ -118,7 +132,7 @@ unalias gps 2>/dev/null
 gps() {
   local list=0 me rows pick n
   [[ ${1:-} == (-l|--list) ]] && { list=1; shift }
-  me=$(gh api user --jq .login) || return
+  me=$(_gh_me) || return
   if [[ ${1:-} == (\#|)<-> ]]; then
     n=${1#\#}
     rows=$(gh pr view $n --json $_gh_pr_fields) || return
@@ -213,7 +227,7 @@ gpm() {
     if [[ ! -t 1 ]] || (( ! $+commands[fzf] )); then
       gh pr merge --squash "${args[@]}"; return
     fi
-    me=$(gh api user --jq .login) || return
+    me=$(_gh_me) || return
     pick=$(gh pr list --limit 100 --json $_gh_pr_fields \
       | jq -r --arg me "$me" "$_gh_pr_jq_defs"'sort_by([(.author.login != $me), .number])[] | row') || return
     [[ -n "$pick" ]] || { echo "No open PRs"; return }
@@ -235,7 +249,7 @@ unalias gpd 2>/dev/null
 gpd() {
   local me pick
   if (( $# )) || [[ ! -t 1 ]] || (( ! $+commands[fzf] )); then gh pr diff "$@"; return; fi
-  me=$(gh api user --jq .login) || return
+  me=$(_gh_me) || return
   pick=$(gh pr list --limit 100 --json $_gh_pr_fields \
     | jq -r --arg me "$me" "$_gh_pr_jq_defs"'sort_by([(.author.login != $me), .number])[] | row' \
     | fzf --ansi --delimiter=$'\t' --with-nth=2 --prompt='PR diff> ' \
@@ -430,7 +444,7 @@ _pr_trust_ok() {
     "$HOME"/projects/(personal|ravenflight)/* | "$HOME"/worktrees/(personal|ravenflight)/*) ;;
     *) return 0 ;;
   esac
-  me=$(gh api user --jq .login 2>/dev/null)
+  me=$(_gh_me 2>/dev/null)
   [[ -n $me && $1 == $me ]] && return 0
   print -u2 "#$2 is by ${1:-an unknown author}. Checking it out in this trusted tree lets its"
   print -u2 "mise.toml and lefthook.yml run. Review it under ~/projects/untrusted instead."
