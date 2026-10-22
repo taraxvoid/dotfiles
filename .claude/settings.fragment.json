@@ -13,10 +13,12 @@
         "~/.cache/uv",
         "~/.bun/install/cache",
         "~/.local/share/mise",
-        "~/.claude/plans"
+        "~/.claude/plans",
+        "~/Library/Preferences/.wrangler"
       ]
     },
     "network": {
+      "allowLocalBinding": true,
       "allowedDomains": [
         "github.com",
         "*.github.com",
