@@ -90,6 +90,8 @@ if [ "$backend" = srt ]; then
   srtbin=$(real srt)
   srtpath=$(dirname "$srtbin")
   if node=$(real node); then srtpath=$srtpath:$(dirname "$node"); fi
+  # NOTE: this is a hardcoded list and is NOT supplied by .claude/settings.json.fragment or any bot thing.
+  # This is used for untrusted code i.e. ~/projects/untrusted (3rd parties)
   doms="firewall-api.socket.dev registry.npmjs.org pypi.org files.pythonhosted.org github.com *.githubusercontent.com ${SBX_DOMAINS:-}"
   [ -n "$net" ] || doms=''
   gitjson=$(printf '%s\n' ${gitdirs[@]+"${gitdirs[@]}"} | jq -R . | jq -s 'map(select(. != ""))')

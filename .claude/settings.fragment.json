@@ -28,7 +28,8 @@
         "*.githubusercontent.com",
         "registry.npmjs.org",
         "pypi.org",
-        "files.pythonhosted.org"
+        "files.pythonhosted.org",
+        "firewall-api.socket.dev"
       ]
     },
     "credentials": {
@@ -75,9 +76,6 @@
       "Bash(git push * main)",
       "Bash(git push * master)",
       "Bash(git push *:main)",
-      "Bash(git push *:master)",
-      "Bash(git worktree remove*)",
-      "Bash(git worktree prune*)",
       "Bash(rm -rf ~/worktrees*)"
     ],
     "ask": [
