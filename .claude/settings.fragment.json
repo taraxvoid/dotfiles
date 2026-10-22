@@ -6,6 +6,11 @@
       "git push *",
       "git fetch *",
       "git pull *",
+      "git ls-remote *",
+      "git -C * push *",
+      "git -C * fetch *",
+      "git -C * pull *",
+      "git -C * ls-remote *",
       "gh *"
     ],
     "filesystem": {
