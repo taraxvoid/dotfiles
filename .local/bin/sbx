@@ -90,7 +90,7 @@ if [ "$backend" = srt ]; then
   srtbin=$(real srt)
   srtpath=$(dirname "$srtbin")
   if node=$(real node); then srtpath=$srtpath:$(dirname "$node"); fi
-  doms="registry.npmjs.org pypi.org files.pythonhosted.org github.com *.githubusercontent.com ${SBX_DOMAINS:-}"
+  doms="firewall-api.socket.dev registry.npmjs.org pypi.org files.pythonhosted.org github.com *.githubusercontent.com ${SBX_DOMAINS:-}"
   [ -n "$net" ] || doms=''
   gitjson=$(printf '%s\n' ${gitdirs[@]+"${gitdirs[@]}"} | jq -R . | jq -s 'map(select(. != ""))')
   cfg=$(mktemp -d "${TMPDIR:-/tmp}/sbx.XXXXXX")
