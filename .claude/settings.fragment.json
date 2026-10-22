@@ -62,7 +62,29 @@
     "deny": [
       "Bash(git worktree remove*)",
       "Bash(git worktree prune*)",
+      "Bash(rm -rf ~/worktrees*)",
+      "Bash(gh repo delete *)",
+      "Bash(gh release delete *)",
+      "Bash(gh auth token*)",
+      "Bash(gh api *DELETE*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)",
+      "Bash(git push * +*)",
+      "Bash(git push * main)",
+      "Bash(git push * master)",
+      "Bash(git push *:main)",
+      "Bash(git push *:master)",
+      "Bash(git worktree remove*)",
+      "Bash(git worktree prune*)",
       "Bash(rm -rf ~/worktrees*)"
+    ],
+    "ask": [
+      "Bash(gh pr merge *)",
+      "Bash(gh repo edit *)",
+      "Bash(gh secret *)",
+      "Bash(gh variable *)"
     ]
   },
   "hooks": {
