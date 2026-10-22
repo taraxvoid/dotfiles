@@ -53,7 +53,8 @@ The zsh config detects what is installed instead of branching on OS:
 `*.pre-dotfiles`); `-y` answers yes, `-n` no. The same step merges
 `.claude/settings.fragment.json` (status line, every hook below, the worktree
 deny rules, and Claude Code's built-in sandbox with its write, network and
-credential allowlists) into `~/.claude/settings.json`, backing it up first; the
+credential allowlists, plus `~/.claude/plans` so plans can be written
+sandboxed) into `~/.claude/settings.json`, backing it up first; the
 rest of that file stays machine-specific. The sandbox keeps its "retry
 unsandboxed" escape hatch until you set `sandbox.allowUnsandboxedCommands` to
 `false` yourself.
@@ -76,9 +77,10 @@ string listed in the untracked `~/.config/dotfiles/private-strings` (one per lin
 case-insensitive); it is local-only, since CI cannot have the list without publishing it.
 `.github/workflows/ci.yml` runs the same tools (installed from `mise.toml` by
 `jdx/mise-action`) plus a full-history gitleaks scan and the bats tests. Its
-install jobs run `scripts/smoke-install.sh` in a clean Debian container and on
-macOS: `install.sh -y` twice (the second run must change nothing), then an
-interactive zsh that must start without errors. gitleaks is feature-complete
+install job runs `scripts/smoke-install.sh` in a clean Debian container:
+`install.sh -y` twice (the second run must change nothing), then an
+interactive zsh that must start without errors. macOS is not in CI (GitHub bills
+its minutes at 10x); run the same script locally after changing `install.sh`. gitleaks is feature-complete
 upstream; move to betterleaks once it reaches 1.x.
 
 Renovate (`renovate.json`, weekly, 3-day minimum release age) bumps the mise tools

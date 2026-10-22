@@ -124,7 +124,7 @@ else
 fi
 [ "$DOTFILES" = "$HERE" ] || say "using the main checkout; pass --from-here to use $HERE"
 
-for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .gitconfig .config/git/ignore .config/starship.toml .config/gh/config.yml; do
+for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .gitconfig .config/git/ignore .config/starship.toml .config/gh/config.yml .config/herdr/config.toml; do
   link "$f"
 done
 # ssh refuses a config that others can write; ~/.ssh itself must be private.

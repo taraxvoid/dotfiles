@@ -40,6 +40,12 @@ setup() {
   [ "$(jq -r .statusLine.command "$s".bak.*)" = old ]
 }
 
+@test "prints usage and exits 2 without both arguments" {
+  run merge-settings.sh "$frag"
+  [ "$status" -eq 2 ]
+  [[ "$output" == usage:* ]]
+}
+
 @test "creates a missing settings file" {
   merge-settings.sh "$frag" "$s"
   [ "$(jq '.hooks.Stop | length' "$s")" = 1 ]
@@ -75,6 +81,7 @@ setup() {
   merge-settings.sh "$frag" "$s"
   [ "$(jq .sandbox.enabled "$s")" = true ]
   [ "$(jq '.sandbox.network.allowedDomains | index("github.com") != null' "$s")" = true ]
+  [ "$(jq '.sandbox.filesystem.allowWrite | index("~/.claude/plans") != null' "$s")" = true ]
   [ "$(jq -r '.sandbox.credentials.files[] | select(.path == "~/.ssh") | .mode' "$s")" = deny ]
   [ "$(jq -r '.sandbox.credentials.envVars[] | select(.name == "GITHUB_TOKEN") | .mode' "$s")" = deny ]
 }

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # merge-settings.sh <fragment.json> <settings.json>
 # Merge a tracked settings fragment into a machine's Claude settings.json:
-# statusLine is replaced, sandbox.enabled is set and its allowlists (write dirs,
-# domains, credential files by path, env vars by name) are unioned with what is
+# statusLine is replaced, sandbox.enabled is set (plus allowUnsandboxedCommands=false
+# when the fragment asks for strict mode) and its allowlists (excluded commands, write dirs and
+# their denied subdirs, domains, credential files by path, env vars by name) are unioned with what is
 # there (existing entries win), each hook entry is appended to its event unless one of
 # its commands is already registered there, permissions.deny rules missing from
 # settings are appended, and every other key is left alone.
@@ -10,6 +11,7 @@
 # does nothing when it is already up to date, so re-running is safe.
 set -euo pipefail
 
+[ $# -eq 2 ] || { echo "usage: ${0##*/} <fragment.json> <settings.json>" >&2; exit 2; }
 frag=$1 settings=$2
 [ -f "$settings" ] || echo '{}' >"$settings"
 
@@ -19,7 +21,10 @@ new=$(jq --slurpfile f "$frag" '
   | (if $frag.sandbox then
       def merge($have; $add; f): (($have // []) + [$add[]? | select(. as $x | ($have // []) | all(f != ($x | f)))]);
       .sandbox.enabled = true
+      | (if $frag.sandbox.allowUnsandboxedCommands == false then .sandbox.allowUnsandboxedCommands = false else . end)
+      | .sandbox.excludedCommands = merge(.sandbox.excludedCommands; $frag.sandbox.excludedCommands; .)
       | .sandbox.filesystem.allowWrite = merge(.sandbox.filesystem.allowWrite; $frag.sandbox.filesystem.allowWrite; .)
+      | .sandbox.filesystem.denyWrite = merge(.sandbox.filesystem.denyWrite; $frag.sandbox.filesystem.denyWrite; .)
       | .sandbox.network.allowedDomains = merge(.sandbox.network.allowedDomains; $frag.sandbox.network.allowedDomains; .)
       | .sandbox.credentials.files = merge(.sandbox.credentials.files; $frag.sandbox.credentials.files; .path)
       | .sandbox.credentials.envVars = merge(.sandbox.credentials.envVars; $frag.sandbox.credentials.envVars; .name)

@@ -56,7 +56,8 @@ jobs:
         run: bats tests/
 
   # install.sh end to end on a fresh machine, twice (the second run must be a
-  # no-op), then an interactive zsh. Debian in a clean container, plus macOS.
+  # no-op), then an interactive zsh, in a clean Debian container. macOS is not
+  # run here (10x minute multiplier); run scripts/smoke-install.sh locally.
   install-debian:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -79,20 +80,3 @@ jobs:
           scripts/smoke-install.sh
         env:
           MISE_GITHUB_TOKEN: ${{ github.token }} # avoid GitHub API rate limits
-
-  install-macos:
-    runs-on: macos-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: install.sh smoke test
-        run: |
-          # mise refuses the checkout's mise.toml until trusted
-          export MISE_TRUSTED_CONFIG_PATHS="$GITHUB_WORKSPACE"
-          scripts/smoke-install.sh
-        env:
-          MISE_GITHUB_TOKEN: ${{ github.token }}
-          HOMEBREW_NO_AUTO_UPDATE: 1

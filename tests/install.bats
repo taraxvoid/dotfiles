@@ -21,6 +21,7 @@ setup() {
   [ "$(readlink "$HOME/.dotfiles")" = "$repo" ]
   [ "$(readlink "$HOME/.zshrc")" = "$HOME/.dotfiles/.zshrc" ]
   [ "$(readlink "$HOME/.config/mise/config.toml")" = "$HOME/.dotfiles/.config/mise-global.toml" ]
+  [ "$(readlink "$HOME/.config/herdr/config.toml")" = "$HOME/.dotfiles/.config/herdr/config.toml" ]
   [ -r "$HOME/.zshrc" ]
 }
 

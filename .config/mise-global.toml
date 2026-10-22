@@ -3,7 +3,7 @@
 node = "26.10.0"
 pnpm = "12.8.1"
 aube = "2.7.0"
-gh = "2.102.0"
+gh = "2.103.0"
 usage = "6.12.1" # mise's completions call it at tab time
 # CLI tools. Debian's apt versions are years old, so mise (aqua backend: checksum and
 # attestation verified GitHub releases) provides them. uv and bun are deliberately
@@ -23,6 +23,8 @@ starship = "1.26.0"
 "aqua:dandavison/delta" = "0.20.1" # git pager (.gitconfig falls back to less without it)
 shellcheck = "0.11.0"
 "npm:@anthropic-ai/sandbox-runtime" = "0.0.79" # srt: the sbx backend where bwrap is absent (macOS)
+herdr = "latest"
+lazygit = "0.66.2"
 
 [settings]
 # Supply-chain cooldown, same 3 days as ~/.bunfig.toml, npm, pnpm and uv
