@@ -6,8 +6,8 @@
 # servers) and its allowlists (excluded commands, write dirs and
 # their denied subdirs, domains, credential files by path, env vars by name) are unioned with what is
 # there (existing entries win), each hook entry is appended to its event unless one of
-# its commands is already registered there, permissions.deny rules missing from
-# settings are appended, and every other key is left alone.
+# its commands is already registered there, permissions.deny and permissions.ask rules
+# missing from settings are appended, and every other key is left alone.
 # Backs settings.json up to settings.json.bak.<timestamp> before changing it and
 # does nothing when it is already up to date, so re-running is safe.
 set -euo pipefail
@@ -31,8 +31,8 @@ new=$(jq --slurpfile f "$frag" '
       | .sandbox.credentials.files = merge(.sandbox.credentials.files; $frag.sandbox.credentials.files; .path)
       | .sandbox.credentials.envVars = merge(.sandbox.credentials.envVars; $frag.sandbox.credentials.envVars; .name)
     else . end)
-  | (if $frag.permissions.deny then .permissions.deny = (reduce $frag.permissions.deny[] as $d
-      (.permissions.deny // []; if any(.[]; . == $d) then . else . + [$d] end)) else . end)
+  | reduce ("deny", "ask") as $k (.; if $frag.permissions[$k] then .permissions[$k] = (reduce $frag.permissions[$k][] as $d
+      (.permissions[$k] // []; if any(.[]; . == $d) then . else . + [$d] end)) else . end)
   | .hooks = (reduce (($frag.hooks // {}) | to_entries[]) as $e (.hooks // {};
       ([.[$e.key][]?.hooks[]?.command]) as $have
       | .[$e.key] = ((.[$e.key] // []) + [$e.value[]
