@@ -174,7 +174,7 @@ gpl() { gps -l "$@"; }
 _gh_pr_act() {
   local n=$1 action
   action=$(printf '%s\n' approve "auto-merge (squash)" browser "checkout (cd to worktree)" checks close \
-    diff "failed logs" "mark ready" "review or comment" "squash merge" "update branch" view \
+    diff "failed logs" "mark ready" "merge (merge commit)" "review or comment" "squash merge" "update branch" view \
     | fzf --prompt="#$n> " --height=~40%) || return 1
   case $action in
     view) gh pr view $n ;;
@@ -183,6 +183,7 @@ _gh_pr_act() {
     "failed logs") gj $n ;;
     "checkout (cd to worktree)") gpo $n ;;
     "squash merge") read -q "?Squash-merge #$n? [y/N] " && { echo; gh pr merge $n --squash } ;;
+    "merge (merge commit)") read -q "?Merge #$n with a merge commit? [y/N] " && { echo; gh pr merge $n --merge } ;;
     "auto-merge (squash)") read -q "?Enable auto-merge for #$n and delete the branch after? [y/N] " && { echo; gh pr merge $n --squash --auto --delete-branch } ;;
     approve) gh pr review $n --approve ;;
     "review or comment") gh pr review $n ;;
