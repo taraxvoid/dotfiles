@@ -82,8 +82,17 @@ setup() {
   [ "$(jq .sandbox.enabled "$s")" = true ]
   [ "$(jq '.sandbox.network.allowedDomains | index("github.com") != null' "$s")" = true ]
   [ "$(jq '.sandbox.filesystem.allowWrite | index("~/.claude/plans") != null' "$s")" = true ]
+  [ "$(jq '.sandbox.filesystem.allowWrite | index("~/Library/Preferences/.wrangler") != null' "$s")" = true ]
+  [ "$(jq .sandbox.network.allowLocalBinding "$s")" = true ]
   [ "$(jq -r '.sandbox.credentials.files[] | select(.path == "~/.ssh") | .mode' "$s")" = deny ]
   [ "$(jq -r '.sandbox.credentials.envVars[] | select(.name == "GITHUB_TOKEN") | .mode' "$s")" = deny ]
+}
+
+@test "allowLocalBinding is set without dropping existing network keys" {
+  echo '{"sandbox":{"network":{"allowedDomains":["example.com"],"httpProxyPort":8080}}}' >"$s"
+  merge-settings.sh "$frag" "$s"
+  [ "$(jq .sandbox.network.allowLocalBinding "$s")" = true ]
+  [ "$(jq .sandbox.network.httpProxyPort "$s")" = 8080 ]
 }
 
 @test "sandbox lists are unioned once and other sandbox keys are kept" {
