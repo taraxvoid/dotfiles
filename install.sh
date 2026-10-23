@@ -342,8 +342,8 @@ fi
 # --- completions -----------------------------------------------------------
 # Generated once here instead of `eval "$(tool completion zsh)"` in .zshrc, which
 # costs a process spawn per tool on every shell start. Written to ~/.zsh/completions
-# (first on fpath in .zshrc). Tools whose package already ships a completion (gh,
-# rg, eza, zoxide via apt/brew) are left alone. Re-run after upgrading a tool.
+# (first on fpath in .zshrc). Tools whose package already ships a completion (rg,
+# eza, zoxide via apt/brew) are left alone. Re-run after upgrading a tool.
 # Not covered: wrangler, astro, biome, vitest, playwright (per-project or no zsh
 # generator), claude (none), flux (sourced in .zshrc when installed).
 comp_dir=$HOME/.zsh/completions
@@ -364,6 +364,7 @@ gen_completion() {
   fi
 }
 gen_completion mise mise completion zsh
+gen_completion gh gh completion -s zsh # mise's release tarball ships none
 gen_completion uv uv generate-shell-completion zsh
 gen_completion uvx uvx --generate-shell-completion zsh
 gen_completion bun env SHELL=zsh bun completions

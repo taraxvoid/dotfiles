@@ -3,6 +3,8 @@
     "enabled": true,
     "allowUnsandboxedCommands": false,
     "excludedCommands": [
+      "depot *",
+      "git ls-remote *",
       "git push *",
       "git fetch *",
       "git pull *",
