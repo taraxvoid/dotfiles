@@ -15,8 +15,8 @@ next_agent = "ctrl+period"
 last_pane = "ctrl+space"
 focus_agent = "prefix+alt+1..9"
 
-previous_tab = ["prefix+p", "alt+["]
-next_tab = ["prefix+n", "alt+]"]
+previous_tab = ["prefix+p", "ctrl+alt+["]
+next_tab = ["prefix+n", "ctrl+alt+]"]
 previous_workspace = "ctrl+["
 next_workspace = "ctrl+]"
 
