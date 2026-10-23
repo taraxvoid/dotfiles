@@ -15,8 +15,10 @@ next_agent = "ctrl+period"
 last_pane = "ctrl+space"
 focus_agent = "prefix+alt+1..9"
 
-previous_tab = ["prefix+p", "ctrl+alt+["]
-next_tab = ["prefix+n", "ctrl+alt+]"]
+previous_tab = ["prefix+p", "alt+["]
+next_tab = ["prefix+n", "alt+]"]
+previous_workspace = "ctrl+["
+next_workspace = "ctrl+]"
 
 new_tab = "prefix+c"
 
@@ -28,6 +30,13 @@ type = "popup"
 command = "zsh -ic gps"
 width = "80%"
 height = "80%"
+
+# shell under the focused pane; the agent keeps the top 70%
+[[keys.command]]
+key = "prefix+t"
+type = "shell"
+command = "\"$HERDR_BIN_PATH\" pane split \"$HERDR_ACTIVE_PANE_ID\" --direction down --ratio 0.7 --focus"
+description = "terminal below"
 
 [ui.toast]
 delivery = "herdr"
