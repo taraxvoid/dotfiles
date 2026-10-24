@@ -1,4 +1,4 @@
-# gwc and gpo from .zsh_aliases, run in zsh with gh and the worktree hook stubbed
+# gwc, gpo and the gwl/gwo rows from .zsh_aliases, run in zsh with gh and the worktree hook stubbed
 setup() {
   load helpers
   setup_env
@@ -64,6 +64,27 @@ z() {
   [[ "$output" == *"checked out 5"* ]]
   GIT_TOP=$HOME/projects/untrusted/app GH_AUTHOR=stranger run z 'gpo 5'
   [[ "$output" == *"checked out 5"* ]]
+}
+
+@test "bare gpo is gps" {
+  run z 'gps() { print -r -- "gps called" }; gpo'
+  [ "$output" = "gps called" ]
+}
+
+@test "_gw_rows feeds gwl and gwo: path and branch, then gwl's colored row" {
+  r=$BATS_TEST_TMPDIR/repo
+  git init -q -b main "$r"
+  git -C "$r" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+  git -C "$r" worktree add -q -b feat "$BATS_TEST_TMPDIR/wt"
+  echo x >"$BATS_TEST_TMPDIR/wt/f"
+  cd "$BATS_TEST_TMPDIR/wt"
+  run zsh -fc 'gh() { return 1 }; source "$0"; _gw_rows' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -eq 0 ]
+  wt=$(pwd -P)
+  [[ "${lines[1]}" == "$wt"$'\t'feat$'\t'"* "*feat*"1 dirty"*"no PR"* ]]
+  run zsh -fc 'gh() { return 1 }; source "$0"; gwl' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [[ "${lines[1]}" == "* "*feat* ]]
+  [[ "${lines[1]}" != *$'\t'* ]]
 }
 
 @test "fdsd replaces a literal string in files matching the glob, hidden ones only with -a" {
