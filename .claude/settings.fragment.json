@@ -13,7 +13,9 @@
       "git -C * fetch *",
       "git -C * pull *",
       "git -C * ls-remote *",
-      "gh *"
+      "gh *",
+      "gws",
+      "gws *"
     ],
     "filesystem": {
       "allowWrite": [
@@ -80,7 +82,8 @@
       "Bash(git push * main)",
       "Bash(git push * master)",
       "Bash(git push *:main)",
-      "Bash(rm -rf ~/worktrees*)"
+      "Bash(rm -rf ~/worktrees*)",
+      "Bash(gws *--yes*)"
     ],
     "ask": [
       "Bash(gh pr merge *)",
