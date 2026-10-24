@@ -18,5 +18,7 @@ pre-commit:
     ssh-config:
       glob: ".ssh/*"
       run: scripts/check-ssh.sh --staged {staged_files}
+    typos:
+      run: typos --force-exclude {staged_files}
     private-strings:
       run: scripts/check-private-strings.sh

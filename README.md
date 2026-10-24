@@ -67,7 +67,8 @@ and npm and pnpm (set in their user config by `install.sh`).
 
 Tool versions are pinned in `mise.toml` (`mise install`, then `lefthook install` once per clone). `lefthook.yml` runs on pre-commit: `shellcheck`
 on the shell scripts, `zsh -n` on the zsh files, `actionlint` and `zizmor` on the
-workflows, and a staged-diff `gitleaks` scan.
+workflows, `typos` on everything (exceptions in `_typos.toml`), and a staged-diff
+`gitleaks` scan.
 `scripts/check-ssh.sh` guards `.ssh/config` (linked to `~/.ssh/config`): it is the only
 file allowed under `.ssh/`, with no key material, only allowlisted directives (no
 `ProxyCommand`, `LocalCommand`, `SetEnv`, ...) and `IdentityFile` paths under `~/.ssh/`.
