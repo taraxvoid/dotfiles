@@ -7,7 +7,7 @@
 	defaultBranch = main
 	templateDir = ~/.config/git/template
 [pull]
-	rebase = false
+	ff = only
 [push]
 	default = simple
 	autoSetupRemote = true
@@ -19,7 +19,13 @@
 	autoStash = true
 	updateRefs = true
 [merge]
-	conflictStyle = zdiff3
+	conflictStyle = diff3
+# syntax-aware merges. Which files use it is set in ~/.config/git/attributes
+# (git's default core.attributesFile, linked by install.sh). Where mergiraf is
+# not installed (it comes from brew), git merge-file does git's usual line merge.
+[merge "mergiraf"]
+	name = mergiraf
+	driver = command -v mergiraf >/dev/null && exec mergiraf merge --git %O %A %B -s %S -x %X -y %Y -p %P -l %L || exec git merge-file -L %X -L %S -L %Y %A %O %B
 [rerere]
 	enabled = true
 	autoUpdate = true
@@ -47,6 +53,7 @@
 [core]
 	pager = delta --version >/dev/null 2>&1 && exec delta || exec less
 	editor = vim
+	untrackedCache = true
 [interactive]
 	diffFilter = delta --version >/dev/null 2>&1 && exec delta --color-only || exec cat
 [delta]
