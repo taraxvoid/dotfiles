@@ -25,11 +25,18 @@ new_tab = "prefix+c"
 # popup commands run via /bin/sh -c, and gps is a zsh function, so go through
 # an interactive zsh
 [[keys.command]]
-key = "ctrl+f"
+key = "ctrl+s"
 type = "popup"
 command = "zsh -ic gps"
-width = "80%"
-height = "80%"
+width = "90%"
+height = "90%"
+
+[[keys.command]]
+key = "ctrl+o"
+type = "popup"
+command = "zsh -ic gpo"
+width = "90%"
+height = "90%"
 
 # shell under the focused pane; the agent keeps the top 70%
 [[keys.command]]
