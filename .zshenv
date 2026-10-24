@@ -6,6 +6,12 @@
 export ORI_TELEMETRY=0
 export DO_NOT_TRACK=1
 
+# Claude's Bash sandbox can't write uv's tool dir (~/.local/share/uv/tools), and
+# uvx takes a lock and temp file there on every run, even for one-off tools. Point
+# it at the writable uv cache instead, so sandboxed tools can't touch the installed
+# tool envs that run unsandboxed (the real ones stay on PATH via ~/.local/bin)
+[[ -n $SANDBOX_RUNTIME && -z $UV_TOOL_DIR ]] && export UV_TOOL_DIR="${UV_CACHE_DIR:-$HOME/.cache/uv}/tools"
+
 # rustup/cargo (cargo/env is idempotent; it prepends, reordered below)
 [[ -r "$HOME/.cargo/env" ]] && . "$HOME/.cargo/env"
 
