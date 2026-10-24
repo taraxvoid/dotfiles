@@ -66,9 +66,23 @@ z() {
   [[ "$output" == *"checked out 5"* ]]
 }
 
-@test "bare gpo is gps" {
-  run z 'gps() { print -r -- "gps called" }; gpo'
-  [ "$output" = "gps called" ]
+@test "bare gpo checks out the PR picked in the gps picker, no action menu" {
+  GIT_TOP=$HOME/projects/untrusted/app run z '_gh_pr_pick() { print -u2 "prompt: $1"; print 5 }; _gh_pr_act() { print menu }; gpo'
+  [[ "$output" == *"prompt: PR checkout> "* ]]
+  [[ "$output" == *"checked out 5"* ]]
+  [[ "$output" != *menu* ]]
+}
+
+@test "_gh_pr_pick prints the picked PR number, yours sorted first" {
+  run zsh -fc '
+    gh() { case "$1 $2" in
+      "api user") print me ;;
+      "pr list") print -r -- "[{\"number\":3,\"title\":\"t\",\"author\":{\"login\":\"x\"},\"updatedAt\":\"2026-01-01T00:00:00Z\"},{\"number\":8,\"title\":\"u\",\"author\":{\"login\":\"me\"},\"updatedAt\":\"2026-01-01T00:00:00Z\"}]" ;;
+    esac }
+    fzf() { head -1 }
+    source "$0"; _gh_pr_pick "PR> " ""' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -eq 0 ]
+  [ "$output" = 8 ]
 }
 
 @test "_gw_rows feeds gwl and gwo: path and branch, then gwl's colored row" {
