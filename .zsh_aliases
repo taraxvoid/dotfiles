@@ -188,7 +188,7 @@ _gh_pr_act() {
     | fzf --prompt="#$n> " --height=~40%) || return 1
   case $action in
     view) gh pr view $n ;;
-    diff) gh pr diff $n ;;
+    diff) gh pr diff --color=always $n | _page ;;
     checks) gh pr checks $n ;;
     "failed logs") gj $n ;;
     "checkout (cd to worktree)") _gh_pr_checkout $n ;;
