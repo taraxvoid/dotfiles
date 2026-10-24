@@ -140,7 +140,7 @@ _page() {
 # Other args pass through to `gh pr list` (e.g. `gps --author @me`).
 unalias gps 2>/dev/null
 gps() {
-  local list=0 me rows pick n
+  local list=0 me rows n
   [[ ${1:-} == (-l|--list) ]] && { list=1; shift }
   me=$(_gh_me) || return
   if [[ ${1:-} == (\#|)<-> ]]; then
@@ -157,13 +157,23 @@ gps() {
     | _page
     return
   fi
+  n=$(_gh_pr_pick 'PR> ' 'enter: actions' "$@") || return
+  _gh_pr_act $n
+}
+
+# _gh_pr_pick <prompt> <header> [gh pr list args]: the gps fzf picker (yours first,
+# preview = PR + checks); prints the picked PR number. Used by gps, gpo and gpm.
+_gh_pr_pick() {
+  local prompt=$1 header=$2 me rows pick
+  shift 2
+  me=$(_gh_me) || return
   rows=$(gh pr list --limit 100 "$@" --json $_gh_pr_fields \
     | jq -r --arg me "$me" "$_gh_pr_jq_defs"'sort_by([(.author.login != $me), .number])[] | row') || return
-  [[ -n "$rows" ]] || { echo "No open PRs"; return }
-  pick=$(print -r -- "$rows" | fzf --ansi --delimiter=$'\t' --with-nth=2 --prompt='PR> ' \
-    --header='enter: actions' --preview='gh pr view {1}; echo; gh pr checks {1}' \
+  [[ -n "$rows" ]] || { print -u2 "No open PRs"; return 1 }
+  pick=$(print -r -- "$rows" | fzf --ansi --delimiter=$'\t' --with-nth=2 --prompt=$prompt \
+    ${header:+--header=$header} --preview='gh pr view {1}; echo; gh pr checks {1}' \
     --preview-window=down,60%) || return 1
-  _gh_pr_act "${pick%%$'\t'*}"
+  print -r -- "${pick%%$'\t'*}"
 }
 
 # gpl: the gps table without the picker (args pass through to `gh pr list`)
@@ -181,7 +191,7 @@ _gh_pr_act() {
     diff) gh pr diff $n ;;
     checks) gh pr checks $n ;;
     "failed logs") gj $n ;;
-    "checkout (cd to worktree)") gpo $n ;;
+    "checkout (cd to worktree)") _gh_pr_checkout $n ;;
     "squash merge") read -q "?Squash-merge #$n? [y/N] " && { echo; gh pr merge $n --squash } ;;
     "merge (merge commit)") read -q "?Merge #$n with a merge commit? [y/N] " && { echo; gh pr merge $n --merge } ;;
     "auto-merge (squash)") read -q "?Enable auto-merge for #$n and delete the branch after? [y/N] " && { echo; gh pr merge $n --squash --auto --delete-branch } ;;
@@ -220,7 +230,7 @@ alias gma="git merge --abort"
 # --auto (passed through). Other flags pass through (e.g. `gpm --admin`).
 unalias gpm 2>/dev/null
 gpm() {
-  local me pick target label a skip=0
+  local target label a skip=0
   local -a args
   local -i i
   for a in "$@"; do
@@ -242,13 +252,7 @@ gpm() {
     if [[ ! -t 1 ]] || (( ! $+commands[fzf] )); then
       gh pr merge --squash "${args[@]}"; return
     fi
-    me=$(_gh_me) || return
-    pick=$(gh pr list --limit 100 --json $_gh_pr_fields \
-      | jq -r --arg me "$me" "$_gh_pr_jq_defs"'sort_by([(.author.login != $me), .number])[] | row') || return
-    [[ -n "$pick" ]] || { echo "No open PRs"; return }
-    pick=$(print -r -- "$pick" | fzf --ansi --delimiter=$'\t' --with-nth=2 --prompt='PR merge> ' \
-      --preview='gh pr view {1}; echo; gh pr checks {1}' --preview-window=down,60%) || return 1
-    target=${pick%%$'\t'*}
+    target=$(_gh_pr_pick 'PR merge> ' '') || return
   fi
   if (( ! skip )); then
     [[ $target == <-> ]] && label="#$target" || label=$target
@@ -405,7 +409,7 @@ alias grv="gh release verify"
 alias gha="gh attestation"
 
 # Worktree path where a branch is checked out (empty if none), and cd there.
-# Shared by gpo and gco so neither bails with "already checked out".
+# Shared by _gh_pr_checkout and gco so neither bails with "already checked out".
 _git_branch_wt() {
   git worktree list --porcelain | awk -v b="refs/heads/$1" \
     '/^worktree /{p=substr($0,10)} $1=="branch" && $2==b {print p; exit}'
@@ -419,26 +423,15 @@ _cd_branch_wt() { # _cd_branch_wt <branch> <worktree path>
   fi
 }
 
-# Smart PR checkout: if the PR's head branch is already checked out in a
-# worktree (or here), cd there instead of failing; otherwise gh pr checkout.
-# Takes the same args as `gh pr checkout` (number, URL, or branch). With no
-# args, shows an fzf picker of open PRs (preview shows the PR and its checks).
+# _gh_pr_checkout <pr>: smart PR checkout. If the PR's head branch is already
+# checked out in a worktree (or here), cd there instead of failing; otherwise gh
+# pr checkout. Takes the same args as `gh pr checkout` (number, URL, or branch).
 # Someone else's PR in a trusted tree asks first (see _pr_trust_ok).
-gpo() {
+_gh_pr_checkout() {
   local branch author wt pick
-  if (( $# )); then
-    pick=$(gh pr view "$1" --json headRefName,author -q '"\(.headRefName)\t\(.author.login)"') || return 1
-  else
-    pick=$(gh pr list --json number,headRefName,title,author \
-      -q '.[] | "\(.number)\t\(.headRefName)\t\(.author.login)\t\(.title)"' \
-      | fzf --delimiter='\t' --with-nth=1,4,3 --prompt='PR> ' \
-          --preview='gh pr view {1}; echo; gh pr checks {1}' \
-          --preview-window=down,60%) || return 1
-    set -- "${pick%%$'\t'*}"
-    pick=${pick#*$'\t'}
-  fi
+  pick=$(gh pr view "$1" --json headRefName,author -q '"\(.headRefName)\t\(.author.login)"') || return 1
   branch=${pick%%$'\t'*}
-  author=$(cut -f2 <<<"$pick")
+  author=${pick#*$'\t'}
   wt=$(_git_branch_wt "$branch")
   if [[ -n "$wt" ]]; then
     _cd_branch_wt "$branch" "$wt"
@@ -446,6 +439,17 @@ gpo() {
   fi
   _pr_trust_ok "$author" "$1" || return 1
   gh pr checkout "$@"
+}
+
+# gpo: check out a PR (cd to its worktree if it has one). Bare, the gps picker,
+# where enter checks out instead of opening the action menu. With args it is
+# _gh_pr_checkout (number, URL or branch).
+unalias gpo 2>/dev/null
+gpo() {
+  local n
+  if (( $# )); then _gh_pr_checkout "$@"; return; fi
+  n=$(_gh_pr_pick 'PR checkout> ' 'enter: checkout (cd to worktree)') || return
+  _gh_pr_checkout $n
 }
 
 # _pr_trust_ok <author> <pr>: personal and ravenflight are trusted by path, so a
@@ -501,22 +505,17 @@ gwc() {
   echo "on $(git branch --show-current) in ${dest/#$HOME/~}"
 }
 
-# gwo: like gpo, but for any worktree rather than open PRs. Bare, shows an fzf
-# picker of all worktrees (preview shows status and recent log) and cd's to the
+# gwo: bare, an fzf picker of all worktrees with the gwl columns (local state and
+# the branch's PR, colored; preview shows status and recent log) that cd's to the
 # pick. With args it is gco (cd to the branch's worktree, else git checkout).
 unalias gwo 2>/dev/null
 gwo() {
   local pick
   if (( $# )); then gco "$@"; return; fi
-  pick=$(git worktree list --porcelain \
-    | awk 'function flush() { if (p != "") print p "\t" b; p = "" }
-        /^worktree /{flush(); p=substr($0,10); b="(detached)"}
-        /^branch /{b=substr($0,8); sub(/^refs\/heads\//,"",b)}
-        END{flush()}' \
-    | fzf --delimiter='\t' --with-nth=2,1 --prompt='worktree> ' \
-        --preview='git -C {1} status -sb; echo; git -C {1} log --oneline --color=always -8' \
-        --preview-window=down,12) || return 1
-  _cd_branch_wt "${pick#*$'\t'}" "${pick%%$'\t'*}"
+  pick=$(_gw_rows | fzf --ansi --delimiter=$'\t' --with-nth=3 --prompt='worktree> ' \
+    --preview='git -C {1} -c color.status=always status -sb; echo; git -C {1} log --oneline --color=always -8' \
+    --preview-window=down,12) || return 1
+  _cd_branch_wt "$(cut -f2 <<<"$pick")" "${pick%%$'\t'*}"
 }
 
 # gwr: git worktree remove. With args, passes them straight through (so
@@ -536,7 +535,7 @@ gwr() {
 }
 
 # fzf pickers: these run their usual command when given args and fall back to an
-# fzf picker when called bare (like gpo and gwr). `gh issue` needs a number, so
+# fzf picker when called bare (like gwo and gwr). `gh issue` needs a number, so
 # bare giv/giw/gie/gic/gicm pick an open issue first. gh already prompts on
 # its own for `gh run view/cancel/download/rerun` and `gh workflow run`.
 # (gid, `gh issue develop`, is gone: gwc starts an issue in a worktree instead.)
@@ -584,10 +583,15 @@ gco() {
 unalias gwl 2>/dev/null
 gwl() {
   if (( $# )); then git worktree list "$@"; return; fi
+  _gw_rows | cut -f3-
+}
+
+# _gw_rows: one line per worktree, "<path>\t<branch>\t<aligned gwl row>" (gwl, gwo).
+_gw_rows() {
   local prs='[]' p h b lk o st t dirty lr pr loc cur w1=0 w2=0 i
   local dim=$'\e[2m' red=$'\e[31m' yel=$'\e[33m' rst=$'\e[0m'
   local -A prtxt proid prstate
-  local -a paths branches heads locals prcols
+  local -a raw paths branches heads locals prcols
   if (( $+commands[gh] )); then
     prs=$(gh pr list --state all --limit 100 --json "$_gh_pr_fields,state,headRefOid" 2>/dev/null) || prs='[]'
   fi
@@ -616,7 +620,7 @@ gwl() {
     elif (( ${#paths} )); then
       pr="${dim}no PR${rst}"
     fi
-    paths+=("${p/#$HOME/~}"); branches+=("$b"); heads+=("${h[1,7]}")
+    raw+=("$p"); paths+=("${p/#$HOME/~}"); branches+=("$b"); heads+=("${h[1,7]}")
     locals+=("${(j: :)loc}"); prcols+=("$pr")
     [[ $p == $cur ]] && paths[-1]="* ${paths[-1]}" || paths[-1]="  ${paths[-1]}"
     (( ${#paths[-1]} > w1 )) && w1=${#paths[-1]}
@@ -629,7 +633,7 @@ gwl() {
     /^locked/    { locked = 1 }
     END          { flush() }')
   for (( i = 1; i <= ${#paths}; i++ )); do
-    printf '%-*s  %-*s  %s  %s%s\n' $w1 "${paths[i]}" $w2 "${branches[i]}" "${heads[i]}" "${locals[i]}" "${prcols[i]:+  ${prcols[i]}}"
+    printf '%s\t%s\t%-*s  %-*s  %s  %s%s\n' "${raw[i]}" "${branches[i]}" $w1 "${paths[i]}" $w2 "${branches[i]}" "${heads[i]}" "${locals[i]}" "${prcols[i]:+  ${prcols[i]}}"
   done
 }
 
