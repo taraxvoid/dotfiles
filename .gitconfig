@@ -57,6 +57,10 @@
 	cim = commit -m
 	co = checkout
 	cob = checkout -b
+	# difftastic on most recent commit
+	ds = -c diff.external=difft show --ext-diff
+	# difftastic on unstaged changes
+	dt = -c diff.external=difft diff
 	ft = fetch --all
 	pl = pull
 	pul = pull
