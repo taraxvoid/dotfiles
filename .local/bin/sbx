@@ -114,7 +114,7 @@ if [ "$backend" = srt ]; then
   env -i HOME="$HOME" USER="${USER:-user}" TERM="${TERM:-xterm}" LANG="${LANG:-C.UTF-8}" SBX=1 \
     PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:$HOME/.bun/bin:$srtpath:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" \
     MISE_TRUSTED_CONFIG_PATHS="$trusted" MISE_CACHE_DIR="$cache/mise" MISE_STATE_DIR="$cache/mise-state" \
-    XDG_CACHE_HOME="$cache/xdg" BUN_INSTALL_CACHE_DIR="$cache/bun" UV_CACHE_DIR="$cache/uv" \
+    XDG_CACHE_HOME="$cache/xdg" BUN_INSTALL_CACHE_DIR="$cache/bun" UV_CACHE_DIR="$cache/uv" UV_TOOL_DIR="$cache/uv-tools" \
     npm_config_cache="$cache/npm" \
     "$srtbin" --settings "$cfg/settings.json" -- "${cmd[@]}"
   exit
