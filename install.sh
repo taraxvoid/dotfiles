@@ -124,7 +124,7 @@ else
 fi
 [ "$DOTFILES" = "$HERE" ] || say "using the main checkout; pass --from-here to use $HERE"
 
-for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .gitconfig .config/git/ignore .config/starship.toml .config/gh/config.yml .config/herdr/config.toml; do
+for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .gitconfig .config/git/ignore .config/git/attributes .config/starship.toml .config/gh/config.yml .config/herdr/config.toml; do
   link "$f"
 done
 # ssh refuses a config that others can write; ~/.ssh itself must be private.
@@ -213,6 +213,8 @@ if [ "$OS" = Darwin ] && command -v brew >/dev/null; then
   command -v uv >/dev/null || brew install --quiet uv
   command -v bun >/dev/null || brew install --quiet oven-sh/bun/bun
   command -v eza >/dev/null || brew install --quiet eza
+  # syntax-aware merge driver (.gitconfig); without it git merge-file does the merge
+  command -v mergiraf >/dev/null || brew install --quiet mergiraf
   # Apple's ssh/ssh-keygen/ssh-agent are built without FIDO2, so -sk (YubiKey) keys
   # need brew's OpenSSH (which pulls in libfido2)
   brew list --formula openssh >/dev/null 2>&1 || brew install --quiet openssh

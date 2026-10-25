@@ -1,0 +1,9 @@
+# typos (lefthook pre-commit). Most of this repo is dotfiles, so hidden files are
+# checked too. Words below are real names here, not misspellings.
+[files]
+ignore-hidden = false
+
+[default.extend-words]
+giv = "giv"   # gh issue view alias (.zsh_aliases)
+kend = "kend" # terminfo key name (.zshrc)
+stap = "stap" # git stash pop alias (.gitconfig)
