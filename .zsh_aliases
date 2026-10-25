@@ -359,8 +359,42 @@ alias gprv="gh pr review"
 alias gpu="gh pr update-branch"
 alias gpdn="gh pr diff --name-only"
 
-# push current branch and open a PR from the commits
-gpp() { git push -u origin HEAD && gh pr create --fill "$@"; }
+# push current branch and open a PR from the commits. On a worktree-<N>-<slug>
+# branch, a multi-commit PR is titled from the slug instead of the raw branch
+# name, and the body gets "Closes #N" above the commit list --fill would make.
+# A -B/--base in the args is honored for the commit range; later --title/--body
+# args override these.
+gpp() {
+  git push -u origin HEAD || return
+  local branch=$(git branch --show-current)
+  if [[ ! $branch =~ '^worktree-([0-9]+)-(.+)$' ]]; then
+    gh pr create --fill "$@"
+    return
+  fi
+  local issue=$match[1] slug=$match[2] base= arg prev=
+  for arg in "$@"; do
+    case $prev in -B|--base) base=$arg ;; esac
+    case $arg in --base=*) base=${arg#--base=} ;; esac
+    prev=$arg
+  done
+  if [[ -z $base ]]; then
+    base=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)
+    base=${base#origin/}
+    : ${base:=main}
+  fi
+  local range=origin/$base..HEAD title body
+  if (( $(git rev-list --count $range) == 1 )); then
+    title=$(git log -1 --format=%s)
+    body=$(git log -1 --format=%b)
+  else
+    title=${slug//-/ }
+    body=$(git log --reverse --format='- **%s**' $range)
+  fi
+  body="Closes #$issue${body:+
+
+$body}"
+  gh pr create --title "$title" --body "$body" "$@"
+}
 
 # Issues (gi*)
 alias gin="gh issue create --title"
