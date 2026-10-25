@@ -45,6 +45,13 @@ type = "shell"
 command = "\"$HERDR_BIN_PATH\" pane split \"$HERDR_ACTIVE_PANE_ID\" --direction down --ratio 0.7 --focus"
 description = "terminal below"
 
+# agent tab: new tab with the agent on top and a shell below (prefix+c stays a lone shell)
+[[keys.command]]
+key = "prefix+shift+c"
+type = "shell"
+command = "p=$(\"$HERDR_BIN_PATH\" tab create --workspace \"$HERDR_ACTIVE_WORKSPACE_ID\" --cwd \"$HERDR_ACTIVE_PANE_CWD\" --focus | jq -r .result.root_pane.pane_id) && \"$HERDR_BIN_PATH\" pane split \"$p\" --direction down --ratio 0.7 --cwd \"$HERDR_ACTIVE_PANE_CWD\" --no-focus"
+description = "agent tab (shell below)"
+
 [ui.toast]
 delivery = "herdr"
 
