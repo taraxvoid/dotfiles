@@ -84,6 +84,7 @@ setup() {
   [ "$(jq '.sandbox.filesystem.allowWrite | index("~/.claude/plans") != null' "$s")" = true ]
   [ "$(jq '.sandbox.filesystem.allowWrite | index("~/Library/Preferences/.wrangler") != null' "$s")" = true ]
   [ "$(jq '.sandbox.filesystem.allowWrite | index("~/Library/pnpm") != null' "$s")" = true ]
+  [ "$(jq '.sandbox.filesystem.allowWrite | index("~/.local/share/aube") != null' "$s")" = true ]
   [ "$(jq .sandbox.network.allowLocalBinding "$s")" = true ]
   [ "$(jq -r '.sandbox.credentials.files[] | select(.path == "~/.ssh") | .mode' "$s")" = deny ]
   [ "$(jq -r '.sandbox.credentials.envVars[] | select(.name == "GITHUB_TOKEN") | .mode' "$s")" = deny ]
