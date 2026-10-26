@@ -261,13 +261,14 @@ gpm() {
   fi
   gh pr merge $target --squash "${args[@]}"
 }
-# gpd: with args, plain `gh pr diff`; bare, pick an open PR (same rows as gps,
+# gpd: with args, paged `gh pr diff`; bare, pick an open PR (same rows as gps,
 # preview = per-file change summary like `git diff --stat`) and page its full
 # diff. Falls back to the current branch's PR with no fzf or no terminal.
 unalias gpd 2>/dev/null
 gpd() {
   local me pick
-  if (( $# )) || [[ ! -t 1 ]] || (( ! $+commands[fzf] )); then gh pr diff "$@"; return; fi
+  if [[ ! -t 1 ]]; then gh pr diff "$@"; return; fi
+  if (( $# )) || (( ! $+commands[fzf] )); then gh pr diff --color=always "$@" | _page; return; fi
   me=$(_gh_me) || return
   pick=$(gh pr list --limit 100 --json $_gh_pr_fields \
     | jq -r --arg me "$me" "$_gh_pr_jq_defs"'sort_by([(.author.login != $me), .number])[] | row' \
