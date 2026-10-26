@@ -277,6 +277,7 @@ gpd() {
 }
 alias gil="gh issue list"
 alias gf="git fetch --all --tags"
+alias gfp="git fetch --all && git pull"
 
 # one-shot status of the current PR's checks (gpw is the --watch version)
 alias gpc="gh pr checks"
