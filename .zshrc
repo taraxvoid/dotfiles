@@ -141,6 +141,9 @@ fi
 _cache_eval flux flux completion zsh
 # tool completions (just, mise, uv, bun, cf, ...) are generated into ~/.zsh/completions by install.sh
 
+# emacs keymap. zsh picks vi mode by itself when $EDITOR or $VISUAL contains "vi".
+bindkey -e
+
 # Bind Up and Down arrow keys for Fish-like history searching. Terminals in
 # application mode (Crostini, ghostty, tmux) send ^[OA/^[OB instead of ^[[A/^[[B.
 bindkey '^[[A' history-substring-search-up
@@ -190,6 +193,9 @@ _zfind "$_brew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" /usr/s
 unset _brew
 
 # prompt: starship (binary from brew / install.sh), config in ~/.config/starship.toml
+# Re-sourcing (sz) makes starship wrap its own zle-keymap-select widget, which then
+# calls itself until FUNCNEST. Drop the old widget so init binds a fresh one.
+[[ ${widgets[zle-keymap-select]-} == user:starship_* ]] && zle -D zle-keymap-select
 _cache_eval starship starship init zsh --print-full-init
 
 # re-prioritize custom completions (e.g. _just) over anything brew shellenv/antidote
