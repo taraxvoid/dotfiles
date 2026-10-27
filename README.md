@@ -39,6 +39,8 @@ The zsh config detects what is installed instead of branching on OS:
   whichever exists.
 - Aliases for `eza`, `bat`, `nvim`, `pip3` and `python3` are only defined when the
   tool exists. `dx` needs the Dashlane `dcli`.
+- `ghelp` lists the git/gh shortcuts (`gps`, `gpm`, `gpo`, `grw`, ...) with their
+  usage and what they do; `ghelp <word>` filters, e.g. `ghelp merge`.
 - `gwc [issue] [slug]` starts an issue by hand the way Claude does: worktree
   `<N>-<slug>` on branch `worktree-<N>-<slug>` (same `worktree-create.sh`),
   pushed so `gws` counts it as tracked.

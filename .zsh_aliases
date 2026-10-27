@@ -22,6 +22,7 @@ alias which-command=whence
 # `fdsd foo bar *yaml -a`. The alias stops zsh expanding the glob; -a also
 # searches hidden files (fd --hidden). Ignored files are still skipped.
 unalias fdsd 2>/dev/null # re-sourcing (sz) would expand the alias below in the definition
+alias fdsd='noglob fdsd'
 fdsd() {
   local -a pos fdargs
   local a
@@ -38,7 +39,11 @@ fdsd() {
   (( $+commands[sd] )) || { print -u2 "fdsd: sd is not installed"; return 127 }
   fd --type f --glob $fdargs -0 -- "${pos[3]}" | xargs -0 -r sd -F -- "${pos[1]}" "${pos[2]}"
 }
-alias fdsd='noglob fdsd'
+alias sz="source ~/.zshrc"
+alias jc="just --choose"
+alias vz="vim ~/.zshrc"
+alias ve="vim ~/.zshenv"
+
 alias l="ls"
 alias ll="ls -l"
 alias la="ls -a"
@@ -48,6 +53,7 @@ alias gb="git branch"
 alias gd="git diff"
 alias gl="git log -5"
 alias lg="lazygit"
+
 # y [dir]: yazi, then cd to wherever it was left (q; Q quits without moving)
 if (( $+commands[yazi] )); then
   y() {
@@ -62,17 +68,30 @@ alias gwp="git worktree prune"
 # gwr is a function below (fzf picker)
 # bat is installed as `batcat` on Debian/Ubuntu
 if (( $+commands[bat] )); then alias cat="bat"; elif (( $+commands[batcat] )); then alias cat="batcat"; fi
+
+# CLIs
 alias hcl="hcloud"
 alias vlt="vultr-cli"
-alias sz="source ~/.zshrc"
-alias jc="just --choose"
-alias vz="vim ~/.zshrc"
-alias ve="vim ~/.zshenv"
 
 # dashlane CLI https://cli.dashlane.com/install
 alias dc='dcli'
 
 # github CLI
+# Each git/gh shortcut has a `#: <usage> -- <what it does>` line above it; ghelp
+# prints those lines. Add one when adding a shortcut (tests/zsh-aliases.bats checks).
+typeset -g _zsh_aliases_file=${${(%):-%x}:A}
+#: ghelp [word] -- list these shortcuts, or only those whose usage or description mentions word
+unalias ghelp 2>/dev/null
+ghelp() {
+  local line
+  while IFS= read -r line; do
+    [[ $line == '#: '* ]] || continue
+    line=${line#'#: '}
+    [[ -z ${1:-} || ${(L)line} == *${(L)1}* ]] || continue
+    printf '%-28s %s\n' "${line%% -- *}" "${line#* -- }"
+  done <$_zsh_aliases_file
+}
+#: grem -- list git remotes with their URLs
 alias grem="git remote -v"
 # Shared jq for PR status, used by gps (decide on a PR) and gwl (scan worktrees).
 # Colors are ANSI; rows come out as one line (fzf) or a 3-line block (table).
@@ -148,6 +167,7 @@ _page() {
 # `gps <N>` (or `#N`) skips the picker: it prints that PR's block, then the
 # action menu (block only with -l, a pipe, or no fzf).
 # Other args pass through to `gh pr list` (e.g. `gps --author @me`).
+#: gps [-l] [N] [list args] -- open PRs with checks, review and merge state; picker, then an action menu
 unalias gps 2>/dev/null
 gps() {
   local list=0 me rows n
@@ -187,6 +207,7 @@ _gh_pr_pick() {
 }
 
 # gpl: the gps table without the picker (args pass through to `gh pr list`)
+#: gpl [list args] -- the gps table, no picker
 unalias gpl 2>/dev/null
 gpl() { gps -l "$@"; }
 
@@ -213,8 +234,11 @@ _gh_pr_act() {
     close) read -q "?Close #$n and delete its branch? [y/N] " && { echo; gh pr close $n --delete-branch } ;;
   esac
 }
+#: ga -- stage everything (git add .)
 alias ga="git add ."
+#: gci -- git commit
 alias gci="git commit"
+#: grl -- list recent workflow runs
 alias grl="gh run list"
 _gh_rerun_failed_branch() {
   local branch run_id
@@ -230,14 +254,17 @@ _gh_rerun_failed_branch() {
   fi
   gh run rerun --failed "$run_id"
 }
+#: grf -- rerun only the failed jobs of this branch's latest failed run
 alias grf=_gh_rerun_failed_branch
 
+#: gma -- abort an in-progress merge
 alias gma="git merge --abort"
 
 # gpm: squash-merge. The PR is the first non-flag arg (number/URL/branch), else
 # the current branch's open PR, else one picked from open PRs (same rows as gps).
 # Always confirms first unless given -y/--yes (dropped before `gh pr merge`) or
 # --auto (passed through). Other flags pass through (e.g. `gpm --admin`).
+#: gpm [pr] [-y] [merge flags] -- squash-merge (this branch's PR, else pick one); confirms unless -y/--auto
 unalias gpm 2>/dev/null
 gpm() {
   local target label a skip=0
@@ -274,6 +301,7 @@ gpm() {
 # gpd: with args, paged `gh pr diff`; bare, pick an open PR (same rows as gps,
 # preview = per-file change summary like `git diff --stat`) and page its full
 # diff. Falls back to the current branch's PR with no fzf or no terminal.
+#: gpd [pr] -- paged PR diff; bare, pick an open PR
 unalias gpd 2>/dev/null
 gpd() {
   local me pick
@@ -286,11 +314,14 @@ gpd() {
         --preview='gh pr diff {1} | git apply --stat' --preview-window=down,60%) || return 1
   gh pr diff --color=always "${pick%%$'\t'*}" | _page
 }
+#: gil -- list open issues
 alias gil="gh issue list"
 alias gf="git fetch --all --tags"
 alias gfp="git fetch --all && git pull"
+alias gfm="git fetch --all && git merge origin/main"
 
 # one-shot status of the current PR's checks (gpw is the --watch version)
+#: gpc [pr] -- PR check status, once
 alias gpc="gh pr checks"
 
 # Resolve the databaseId of a PR's most recent run (current branch, or pass
@@ -310,6 +341,7 @@ _gh_pr_run_id() {
 # the actual log via `gh run watch`. If the run already finished, `gh run
 # watch` just prints a one-liner, so fall back to the full annotated summary
 # (catches things like workflow-syntax failures that never produced jobs).
+#: grw [pr] -- stream the live log of the PR's latest run (summary if it finished)
 grw() {
   local ref="${1:-}" run_id run_status
   run_id=$(_gh_pr_run_id "$ref") || return 1
@@ -330,6 +362,7 @@ grw() {
 # Falls back to the annotated run summary when there's no log to fetch (e.g.
 # the run succeeded, so --log-failed has nothing to print, or it failed
 # before any job ran, like a workflow-syntax error).
+#: gj [pr] -- failed-step logs of the PR's latest run
 gj() {
   local ref="${1:-}" run_id conclusion
   run_id=$(_gh_pr_run_id "$ref") || return 1
@@ -353,22 +386,38 @@ gj() {
 
 
 # PRs (gp*)
+#: gpv [pr] -- view a PR
 alias gpv="gh pr view"
+#: gpw [pr] -- watch PR checks until they finish
 alias gpw="gh pr checks --watch"
 # gpb: open the PR in the browser; if the branch has none yet, open the create-PR page instead
+#: gpb -- open this branch's PR in the browser, or the create-PR page
 gpb() { gh pr view --web 2>/dev/null || gh pr create --web; }
+#: gpn [create args] -- create a PR, title and body from the commits
 alias gpn="gh pr create --fill"
+#: gpndt <title> -- create a draft PR with that title
 alias gpndt="gh pr create --draft --title"
+#: gpe [pr] -- edit a PR (title, body, labels, reviewers...)
 alias gpe="gh pr edit"
+#: gpr [pr] -- mark a draft PR ready for review
 alias gpr="gh pr ready"
+#: gpx [pr] -- close a PR and delete its branch
 alias gpx="gh pr close --delete-branch"
+#: gpma [pr] -- turn on squash auto-merge, delete the branch after
 alias gpma="gh pr merge --squash --auto --delete-branch"
+#: gplm -- your open PRs
 alias gplm="gh pr list --author @me"
+#: gpq -- PRs waiting on your review
 alias gpq="gh pr list --search 'review-requested:@me'"
+#: gpcm [pr] -- comment on a PR
 alias gpcm="gh pr comment"
+#: gpa [pr] -- approve a PR
 alias gpa="gh pr review --approve"
+#: gprv [pr] -- review a PR (approve, comment or request changes)
 alias gprv="gh pr review"
+#: gpu [pr] -- update the PR branch from its base
 alias gpu="gh pr update-branch"
+#: gpdn [pr] -- names of the files a PR changes
 alias gpdn="gh pr diff --name-only"
 
 # push current branch and open a PR from the commits. On a worktree-<N>-<slug>
@@ -376,6 +425,7 @@ alias gpdn="gh pr diff --name-only"
 # name, and the body gets "Closes #N" above the commit list --fill would make.
 # A -B/--base in the args is honored for the commit range; later --title/--body
 # args override these.
+#: gpp [create args] -- push this branch and open a PR (Closes #N on worktree-<N>-* branches)
 gpp() {
   git push -u origin HEAD || return
   local branch=$(git branch --show-current)
@@ -409,15 +459,21 @@ $body}"
 }
 
 # Issues (gi*)
+#: gin <title> -- create an issue
 alias gin="gh issue create --title"
+#: gim -- issues assigned to you
 alias gim="gh issue list --assignee @me"
 
 # Runs and workflows (gr*; gw* is worktrees)
+#: grvl [run] -- view a workflow run
 alias grvl="gh run view"
+#: grlg [run] -- full log of a workflow run
 alias grlg="gh run view --log"
+#: grx [run] -- cancel a workflow run
 alias grx="gh run cancel"
 # full rerun of the current branch's latest run (grf = failed only); any args
 # pass straight through to `gh run rerun` (e.g. a run id, --job, --debug)
+#: grr [run | rerun args] -- rerun this branch's latest run in full (grf = failed jobs only)
 unalias grr 2>/dev/null
 grr() {
   if (( $# )); then
@@ -432,26 +488,43 @@ grr() {
   fi
   gh run rerun "$run_id"
 }
+#: grd [run] -- download a run's artifacts
 alias grd="gh run download"
+#: grb -- workflow runs for this branch
 alias grb='gh run list --branch "$(git branch --show-current)"'
+#: gwfl -- list workflows
 alias gwfl="gh workflow list"
+#: gwfr [workflow] -- trigger a workflow (workflow_dispatch)
 alias gwfr="gh workflow run"
 
 # Repo
+#: gbw [path] -- open the repo (or a file in it) in the browser
 alias gbw="gh browse"
+#: gcl <repo> -- clone a GitHub repo
 alias gcl="gh repo clone"
+#: gfk <repo> -- fork a repo and clone the fork
 alias gfk="gh repo fork --clone"
+#: gcr [name] -- create a GitHub repo
 alias gcr="gh repo create"
 
 # Search, releases, misc
+#: gsp <query> -- search PRs across GitHub
 alias gsp="gh search prs"
+#: gsi <query> -- search issues across GitHub
 alias gsi="gh search issues"
+#: gsc <query> -- search code across GitHub
 alias gsc="gh search code"
+#: grel -- list releases
 alias grel="gh release list"
+#: grelc <tag> -- create a release
 alias grelc="gh release create"
+#: gapi <endpoint> -- raw GitHub API call (gh api)
 alias gapi="gh api"
+#: gauth -- which GitHub accounts gh is logged in as
 alias gauth="gh auth status"
+#: grv [tag] -- verify a release's attestation
 alias grv="gh release verify"
+#: gha <verify|download|...> -- gh attestation (artifact provenance)
 alias gha="gh attestation"
 
 # Worktree path where a branch is checked out (empty if none), and cd there.
@@ -490,6 +563,7 @@ _gh_pr_checkout() {
 # gpo: check out a PR (cd to its worktree if it has one). Bare, the gps picker,
 # where enter checks out instead of opening the action menu. With args it is
 # _gh_pr_checkout (number, URL or branch).
+#: gpo [pr] -- check out a PR, or cd to its worktree; bare, pick one
 unalias gpo 2>/dev/null
 gpo() {
   local n
@@ -513,7 +587,7 @@ _pr_trust_ok() {
   [[ -n $me && $1 == $me ]] && return 0
   print -u2 "#$2 is by ${1:-an unknown author}. Checking it out in this trusted tree lets its"
   print -u2 "mise.toml and lefthook.yml run. Review it under ~/projects/untrusted instead."
-  read -q "?Check it out here anyway? [y/N] " && { echo; return 0 }
+  read -q -u0 "?Check it out here anyway? [y/N] " && { echo; return 0 }
   echo
   return 1
 }
@@ -523,6 +597,7 @@ _pr_trust_ok() {
 # with the same worktree-create.sh hook, pushes the branch so gws counts it as
 # tracked, and cd's there. Bare, picks an open issue; the slug defaults to the
 # issue title.
+#: gwc [issue] [slug] -- start an issue in a new pushed worktree and cd there; bare, pick one
 unalias gwc 2>/dev/null
 gwc() {
   setopt local_options extendedglob
@@ -554,6 +629,7 @@ gwc() {
 # gwo: bare, an fzf picker of all worktrees with the gwl columns (local state and
 # the branch's PR, colored; preview shows status and recent log) that cd's to the
 # pick. With args it is gco (cd to the branch's worktree, else git checkout).
+#: gwo [branch] -- cd to a worktree; bare, pick one
 unalias gwo 2>/dev/null
 gwo() {
   local pick
@@ -574,6 +650,7 @@ gcm() {
 # gwr: git worktree remove. With args, passes them straight through (so
 # `gwr -f path` works). With none, shows an fzf picker of the other worktrees
 # (tab multi-selects, preview shows status) and removes what you pick.
+#: gwr [path] -- remove worktrees; bare, multi-pick
 unalias gwr 2>/dev/null
 gwr() {
   local -a picks
@@ -602,15 +679,21 @@ _gi() { # _gi "<gh issue subcommand + flags>" [args...]
   [[ -n "$n" ]] || return 1
   gh issue ${=sub} "$n"
 }
+#: giv [issue] -- view an issue; bare, pick one
 giv() { _gi view "$@" }
+#: giw [issue] -- open an issue in the browser; bare, pick one
 giw() { _gi "view --web" "$@" }
+#: gie [issue] -- edit an issue; bare, pick one
 gie() { _gi edit "$@" }
+#: gic [issue] -- close an issue; bare, pick one
 gic() { _gi close "$@" }
+#: gicm [issue] -- comment on an issue; bare, pick one
 gicm() { _gi comment "$@" }
 unfunction gid 2>/dev/null
 # gco: bare, pick a local branch (most recent first, preview shows its log).
 # A single branch name (picked or typed) that is checked out in another worktree
 # cd's there instead of failing; anything else is plain `git checkout`.
+#: gco [branch] -- check out a branch, or cd to its worktree; bare, pick one
 gco() {
   local b wt
   if (( $# )); then
@@ -633,6 +716,7 @@ gco() {
 # branch's PR (checks, review, merge state; merged/closed shown plainly, with a
 # warning when the branch has commits newer than the merged PR). With args it is
 # plain `git worktree list`. `*` marks the worktree you are in.
+#: gwl -- every worktree with local state and its PR's status
 unalias gwl 2>/dev/null
 gwl() {
   if (( $# )); then git worktree list "$@"; return; fi

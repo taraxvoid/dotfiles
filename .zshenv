@@ -5,6 +5,7 @@
 # telemetry off
 export ORI_TELEMETRY=0
 export DO_NOT_TRACK=1
+export _ZO_EXCLUDE_DIRS=$HOME:$HOME/worktrees/*
 
 # Claude's Bash sandbox can't write uv's tool dir (~/.local/share/uv/tools), and
 # uvx takes a lock and temp file there on every run, even for one-off tools. Point
