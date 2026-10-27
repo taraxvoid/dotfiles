@@ -26,7 +26,10 @@
         "~/Library/Preferences/.wrangler",
         "~/Library/pnpm",
         "~/Library/Caches/pnpm",
-        "~/.local/state/pnpm"
+        "~/.local/state/pnpm",
+        "~/.cache/aube",
+        "~/.local/share/aube",
+        "~/Library/Caches/aube"
       ]
     },
     "network": {
