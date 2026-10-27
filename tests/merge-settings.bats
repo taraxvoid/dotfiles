@@ -65,7 +65,12 @@ setup() {
   echo '{"permissions":{"deny":["Bash(curl*)","Bash(git worktree prune*)"],"allow":["Read"]}}' >"$s"
   merge-settings.sh "$frag" "$s"
   merge-settings.sh "$frag" "$s"
-  [ "$(jq -c '.permissions.deny' "$s")" = '["Bash(curl*)","Bash(git worktree prune*)","Bash(git worktree remove*)","Bash(rm -rf ~/worktrees*)"]' ]
+  # existing rules first, then the fragment's in its order, each rule once
+  want=$(jq -c '["Bash(curl*)","Bash(git worktree prune*)"] as $old
+    | reduce .permissions.deny[] as $d ($old; if index([$d]) then . else . + [$d] end)' "$frag")
+  [ "$(jq -c '.permissions.deny' "$s")" = "$want" ]
+  [ "$(jq '.permissions.deny | length' "$s")" = "$(jq '.permissions.deny | unique | length' "$s")" ]
+  [ "$(jq -r '.permissions.deny[2]' "$s")" = 'Bash(git worktree remove*)' ]
   [ "$(jq -c '.permissions.allow' "$s")" = '["Read"]' ]
 }
 

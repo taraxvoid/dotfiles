@@ -503,7 +503,7 @@ _pr_trust_ok() {
   [[ -n $me && $1 == $me ]] && return 0
   print -u2 "#$2 is by ${1:-an unknown author}. Checking it out in this trusted tree lets its"
   print -u2 "mise.toml and lefthook.yml run. Review it under ~/projects/untrusted instead."
-  read -q "?Check it out here anyway? [y/N] " && { echo; return 0 }
+  read -q -u0 "?Check it out here anyway? [y/N] " && { echo; return 0 }
   echo
   return 1
 }
