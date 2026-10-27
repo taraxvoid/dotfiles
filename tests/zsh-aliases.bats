@@ -241,3 +241,28 @@ zb() {
   [[ "$output" == *"gh issue close 4"* ]]
   [[ "$output" != *"[y/N]"* ]]
 }
+
+@test "every git/gh shortcut has a #: line for ghelp" {
+  run zsh -fc 'source "$0"
+    setopt extendedglob
+    documented=(${${(M)${(f)"$(<$0)"}:#\#: *}//(#b)\#: ([^ ]##)*/$match[1]})
+    for a in ${(k)aliases}; do
+      [[ $a == g* && $aliases[$a] == (git|gh|_gh)* ]] && (( ! ${documented[(Ie)$a]} )) && print -r -- "undocumented alias $a"
+    done
+    for f in ${(k)functions}; do
+      [[ $f == g[a-z]## ]] && (( ! ${documented[(Ie)$f]} )) && print -r -- "undocumented function $f"
+    done
+    true' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -eq 0 ]
+  [ "$output" = "" ]
+}
+
+@test "ghelp lists usage and description, and filters by word" {
+  run zsh -fc 'source "$0"; ghelp' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"gpv [pr]"*"view a PR"* ]]
+  [ "${#lines[@]}" -gt 50 ]
+  run zsh -fc 'source "$0"; ghelp MERGE' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [[ "$output" == *"gpm [pr]"* ]]
+  [[ "$output" != *"gpv [pr]"* ]]
+}
