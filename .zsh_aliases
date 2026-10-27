@@ -131,6 +131,26 @@ _page() {
   if [[ -t 1 ]]; then LESS=${LESS:--FRX} ${=PAGER:-less}; else cat; fi
 }
 
+# Bare commands act on the current branch when that is safe: its open PR
+# (_gh_pr_current) or, on a worktree-<N>-<slug> branch, issue N (_gh_branch_issue).
+# Destructive ones (gpm, gpx, gic) ask first via _confirm unless given -y/--yes.
+_gh_pr_current() {
+  local n
+  n=$(gh pr view --json number,state -q 'select(.state == "OPEN") | .number' 2>/dev/null)
+  [[ -n $n ]] && print -r -- $n
+}
+_gh_branch_issue() {
+  [[ $(git branch --show-current 2>/dev/null) =~ '^worktree-([0-9]+)-' ]] && print -r -- $match[1]
+}
+# _confirm <question>: y/N prompt, default no
+_confirm() {
+  local r
+  read -q "?$1 [y/N] "
+  r=$?
+  echo
+  return $r
+}
+
 # gps: open PRs with what you need to decide on a merge (checks and which are
 # failing, review state, merge state incl. behind/blocked/conflicts, size, age,
 # auto-merge). On a terminal it is an fzf picker (preview = PR + checks) that
@@ -247,7 +267,7 @@ gpm() {
       *) target=${args[i]}; args[i]=(); break ;;
     esac
   done
-  [[ -n $target ]] || target=$(gh pr view --json number,state -q 'select(.state == "OPEN") | .number' 2>/dev/null)
+  [[ -n $target ]] || target=$(_gh_pr_current)
   if [[ -z $target ]]; then
     if [[ ! -t 1 ]] || (( ! $+commands[fzf] )); then
       gh pr merge --squash "${args[@]}"; return
@@ -256,21 +276,51 @@ gpm() {
   fi
   if (( ! skip )); then
     [[ $target == <-> ]] && label="#$target" || label=$target
-    read -q "?Squash-merge $label${args:+ (${args[*]})}? [y/N] " || { echo; return 1 }
-    echo
+    _confirm "Squash-merge $label${args:+ (${args[*]})}?" || return 1
   fi
   gh pr merge $target --squash "${args[@]}"
 }
-# gpd: with args, paged `gh pr diff`; bare, pick an open PR (same rows as gps,
-# preview = per-file change summary like `git diff --stat`) and page its full
-# diff. Falls back to the current branch's PR with no fzf or no terminal.
+# gpx: close a PR and delete its branch. The PR is the first non-flag arg
+# (number/URL/branch), else the current branch's open PR. Always confirms first
+# unless given -y/--yes; other flags pass through to `gh pr close`.
+unalias gpx 2>/dev/null
+gpx() {
+  local target label a yes=0
+  local -a args
+  local -i i
+  for a in "$@"; do
+    case $a in -y|--yes) yes=1 ;; *) args+=("$a") ;; esac
+  done
+  for (( i = 1; i <= $#args; i++ )); do
+    case ${args[i]} in
+      -c|--comment|-R|--repo) (( i++ )) ;;
+      -*) ;;
+      *) target=${args[i]}; args[i]=(); break ;;
+    esac
+  done
+  [[ -n $target ]] || target=$(_gh_pr_current) || { print -u2 "gpx: this branch has no open PR"; return 1 }
+  if (( ! yes )); then
+    [[ $target == <-> ]] && label="#$target" || label=$target
+    _confirm "Close $label and delete its branch?" || return 1
+  fi
+  gh pr close $target --delete-branch "${args[@]}"
+}
+# gpd: with args, paged `gh pr diff`. Bare, the current branch's open PR (its
+# diff against the base branch); with no such PR, or with -p/--pick, pick an
+# open PR (same rows as gps, preview = per-file change summary like
+# `git diff --stat`) and page its full diff. No fzf or no terminal: plain
+# `gh pr diff` on the current branch.
 unalias gpd 2>/dev/null
 gpd() {
   local me pick
   if [[ ! -t 1 ]]; then gh pr diff "$@"; return; fi
-  if (( $# )) || (( ! $+commands[fzf] )); then gh pr diff --color=always "$@" | _page; return; fi
+  if [[ ${1:-} == (-p|--pick) ]]; then
+    shift
+  elif (( $# )) || (( ! $+commands[fzf] )) || _gh_pr_current >/dev/null; then
+    gh pr diff --color=always "$@" | _page; return
+  fi
   me=$(_gh_me) || return
-  pick=$(gh pr list --limit 100 --json $_gh_pr_fields \
+  pick=$(gh pr list --limit 100 "$@" --json $_gh_pr_fields \
     | jq -r --arg me "$me" "$_gh_pr_jq_defs"'sort_by([(.author.login != $me), .number])[] | row' \
     | fzf --ansi --delimiter=$'\t' --with-nth=2 --prompt='PR diff> ' \
         --preview='gh pr diff {1} | git apply --stat' --preview-window=down,60%) || return 1
@@ -351,7 +401,6 @@ alias gpn="gh pr create --fill"
 alias gpndt="gh pr create --draft --title"
 alias gpe="gh pr edit"
 alias gpr="gh pr ready"
-alias gpx="gh pr close --delete-branch"
 alias gpma="gh pr merge --squash --auto --delete-branch"
 alias gplm="gh pr list --author @me"
 alias gpq="gh pr list --search 'review-requested:@me'"
@@ -579,13 +628,21 @@ gwr() {
 
 # fzf pickers: these run their usual command when given args and fall back to an
 # fzf picker when called bare (like gwo and gwr). `gh issue` needs a number, so
-# bare giv/giw/gie/gic/gicm pick an open issue first. gh already prompts on
+# bare giv/giw/gie/gic/gicm use the current worktree-<N>-<slug> branch's issue
+# N, else (or with -p/--pick) pick an open issue first. Bare gic asks before
+# closing the branch's issue unless given -y/--yes. gh already prompts on
 # its own for `gh run view/cancel/download/rerun` and `gh workflow run`.
 # (gid, `gh issue develop`, is gone: gwc starts an issue in a worktree instead.)
 unalias giv giw gie gic gicm gid gco 2>/dev/null
 _gi() { # _gi "<gh issue subcommand + flags>" [args...]
   local sub=$1 n; shift
-  if (( $# )); then gh issue ${=sub} "$@"; return; fi
+  if [[ ${1:-} == (-p|--pick) ]]; then
+    shift
+  elif (( $# )); then
+    gh issue ${=sub} "$@"; return
+  elif n=$(_gh_branch_issue); then
+    gh issue ${=sub} $n; return
+  fi
   n=$(gh issue list --limit 100 --json number,title -q '.[] | "\(.number)\t\(.title)"' \
     | fzf --delimiter='\t' --prompt='issue> ' --preview='gh issue view {1}' --preview-window=right,60% \
     | cut -f1) || return 1
@@ -595,7 +652,18 @@ _gi() { # _gi "<gh issue subcommand + flags>" [args...]
 giv() { _gi view "$@" }
 giw() { _gi "view --web" "$@" }
 gie() { _gi edit "$@" }
-gic() { _gi close "$@" }
+gic() {
+  local a n yes=0
+  local -a args
+  for a in "$@"; do
+    case $a in -y|--yes) yes=1 ;; *) args+=("$a") ;; esac
+  done
+  if (( ! $#args )) && n=$(_gh_branch_issue); then
+    (( yes )) || _confirm "Close #$n (this branch's issue)?" || return 1
+    gh issue close $n; return
+  fi
+  _gi close "${args[@]}"
+}
 gicm() { _gi comment "$@" }
 unfunction gid 2>/dev/null
 # gco: bare, pick a local branch (most recent first, preview shows its log).

@@ -166,3 +166,78 @@ gh_me() {
   [ "${lines[3]}" = "gl=git log -5" ]
   [ "${lines[6]}" = "gma=git merge --abort" ]
 }
+
+# zb <code>: run code in zsh with the aliases loaded, on branch $BRANCH (default
+# worktree-12-x) whose open PR is $PR (none if unset). gh calls go to
+# $HOME/gh-calls; fzf prints "picker" and cancels. tty_gpd is gpd as if stdout
+# were a terminal.
+zb() {
+  : >"$HOME/gh-calls"
+  zsh -fc '
+    source "$0"
+    gh() {
+      print -r -- "gh $*" >>"$HOME/gh-calls"
+      case "$1 $2" in
+        "pr view") [[ -n ${PR-} ]] && print -r -- $PR || return 1 ;;
+        "api user") print me ;;
+        "pr list") print "[]" ;;
+      esac
+    }
+    git() { [[ $1 == branch ]] && print -r -- "${BRANCH-worktree-12-x}" }
+    fzf() { print -u2 picker; return 1 }
+    commands[fzf]=/usr/bin/true
+    _page() { cat }
+    functions[tty_gpd]=${functions[gpd]/"[[ ! -t 1 ]]"/false}
+    '"$1" "$BATS_TEST_DIRNAME/../.zsh_aliases"
+}
+
+@test "bare gpd pages the current branch's PR diff without a picker" {
+  PR=7 run zb 'tty_gpd'
+  [ "$status" -eq 0 ]
+  [[ "$output" != *picker* ]]
+  [ "$(tail -1 "$HOME/gh-calls")" = "gh pr diff --color=always" ]
+}
+
+@test "gpd opens the picker when the branch has no PR, or with -p" {
+  run zb 'tty_gpd'
+  [[ "$output" == *picker* ]]
+  PR=7 run zb 'tty_gpd -p'
+  [[ "$output" == *picker* ]]
+  run grep -c 'pr diff' "$HOME/gh-calls"
+  [ "$output" = 0 ]
+}
+
+@test "gpx asks before closing the current branch's PR, default no; -y skips it" {
+  PR=7 run zb 'gpx </dev/null'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Close #7 and delete its branch?"* ]]
+  run grep -c 'pr close' "$HOME/gh-calls"
+  [ "$output" = 0 ]
+  PR=7 run zb 'gpx -y; cat "$HOME/gh-calls"'
+  [[ "$output" == *"gh pr close 7 --delete-branch"* ]]
+  run zb 'gpx --yes -c bye 9; cat "$HOME/gh-calls"'
+  [[ "$output" == *"gh pr close 9 --delete-branch -c bye"* ]]
+  run zb 'gpx -y'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"no open PR"* ]]
+}
+
+@test "bare giv and gicm use the worktree-<N> branch's issue, else (or with -p) pick" {
+  run zb 'giv; gicm; cat "$HOME/gh-calls"'
+  [[ "$output" == *"gh issue view 12"* ]]
+  [[ "$output" == *"gh issue comment 12"* ]]
+  BRANCH=main run zb 'giv'
+  [[ "$output" == *picker* ]]
+  run zb 'giv -p'
+  [[ "$output" == *picker* ]]
+}
+
+@test "bare gic asks before closing the branch's issue, -y skips it, a number does not ask" {
+  run zb 'gic </dev/null'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Close #12"* ]]
+  run zb 'gic -y; gic 4; cat "$HOME/gh-calls"'
+  [[ "$output" == *"gh issue close 12"* ]]
+  [[ "$output" == *"gh issue close 4"* ]]
+  [[ "$output" != *"[y/N]"* ]]
+}
