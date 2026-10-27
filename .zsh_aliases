@@ -554,6 +554,13 @@ gwo() {
   _cd_branch_wt "$(cut -f2 <<<"$pick")" "${pick%%$'\t'*}"
 }
 
+# gcm: cd to the repo's main checkout (the first entry in git worktree list),
+# whatever branch it is on.
+unalias gcm 2>/dev/null
+gcm() {
+  _cd_branch_wt "main checkout" "$(git worktree list --porcelain | awk 'NR==1{print substr($0,10); exit}')"
+}
+
 # gwr: git worktree remove. With args, passes them straight through (so
 # `gwr -f path` works). With none, shows an fzf picker of the other worktrees
 # (tab multi-selects, preview shows status) and removes what you pick.
