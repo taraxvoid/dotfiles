@@ -141,8 +141,9 @@ fi
 _cache_eval flux flux completion zsh
 # tool completions (just, mise, uv, bun, cf, ...) are generated into ~/.zsh/completions by install.sh
 
-# vi keymap, set explicitly rather than relying on zsh inferring it from $EDITOR
-bindkey -v
+# emacs keymap for the command line. Without this, zsh switches to vi mode on its
+# own because $EDITOR is vim (it does that whenever $EDITOR or $VISUAL contains "vi").
+bindkey -e
 
 # Bind Up and Down arrow keys for Fish-like history searching. Terminals in
 # application mode (Crostini, ghostty, tmux) send ^[OA/^[OB instead of ^[[A/^[[B.
