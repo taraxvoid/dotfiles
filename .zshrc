@@ -190,6 +190,28 @@ zstyle ':fzf-tab:*' switch-group '<' '>'
 # must come after fzf-tab (loaded by antidote above) and syntax-highlighting must
 # be sourced last.
 _zfind "$_brew/share/zsh-autosuggestions/zsh-autosuggestions.zsh" /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh && source $REPLY
+
+# Autosuggestions come from global history, so `cd ` would suggest a relative path
+# last used in some other repo. For cd/pushd, take the newest history entry whose
+# target exists from $PWD; everything else uses the stock history strategy.
+_zsh_autosuggest_strategy_history_cwd() {
+  emulate -L zsh
+  setopt extendedglob
+  if [[ $1 != (cd|pushd)' '* ]]; then
+    _zsh_autosuggest_strategy_history "$1"
+    return
+  fi
+  local prefix="${1//(#m)[\\*?[\]<>()|^~#]/\\$MATCH}" n dir
+  # (k) with (R): every history number whose entry matches; (On): newest first
+  for n in ${(On)${(k)history[(R)$prefix*]}}; do
+    dir=${(Q)${(z)history[$n]}[2]}
+    if [[ -z $dir || $dir == - || -d ${dir/#\~/$HOME} ]]; then
+      typeset -g suggestion=$history[$n]
+      return
+    fi
+  done
+}
+ZSH_AUTOSUGGEST_STRATEGY=(history_cwd)
 _zfind "$_brew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh && source $REPLY
 unset _brew
 
