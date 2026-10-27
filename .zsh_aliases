@@ -22,6 +22,7 @@ alias which-command=whence
 # `fdsd foo bar *yaml -a`. The alias stops zsh expanding the glob; -a also
 # searches hidden files (fd --hidden). Ignored files are still skipped.
 unalias fdsd 2>/dev/null # re-sourcing (sz) would expand the alias below in the definition
+alias fdsd='noglob fdsd'
 fdsd() {
   local -a pos fdargs
   local a
@@ -38,7 +39,6 @@ fdsd() {
   (( $+commands[sd] )) || { print -u2 "fdsd: sd is not installed"; return 127 }
   fd --type f --glob $fdargs -0 -- "${pos[3]}" | xargs -0 -r sd -F -- "${pos[1]}" "${pos[2]}"
 }
-alias fdsd='noglob fdsd'
 alias sz="source ~/.zshrc"
 alias jc="just --choose"
 alias vz="vim ~/.zshrc"
