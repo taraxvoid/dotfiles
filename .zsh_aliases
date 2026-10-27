@@ -22,6 +22,7 @@ alias which-command=whence
 # `fdsd foo bar *yaml -a`. The alias stops zsh expanding the glob; -a also
 # searches hidden files (fd --hidden). Ignored files are still skipped.
 unalias fdsd 2>/dev/null # re-sourcing (sz) would expand the alias below in the definition
+alias fdsd='noglob fdsd'
 fdsd() {
   local -a pos fdargs
   local a
@@ -38,31 +39,39 @@ fdsd() {
   (( $+commands[sd] )) || { print -u2 "fdsd: sd is not installed"; return 127 }
   fd --type f --glob $fdargs -0 -- "${pos[3]}" | xargs -0 -r sd -F -- "${pos[1]}" "${pos[2]}"
 }
-alias fdsd='noglob fdsd'
-alias l="ls"
-alias ll="ls -l"
-alias la="ls -a"
-(( $+commands[eza] )) && alias ls="eza"
-#: gs -- git status
-alias gs="git status"
-#: gb -- git branch
-alias gb="git branch"
-#: gd -- git diff
-alias gd="git diff"
-#: gl -- last 5 commits (git log -5)
-alias gl="git log -5"
-alias lg="lazygit"
-#: gwp -- prune stale worktree entries (git worktree prune)
-alias gwp="git worktree prune"
-# gwr is a function below (fzf picker)
-# bat is installed as `batcat` on Debian/Ubuntu
-if (( $+commands[bat] )); then alias cat="bat"; elif (( $+commands[batcat] )); then alias cat="batcat"; fi
-alias hcl="hcloud"
-alias vlt="vultr-cli"
 alias sz="source ~/.zshrc"
 alias jc="just --choose"
 alias vz="vim ~/.zshrc"
 alias ve="vim ~/.zshenv"
+
+alias l="ls"
+alias ll="ls -l"
+alias la="ls -a"
+(( $+commands[eza] )) && alias ls="eza"
+alias gs="git status"
+alias gb="git branch"
+alias gd="git diff"
+alias gl="git log -5"
+alias lg="lazygit"
+
+# y [dir]: yazi, then cd to wherever it was left (q; Q quits without moving)
+if (( $+commands[yazi] )); then
+  y() {
+    local tmp=$(mktemp -t yazi-cwd.XXXXXX) cwd
+    command yazi "$@" --cwd-file="$tmp"
+    cwd=$(<$tmp)
+    [[ -n $cwd && $cwd != $PWD && -d $cwd ]] && builtin cd -- "$cwd"
+    command rm -f -- "$tmp"
+  }
+fi
+alias gwp="git worktree prune"
+# gwr is a function below (fzf picker)
+# bat is installed as `batcat` on Debian/Ubuntu
+if (( $+commands[bat] )); then alias cat="bat"; elif (( $+commands[batcat] )); then alias cat="batcat"; fi
+
+# CLIs
+alias hcl="hcloud"
+alias vlt="vultr-cli"
 
 # dashlane CLI https://cli.dashlane.com/install
 alias dc='dcli'
@@ -358,10 +367,9 @@ gpd() {
 }
 #: gil -- list open issues
 alias gil="gh issue list"
-#: gf -- fetch all remotes and tags
 alias gf="git fetch --all --tags"
-#: gfp -- fetch all remotes, then pull
 alias gfp="git fetch --all && git pull"
+alias gfm="git fetch --all && git merge origin/main"
 
 # one-shot status of the current PR's checks (gpw is the --watch version)
 #: gpc [pr] -- PR check status, once

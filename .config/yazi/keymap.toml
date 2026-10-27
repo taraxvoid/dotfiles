@@ -1,0 +1,19 @@
+#:schema https://yazi-rs.github.io/schemas/keymap.json
+# Prepended to yazi's preset keymap (yazi-config/preset/keymap-default.toml), so
+# these win and every default key not listed here still works. `~` lists them all.
+
+[mgr]
+prepend_keymap = [
+  # smart-enter.yazi: l / Enter open a file or enter a directory
+  { on = "l", run = "plugin smart-enter", desc = "Enter the directory, or open the file" },
+  { on = "<Enter>", run = "plugin smart-enter", desc = "Enter the directory, or open the file" },
+
+  # the dev tiers (see install.sh) and the dotfiles themselves
+  { on = ["g", "p"], run = "cd ~/projects", desc = "Go to ~/projects" },
+  { on = ["g", "w"], run = "cd ~/worktrees", desc = "Go to ~/worktrees" },
+  { on = ["g", "."], run = "cd ~/.dotfiles", desc = "Go to ~/.dotfiles" },
+
+  # hand the terminal to another tool in the current dir; yazi resumes on exit
+  { on = "!", run = 'shell "$SHELL" --block', desc = "Open a shell here" },
+  { on = ["g", "i"], run = "shell lazygit --block", desc = "lazygit here" },
+]
