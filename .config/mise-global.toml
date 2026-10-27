@@ -26,6 +26,7 @@ shellcheck = "0.11.0"
 "npm:@anthropic-ai/sandbox-runtime" = "0.0.79" # srt: the sbx backend where bwrap is absent (macOS)
 herdr = "0.9.5"
 lazygit = "0.66.2"
+yazi = "26.9.1" # file manager, config in .config/yazi
 watchexec = "2.8.0"
 
 [settings]

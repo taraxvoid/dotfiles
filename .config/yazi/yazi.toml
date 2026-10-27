@@ -1,0 +1,25 @@
+#:schema https://yazi-rs.github.io/schemas/yazi.json
+# Only what differs from yazi's preset (yazi-config/preset/yazi-default.toml);
+# everything else merges in from it.
+
+[mgr]
+ratio = [1, 3, 4] # wider preview pane
+sort_by = "natural" # file2 before file10
+show_hidden = true # dotfiles are most of what lives in here; matches fzf --hidden
+
+[opener]
+# the preset falls back to vi; nvim is in mise-global.toml on every machine
+edit = [
+  { run = "${EDITOR:-nvim} %s", desc = "$EDITOR", for = "unix", block = true },
+]
+
+# git.yazi: status signs next to each file (setup in init.lua, pinned in package.toml)
+[[plugin.prepend_fetchers]]
+url = "*"
+run = "git"
+group = "git"
+
+[[plugin.prepend_fetchers]]
+url = "*/"
+run = "git"
+group = "git"

@@ -159,6 +159,27 @@ gh_me() {
   [ "$output" = "lazygit -p /x" ]
 }
 
+# stub_yazi <body>: a yazi on PATH that y's guard sees; $1 is the dir, $2 --cwd-file=<f>
+stub_yazi() {
+  mkdir -p "$HOME/bin"
+  printf '#!/bin/sh\n%s\n' "$1" >"$HOME/bin/yazi"
+  chmod +x "$HOME/bin/yazi"
+}
+
+@test "y cds to the dir yazi was left in" {
+  mkdir -p "$HOME/there"
+  stub_yazi 'printf %s "$1" >"${2#--cwd-file=}"'
+  run env PATH="$HOME/bin:$PATH" zsh -fc 'source "$0"; cd /; y "$1"; print -r -- $PWD' "$BATS_TEST_DIRNAME/../.zsh_aliases" "$HOME/there"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$HOME/there" ]
+}
+
+@test "y stays put when yazi quits without writing a cwd (Q)" {
+  stub_yazi ':'
+  run env PATH="$HOME/bin:$PATH" zsh -fc 'source "$0"; cd /; y; print -r -- $PWD' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$output" = / ]
+}
+
 @test "git shortcut aliases are defined" {
   run zsh -fc 'source "$0"; for a in gs gb gd gl ga gci gma; do print -r -- "$a=$aliases[$a]"; done' "$BATS_TEST_DIRNAME/../.zsh_aliases"
   [ "$status" -eq 0 ]

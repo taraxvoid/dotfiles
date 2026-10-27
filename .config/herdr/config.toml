@@ -38,6 +38,15 @@ command = "zsh -ic gpo"
 width = "90%"
 height = "90%"
 
+# yazi in the focused pane's dir; files open in nvim inside the popup
+[[keys.command]]
+key = "prefix+e"
+type = "popup"
+command = "cd \"${HERDR_ACTIVE_PANE_CWD:-.}\" && zsh -ic yazi"
+width = "90%"
+height = "90%"
+description = "file manager"
+
 # shell under the focused pane; the agent keeps the top 70%
 [[keys.command]]
 key = "prefix+t"

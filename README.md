@@ -44,6 +44,15 @@ The zsh config detects what is installed instead of branching on OS:
   pushed so `gws` counts it as tracked.
 - git pages through delta (pinned in the global mise config) when it runs, and
   falls back to less.
+- yazi (file manager, pinned in the global mise config): `y [dir]` runs it and cds
+  to wherever you quit (`Q` quits without moving); `prefix+e` in herdr opens it in a
+  popup at the focused pane's dir. Config is in `.config/yazi` (each file linked
+  into `~/.config/yazi`): hidden files shown, nvim as the editor, git status
+  signs, `l`/Enter open files too, `gp`/`gw`/`g.` jump to `~/projects`,
+  `~/worktrees`, `~/.dotfiles`, `!` drops to a shell and `gi` runs lazygit. Its
+  plugins (git, smart-enter) are pinned by commit and hash in
+  `.config/yazi/package.toml` and fetched by `install.sh` (`ya pkg install`);
+  bump them with `ya pkg upgrade`, Renovate doesn't.
 - Generated init scripts (zoxide, fzf, starship) are cached in `~/.cache/zsh`
   and regenerated when the tool's binary changes; delete that dir to force it.
 

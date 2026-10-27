@@ -48,6 +48,16 @@ alias gb="git branch"
 alias gd="git diff"
 alias gl="git log -5"
 alias lg="lazygit"
+# y [dir]: yazi, then cd to wherever it was left (q; Q quits without moving)
+if (( $+commands[yazi] )); then
+  y() {
+    local tmp=$(mktemp -t yazi-cwd.XXXXXX) cwd
+    command yazi "$@" --cwd-file="$tmp"
+    cwd=$(<$tmp)
+    [[ -n $cwd && $cwd != $PWD && -d $cwd ]] && builtin cd -- "$cwd"
+    command rm -f -- "$tmp"
+  }
+fi
 alias gwp="git worktree prune"
 # gwr is a function below (fzf picker)
 # bat is installed as `batcat` on Debian/Ubuntu

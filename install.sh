@@ -124,7 +124,8 @@ else
 fi
 [ "$DOTFILES" = "$HERE" ] || say "using the main checkout; pass --from-here to use $HERE"
 
-for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .gitconfig .config/git/ignore .config/git/attributes .config/starship.toml .config/gh/config.yml .config/herdr/config.toml; do
+for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .gitconfig .config/git/ignore .config/git/attributes .config/starship.toml .config/gh/config.yml .config/herdr/config.toml \
+  .config/yazi/yazi.toml .config/yazi/keymap.toml .config/yazi/init.lua .config/yazi/package.toml; do
   link "$f"
 done
 # ssh refuses a config that others can write; ~/.ssh itself must be private.
@@ -159,11 +160,11 @@ fi
 # --- Linux packages ---------------------------------------------------------
 # Runs before anything below fetches from vendors: the bun installer needs unzip,
 # the eza repo needs curl and gpg, the Nerd Font needs xz. A fresh Debian/Crostini
-# can lack any of these. bsdextrautils is for column (gws); libatomic1 because
-# mise's node builds link it.
+# can lack any of these. bsdextrautils is for column (gws), file for yazi's mime
+# detection; libatomic1 because mise's node builds link it.
 if [ "$OS" = Linux ] && command -v apt-get >/dev/null; then
   need=()
-  for p in bsdextrautils ca-certificates curl git gpg libatomic1 unzip xz-utils; do
+  for p in bsdextrautils ca-certificates curl file git gpg libatomic1 unzip xz-utils; do
     dpkg -s "$p" >/dev/null 2>&1 || need+=("$p")
   done
   if [ ${#need[@]} -gt 0 ]; then
@@ -248,6 +249,11 @@ if command -v mise >/dev/null; then
   # the clone happens to sit in a trusted tree
   (cd "$HOME" && mise install --yes --quiet) || echo "warning: mise install failed; re-run after fixing" >&2
   (cd "$HOME" && mise reshim)
+fi
+# yazi plugins, at the revs (and content hashes) pinned in .config/yazi/package.toml;
+# it skips any already deployed at those revs
+if command -v ya >/dev/null; then
+  (cd "$HOME" && ya pkg install >/dev/null) || echo "warning: ya pkg install failed; yazi runs without its plugins" >&2
 fi
 
 # --- release cooldowns -------------------------------------------------------
@@ -381,6 +387,16 @@ gen_completion starship starship completions zsh
 gen_completion rustup rustup completions zsh rustup
 gen_completion cargo rustup completions zsh cargo
 gen_completion cf cf complete zsh # Cloudflare's cf CLI
+# yazi has no generator; its release tarball ships the completions next to the binaries
+if command -v mise >/dev/null && yazi_bin=$(cd "$HOME" && mise which yazi 2>/dev/null); then
+  for name in yazi ya; do
+    src=$(dirname "$yazi_bin")/completions/_$name
+    if [ -r "$src" ] && ! cmp -s "$src" "$comp_dir/_$name"; then
+      cp "$src" "$comp_dir/_$name"
+      say "completion: $name"
+    fi
+  done
+fi
 # mise's completions call out to `usage` at tab time; pinned like the other tools
 USAGE_VERSION=6.12.1
 if command -v mise >/dev/null && [ "$(cd "$HOME" && mise ls --global --no-header usage 2>/dev/null | awk '{print $2}')" != "$USAGE_VERSION" ]; then
