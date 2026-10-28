@@ -409,7 +409,7 @@ grw() {
 }
 
 # Jump straight to the failed-step logs for a PR's most recent run (current
-# branch, or pass a PR number/branch) — no manual `gh run list` + id lookup.
+# branch, or pass a PR number/branch) - no manual `gh run list` + id lookup.
 # Falls back to the annotated run summary when there's no log to fetch (e.g.
 # the run succeeded, so --log-failed has nothing to print, or it failed
 # before any job ran, like a workflow-syntax error).
