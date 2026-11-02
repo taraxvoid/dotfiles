@@ -54,8 +54,12 @@ typeset -U path PATH fpath
 export HISTSIZE=100000
 # Maximum lines saved to $HISTFILE
 export SAVEHIST=100000
-# Like INC_APPEND_HISTORY + re-read history whenever accessing it
-setopt SHARE_HISTORY
+# Write each command to $HISTFILE as soon as it runs, but don't re-read the file
+# in running shells. SHARE_HISTORY did, so up-arrow and autosuggestions in one
+# herdr tab offered commands typed moments ago in other tabs/workspaces. New
+# shells still start with everything written so far; `fc -RI` pulls it in manually.
+unsetopt SHARE_HISTORY
+setopt INC_APPEND_HISTORY
 
 # only show latest cmd if it's a dupe
 setopt HIST_IGNORE_ALL_DUPS
