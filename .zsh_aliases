@@ -469,23 +469,23 @@ alias gpu="gh pr update-branch"
 #: gpdn [pr] -- names of the files a PR changes
 alias gpdn="gh pr diff --name-only"
 
-# push current branch and open a PR from the commits. On a worktree-<N>-<slug>
-# branch, a multi-commit PR is titled from the slug instead of the raw branch
-# name, and the body gets "Closes #N" above the commit list --fill would make.
-# A -B/--base in the args is honored for the commit range; later --title/--body
-# args override these.
-#: gpp [create args] -- push this branch and open a PR (Closes #N on worktree-<N>-* branches)
+# push current branch and open a PR from the commits. A single-commit PR takes
+# that commit's subject as its title. A multi-commit one is titled
+# "branch:<branch> - <summary>", the summary being issue #N's title on a
+# worktree-<N>-<slug> branch (the slug if gh can't fetch it), else the oldest
+# commit's subject plus "(+N more)". On worktree-<N>-* branches the body gets
+# "Closes #N" above the branch's own commits (first parent, no merges, so
+# commits pulled in by merging the base stay out); other branches keep --fill.
+# -B/--base (-Bx, -B x, --base x, --base=x) picks the base for both gh and the
+# commit range. The base is fetched first so a stale origin/<base> can't
+# inflate the list, and a base with no shared history aborts before pushing.
+# Later --title/--body args override these.
+#: gpp [-B base] [create args] -- push this branch and open a PR (Closes #N on worktree-<N>-* branches)
 gpp() {
-  git push -u origin HEAD || return
-  local branch=$(git branch --show-current)
-  if [[ ! $branch =~ '^worktree-([0-9]+)-(.+)$' ]]; then
-    gh pr create --fill "$@"
-    return
-  fi
-  local issue=$match[1] slug=$match[2] base= arg prev=
+  local branch=$(git branch --show-current) base= arg prev=
   for arg in "$@"; do
     case $prev in -B|--base) base=$arg ;; esac
-    case $arg in --base=*) base=${arg#--base=} ;; esac
+    case $arg in --base=*) base=${arg#--base=} ;; -B?*) base=${arg#-B} ;; esac
     prev=$arg
   done
   if [[ -z $base ]]; then
@@ -493,13 +493,33 @@ gpp() {
     base=${base#origin/}
     : ${base:=main}
   fi
-  local range=origin/$base..HEAD title body
-  if (( $(git rev-list --count $range) == 1 )); then
-    title=$(git log -1 --format=%s)
-    body=$(git log -1 --format=%b)
+  git fetch -q origin "$base" || return
+  if ! git merge-base origin/$base HEAD >/dev/null; then
+    print -u2 -- "gpp: $branch shares no history with origin/$base"
+    return 1
+  fi
+  git push -u origin HEAD || return
+  local -a own=( $(git rev-list --reverse --first-parent --no-merges origin/$base..HEAD) )
+  local issue= slug= title body summary
+  if [[ $branch =~ '^worktree-([0-9]+)-(.+)$' ]]; then
+    issue=$match[1] slug=$match[2]
+  fi
+  if (( $#own == 1 )); then
+    title=$(git log -1 --format=%s $own[1])
+    body=$(git log -1 --format=%b $own[1])
   else
-    title=${slug//-/ }
-    body=$(git log --reverse --format='- **%s**' $range)
+    if [[ -n $issue ]]; then
+      summary=$(gh issue view $issue --json title -q .title 2>/dev/null)
+      : ${summary:=${slug//-/ }}
+    elif (( $#own )); then
+      summary="$(git log -1 --format=%s $own[1]) (+$(( $#own - 1 )) more)"
+    fi
+    title="branch:$branch${summary:+ - $summary}"
+    body=$(git log --reverse --first-parent --no-merges --format='- **%s**' origin/$base..HEAD)
+  fi
+  if [[ -z $issue ]]; then
+    gh pr create --fill --title "$title" "$@"
+    return
   fi
   body="Closes #$issue${body:+
 
