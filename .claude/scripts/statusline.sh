@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Claude Code status line: repo/worktree · this worktree's gws state · orphan
+# Claude Code status line: repo/worktree - this worktree's gws state - orphan
 # count. Reads only local git and the gws cache and never calls gh, so it stays
 # fast. Plain text on purpose: the count is a fact, not an alarm.
 set -o pipefail
@@ -55,5 +55,5 @@ if [ "$valid" = 1 ]; then
 fi
 
 out=${parts[0]}
-for p in "${parts[@]:1}"; do out="$out · $p"; done
+for p in "${parts[@]:1}"; do out="$out - $p"; done
 printf '%s' "$out"

@@ -8,11 +8,6 @@
       "git push *",
       "git fetch *",
       "git pull *",
-      "git ls-remote *",
-      "git -C * push *",
-      "git -C * fetch *",
-      "git -C * pull *",
-      "git -C * ls-remote *",
       "gh *",
       "gws",
       "gws *"
@@ -29,7 +24,13 @@
         "~/.local/state/pnpm",
         "~/.cache/aube",
         "~/.local/share/aube",
-        "~/Library/Caches/aube"
+        "~/Library/Caches/aube",
+        "~/worktrees"
+      ],
+      "denyWrite": [
+        "~/**/.zshenv",
+        "~/**/.zsh_aliases",
+        "~/**/.zsh_plugins.txt"
       ]
     },
     "network": {
