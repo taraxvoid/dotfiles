@@ -370,6 +370,7 @@ alias gil="gh issue list"
 alias gf="git fetch --all --tags"
 alias gfp="git fetch --all && git pull"
 alias gfm="git fetch --all && git merge origin/main"
+alias gfn="git fetch --all && git merge origin/next"
 
 # one-shot status of the current PR's checks (gpw is the --watch version)
 #: gpc [pr] -- PR check status, once
