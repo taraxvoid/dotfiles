@@ -101,7 +101,7 @@ z() {
   [[ "${lines[1]}" != *$'\t'* ]]
 }
 
-@test "fdsd replaces a literal string in files matching the glob, hidden ones only with -a" {
+@test "fdsd replaces a literal string in files matching the glob, hidden ones only with --hidden" {
   command -v fd >/dev/null && command -v sd >/dev/null || skip "fd and sd not installed"
   d=$BATS_TEST_TMPDIR/proj; mkdir -p "$d/.hid"
   echo 'a: foo.x' >"$d/one.yaml"; echo 'a: foo.x' >"$d/.hid/two.yaml"; echo 'a: foo.x' >"$d/three.txt"
@@ -111,10 +111,34 @@ z() {
   [ "$(cat one.yaml)" = "a: bar" ]
   [ "$(cat .hid/two.yaml)" = "a: foo.x" ]
   # eval parses after the sourcing, so the noglob alias keeps *yaml from expanding
-  run zsh -fc 'source "$0"; eval "fdsd foo.x bar *yaml -a"' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  run zsh -fc 'source "$0"; eval "fdsd foo.x bar *yaml --hidden"' "$BATS_TEST_DIRNAME/../.zsh_aliases"
   [ "$status" -eq 0 ]
   [ "$(cat .hid/two.yaml)" = "a: bar" ]
   [ "$(cat three.txt)" = "a: foo.x" ]
+}
+
+@test "fdsd -a replaces in every non-hidden file, hidden ones too with --hidden" {
+  command -v fd >/dev/null && command -v sd >/dev/null || skip "fd and sd not installed"
+  d=$BATS_TEST_TMPDIR/proj; mkdir -p "$d/.hid" "$d/sub"
+  echo 'foo' >"$d/one.yaml"; echo 'foo' >"$d/sub/two.txt"; echo 'foo' >"$d/.hid/three"; echo 'foo' >"$d/.dot"
+  cd "$d"
+  run zsh -fc 'source "$0"; fdsd foo bar -a' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -eq 0 ]
+  [ "$(cat one.yaml)" = "bar" ]
+  [ "$(cat sub/two.txt)" = "bar" ]
+  [ "$(cat .hid/three)" = "foo" ]
+  [ "$(cat .dot)" = "foo" ]
+  run zsh -fc 'source "$0"; fdsd --hidden foo bar --all' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -eq 0 ]
+  [ "$(cat .hid/three)" = "bar" ]
+  [ "$(cat .dot)" = "bar" ]
+}
+
+@test "fdsd needs exactly one of a glob or -a" {
+  run zsh -fc 'source "$0"; fdsd foo bar' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -eq 2 ]
+  run zsh -fc 'source "$0"; fdsd foo bar "*yaml" -a' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -eq 2 ]
 }
 
 @test "re-sourcing .zsh_aliases (sz) does not trip over the fdsd alias" {
