@@ -73,6 +73,12 @@
     "command": "$HOME/.claude/scripts/statusline.sh"
   },
   "permissions": {
+    "allow": [
+      "Bash(gh api repos/*)",
+      "Bash(gh api /repos/*)",
+      "Bash(gh api user)",
+      "Bash(gh api rate_limit)"
+    ],
     "deny": [
       "Bash(git worktree remove*)",
       "Bash(git worktree prune*)",
@@ -81,6 +87,17 @@
       "Bash(gh release delete *)",
       "Bash(gh auth token*)",
       "Bash(gh api *DELETE*)",
+      "Bash(gh api * -X*)",
+      "Bash(gh api * --method*)",
+      "Bash(gh api * --input*)",
+      "Bash(gh api repos/* -f*)",
+      "Bash(gh api repos/* -F*)",
+      "Bash(gh api repos/* --field*)",
+      "Bash(gh api repos/* --raw-field*)",
+      "Bash(gh api /repos/* -f*)",
+      "Bash(gh api /repos/* -F*)",
+      "Bash(gh api /repos/* --field*)",
+      "Bash(gh api /repos/* --raw-field*)",
       "Bash(git push --force*)",
       "Bash(git push -f*)",
       "Bash(git push * --force*)",
@@ -138,6 +155,16 @@
             "type": "command",
             "command": "$HOME/.claude/scripts/require-worktree.sh",
             "if": "Bash(git commit*)"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/gh-api-guard.sh",
+            "if": "Bash(gh *)"
           }
         ]
       }

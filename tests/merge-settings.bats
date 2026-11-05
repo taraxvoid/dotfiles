@@ -54,8 +54,9 @@ setup() {
 @test "adds every guardrail hook and the worktree deny rules to a fresh file" {
   echo '{}' >"$s"
   merge-settings.sh "$frag" "$s"
-  [ "$(jq '.hooks.PreToolUse | length' "$s")" = 2 ]
+  [ "$(jq '.hooks.PreToolUse | length' "$s")" = 3 ]
   [ "$(jq -r '.hooks.PreToolUse[1].hooks[0].if' "$s")" = 'Bash(git commit*)' ]
+  [ "$(jq -r '.hooks.PreToolUse[2].hooks[0].command' "$s")" = '$HOME/.claude/scripts/gh-api-guard.sh' ]
   [ "$(jq -r '.hooks.WorktreeCreate[0].hooks[0].command' "$s")" = '$HOME/.claude/scripts/worktree-create.sh' ]
   [ "$(jq '.hooks.WorktreeRemove | length' "$s")" = 1 ]
   [ "$(jq -r '.permissions.deny[0]' "$s")" = 'Bash(git worktree remove*)' ]
@@ -71,13 +72,16 @@ setup() {
   [ "$(jq -c '.permissions.deny' "$s")" = "$want" ]
   [ "$(jq '.permissions.deny | length' "$s")" = "$(jq '.permissions.deny | unique | length' "$s")" ]
   [ "$(jq -r '.permissions.deny[2]' "$s")" = 'Bash(git worktree remove*)' ]
-  [ "$(jq -c '.permissions.allow' "$s")" = '["Read"]' ]
+  # allow rules merge the same way: existing first, fragment's appended once
+  [ "$(jq -r '.permissions.allow[0]' "$s")" = Read ]
+  [ "$(jq '.permissions.allow | index("Bash(gh api repos/*)") != null' "$s")" = true ]
+  [ "$(jq '.permissions.allow | length' "$s")" = "$(jq '.permissions.allow | unique | length' "$s")" ]
 }
 
 @test "a machine that already wired the hooks by hand gets no duplicates" {
   jq '{hooks: {PreToolUse: .hooks.PreToolUse, WorktreeCreate: .hooks.WorktreeCreate}}' "$frag" >"$s"
   merge-settings.sh "$frag" "$s"
-  [ "$(jq '.hooks.PreToolUse | length' "$s")" = 2 ]
+  [ "$(jq '.hooks.PreToolUse | length' "$s")" = 3 ]
   [ "$(jq '.hooks.WorktreeCreate | length' "$s")" = 1 ]
 }
 
