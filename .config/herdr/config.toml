@@ -23,18 +23,19 @@ next_workspace = "ctrl+alt+]"
 new_tab = "prefix+c"
 
 # popup commands run via /bin/sh -c, and gps is a zsh function, so go through
-# an interactive zsh
+# an interactive zsh. _herdr_popup (.zsh_aliases) keeps output on screen until a
+# key is pressed and cd's the calling pane after a checkout.
 [[keys.command]]
 key = "ctrl+s"
 type = "popup"
-command = "zsh -ic gps"
+command = "zsh -ic '_herdr_popup gps'"
 width = "90%"
 height = "90%"
 
 [[keys.command]]
 key = "ctrl+o"
 type = "popup"
-command = "zsh -ic gpo"
+command = "zsh -ic '_herdr_popup gpo'"
 width = "90%"
 height = "90%"
 
