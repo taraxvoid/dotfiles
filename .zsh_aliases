@@ -245,21 +245,22 @@ gpl() { gps -l "$@"; }
 # Action menu for one PR number (called by gps). Merge, auto-merge and close ask first.
 _gh_pr_act() {
   local n=$1 action
-  action=$(printf '%s\n' approve "automerge (squash)" browser "checkout & cd <worktree>)" checks close \
-	  diff logs "merge (commit)" "merge (squash)" ready "review" "update (base)" view \
+  action=$(printf '%s\n' approve "automerge (squash)" browser "checkout (cd worktree)" checks close \
+    diff logs "merge (commit)" "merge (squash)" ready review "update (base)" view watch \
     | fzf --prompt="#$n> " --height=~40%) || return 1
   case $action in
     view) gh pr view $n ;;
     diff) gh pr diff --color=always $n | _page ;;
     checks) gh pr checks $n ;;
     "logs") gj $n ;;
-    "checkout & cd <worktree>)") _gh_pr_checkout $n ;;
+    "checkout (cd worktree)") _gh_pr_checkout $n ;;
     "merge (squash)") read -q "?Squash-merge #$n? [y/N] " && { echo; gh pr merge $n --squash } ;;
     "merge (commit)") read -q "?Merge #$n with a merge commit? [y/N] " && { echo; gh pr merge $n --merge } ;;
     "automerge (squash)") read -q "?Enable auto-merge for #$n and delete the branch after? [y/N] " && { echo; gh pr merge $n --squash --auto --delete-branch } ;;
     approve) gh pr review $n --approve ;;
-    review ) gh pr review $n ;;
-    "update (base") gh pr update-branch $n ;;
+    review) gh pr review $n ;;
+    "update (base)") gh pr update-branch $n ;;
+    watch) gh pr checks $n --watch ;;
     ready) gh pr ready $n ;;
     browser) gh pr view $n --web ;;
     close) read -q "?Close #$n and delete its branch? [y/N] " && { echo; gh pr close $n --delete-branch } ;;
