@@ -26,7 +26,7 @@ new_tab = "prefix+c"
 # an interactive zsh. _herdr_popup (.zsh_aliases) keeps output on screen until a
 # key is pressed and cd's the calling pane after a checkout.
 [[keys.command]]
-key = "ctrl+s"
+key = "ctrl+p"
 type = "popup"
 command = "zsh -ic '_herdr_popup gps'"
 width = "90%"
