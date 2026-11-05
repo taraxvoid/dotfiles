@@ -182,7 +182,10 @@ _gh_branch_issue() {
 # _confirm <question>: y/N prompt, default no
 _confirm() {
   local r
-  read -q "?$1 [y/N] "
+  # print the prompt ourselves: zsh's `read -q "?prompt"` drops it without a tty
+  # (as in CI), and a silent default-no is a bad way to ask
+  print -nu2 -- "$1 [y/N] "
+  read -q
   r=$?
   echo
   return $r
