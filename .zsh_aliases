@@ -51,9 +51,13 @@ alias l="ls"
 alias ll="ls -l"
 alias la="ls -a"
 (( $+commands[eza] )) && alias ls="eza"
+#: gs -- git status
 alias gs="git status"
+#: gb -- git branch
 alias gb="git branch"
+#: gd -- git diff
 alias gd="git diff"
+#: gl -- git log, last 5 commits
 alias gl="git log -5"
 alias lg="lazygit"
 
@@ -67,6 +71,7 @@ if (( $+commands[yazi] )); then
     command rm -f -- "$tmp"
   }
 fi
+#: gwp -- prune stale worktree records
 alias gwp="git worktree prune"
 # gwr is a function below (fzf picker)
 # bat is installed as `batcat` on Debian/Ubuntu
@@ -370,9 +375,13 @@ gpd() {
 }
 #: gil -- list open issues
 alias gil="gh issue list"
+#: gf -- fetch all remotes and tags
 alias gf="git fetch --all --tags"
+#: gfp -- fetch all remotes, then pull
 alias gfp="git fetch --all && git pull"
+#: gfm -- fetch all remotes, merge origin/main
 alias gfm="git fetch --all && git merge origin/main"
+#: gfn -- fetch all remotes, merge origin/next
 alias gfn="git fetch --all && git merge origin/next"
 
 # one-shot status of the current PR's checks (gpw is the --watch version)
