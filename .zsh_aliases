@@ -645,6 +645,22 @@ gpo() {
   _gh_pr_checkout $n
 }
 
+# _herdr_popup <cmd...>: run a command as a herdr popup (`zsh -ic '_herdr_popup gps'`).
+# A popup closes the moment its command exits and cannot cd the pane that opened
+# it, so: start in the focused pane's dir (gh needs the repo), and afterwards
+# either cd that pane to wherever the command ended up (checkout) or wait for a
+# key so output (checks, diff, view) stays readable.
+_herdr_popup() {
+  [[ -n ${HERDR_ACTIVE_PANE_CWD:-} ]] && cd "$HERDR_ACTIVE_PANE_CWD"
+  local start=$PWD
+  "$@"
+  if [[ $PWD != $start && -n ${HERDR_ACTIVE_PANE_ID:-} && -x ${HERDR_BIN_PATH:-} ]]; then
+    "$HERDR_BIN_PATH" pane run "$HERDR_ACTIVE_PANE_ID" "cd ${(q)PWD}" >/dev/null
+  else
+    read -sk 1 "?[press any key to close] "
+  fi
+}
+
 # _pr_trust_ok <author> <pr>: personal and ravenflight are trusted by path, so a
 # PR checked out there runs with that trust: mise reads its mise.toml (env, hooks,
 # tasks) on cd and lefthook runs its lefthook.yml on commit. Someone else's PR
