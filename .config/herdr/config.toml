@@ -9,7 +9,7 @@ name = "terminal"
 [keys]
 prefix = "ctrl+a"
 cycle_pane_previous = "ctrl+h"
-cycle_pane_next = "ctrl+l"
+cycle_pane_next = "ctrl+;"
 previous_agent = "ctrl+comma"
 next_agent = "ctrl+period"
 last_pane = "ctrl+space"
