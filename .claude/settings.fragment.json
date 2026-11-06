@@ -42,7 +42,8 @@
         "registry.npmjs.org",
         "pypi.org",
         "files.pythonhosted.org",
-        "firewall-api.socket.dev"
+        "firewall-api.socket.dev",
+        "registry.terraform.io"
       ]
     },
     "credentials": {
