@@ -298,24 +298,31 @@ alias gma="git merge --abort"
 
 # gpm: squash-merge. The PR is the first non-flag arg (number/URL/branch), else
 # the current branch's open PR, else one picked from open PRs (same rows as gps).
-# Always confirms first unless given -y/--yes (dropped before `gh pr merge`) or
-# --auto (passed through). Other flags pass through (e.g. `gpm --admin`).
-#: gpm [pr] [-y] [merge flags] -- squash-merge (this branch's PR, else pick one); confirms unless -y/--auto
+# Defaults to auto-merge (--auto) when the repo allows it and the PR is still
+# waiting on something (merge state BLOCKED or BEHIND); otherwise, or with
+# --no-auto or --admin, it merges now. Auto-merge does not ask; merging now
+# confirms first unless given -y/--yes (dropped before `gh pr merge`) or an
+# explicit --auto (passed through). Other flags pass through (e.g. `gpm --admin`).
+#: gpm [pr] [-y] [--no-auto] [merge flags] -- squash-merge (this branch's PR, else pick one); auto-merge when the repo allows it, else confirms unless -y
 unalias gpm 2>/dev/null
 gpm() {
-  local target label a skip=0
+  local target label a repo REPLY skip=0 auto=1
   local -a args
   local -i i
   for a in "$@"; do
     case $a in
       -y|--yes) skip=1 ;;
-      *) [[ $a == --auto ]] && skip=1; args+=("$a") ;;
+      --no-auto) auto=0 ;;
+      --auto) skip=1; auto=0; args+=("$a") ;;
+      --admin) auto=0; args+=("$a") ;;
+      *) args+=("$a") ;;
     esac
   done
   # First non-flag arg is the PR; skip the values of flags that take one.
   for (( i = 1; i <= $#args; i++ )); do
     case ${args[i]} in
-      -A|--author-email|-b|--body|-F|--body-file|--match-head-commit|-t|--subject|-R|--repo) (( i++ )) ;;
+      -R|--repo) repo=${args[i+1]-}; (( i++ )) ;;
+      -A|--author-email|-b|--body|-F|--body-file|--match-head-commit|-t|--subject) (( i++ )) ;;
       -*) ;;
       *) target=${args[i]}; args[i]=(); break ;;
     esac
@@ -327,11 +334,30 @@ gpm() {
     fi
     target=$(_gh_pr_pick 'PR merge> ' '') || return
   fi
+  [[ $target == <-> ]] && label="#$target" || label=$target
+  if (( auto )) && _gh_pr_auto_ok $target $repo; then
+    print -u2 -- "Enabling auto-merge for $label (merge state $REPLY)"
+    gh pr merge $target --squash --auto "${args[@]}"
+    return
+  fi
   if (( ! skip )); then
-    [[ $target == <-> ]] && label="#$target" || label=$target
     _confirm "Squash-merge $label${args:+ (${args[*]})}?" || return 1
   fi
   gh pr merge $target --squash "${args[@]}"
+}
+# _gh_pr_auto_ok <pr> [repo]: true when auto-merge can and should be enabled on
+# the PR: its repo allows it (allow_auto_merge, false or absent where the plan
+# lacks it, e.g. private repos on a free personal plan) and the PR is not
+# mergeable yet (merge state BLOCKED or BEHIND; GitHub refuses auto-merge on a
+# PR that could merge now). Sets REPLY to the merge state.
+_gh_pr_auto_ok() {
+  local info url state
+  info=$(gh pr view $1 ${2:+-R $2} --json url,mergeStateStatus -q '[.url, .mergeStateStatus] | @tsv' 2>/dev/null) || return 1
+  url=${info%%$'\t'*} state=${info#*$'\t'}
+  [[ $state == (BLOCKED|BEHIND) ]] || return 1
+  [[ $url =~ '^https://[^/]+/([^/]+/[^/]+)/pull/' ]] || return 1
+  [[ $(gh api repos/$match[1] -q '.allow_auto_merge // false' 2>/dev/null) == true ]] || return 1
+  REPLY=$state
 }
 # gpx: close a PR and delete its branch. The PR is the first non-flag arg
 # (number/URL/branch), else the current branch's open PR. Always confirms first
