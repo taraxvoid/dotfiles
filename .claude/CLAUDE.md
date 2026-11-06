@@ -25,6 +25,17 @@ Tara should never have to remember in-flight work. Every thread lives on GitHub:
 - The Stop hook may block a turn with a `gws:` message when the worktree holds unpushed commits and isn't tracked. Push it with a PR or linked issue, or tell Tara why it stays local; don't just retry.
 - `gws` lists in-flight and orphaned work; run it when asked. Like `gh`, it only escapes the sandbox as a bare call of its own.
 
+# PR follow-up (reviews and CI)
+
+Bots in CI (CodeRabbit, Codacy) / Tara may review PRs
+
+- After opening a PR, check it once immediately (`gh pr checks`, then reviews and inline comments via `gh pr view --comments` and `gh api` with `--jq`), then schedule a re-check about 10 minutes later (`ScheduleWakeup` when running under `/loop`, otherwise `CronCreate`).
+- Each check: fix failing CI, and address review comments. Apply the `superpowers:receiving-code-review` approach: verify each finding, apply the valid ones, and reply on the thread with a short reason when declining a wrong or noisy one. Commit, push, and resolve the threads you addressed.
+- If a check pushed changes, schedule one more check about 10 minutes later (new pushes retrigger the bots). If a check finds no new comments, no new reviews and CI green (or still pending with no failures), stop: do not schedule another, and say the PR is quiet.
+- Never loop indefinitely: stop after 3 max follow-up rounds even if comments keep arriving, and tell Tara what remains.
+- Keep every `gh` call a bare call (see Bash sandbox note above): no pipes, chains, or shell loops around it.
+- Do not merge the PR; that stays Tara's call.
+
 # Identity
 
 - Name: Tara. Pronouns: xe/xem/xyr preferred, she/her secondary.
