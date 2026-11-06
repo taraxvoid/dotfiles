@@ -112,6 +112,19 @@ merges into `~/.claude/settings.json`: `WorktreeCreate` and `WorktreeRemove` run
 the matching script; `PreToolUse` runs `require-worktree.sh` for
 `Edit|Write|NotebookEdit` and for `Bash` with `if: Bash(git commit*)`.
 
+## Claude gh api guard
+
+`gh` runs outside the sandbox with real credentials, so `gh api` is kept read-only
+two ways, both in `.claude/settings.fragment.json`. `permissions.allow` lists the
+read endpoints Claude may call unprompted (`repos/*`, `/repos/*`, `user`,
+`rate_limit`), and `permissions.deny` blocks the write flags (`-X`, `--method`,
+`--input`, and `-f`/`-F`/`--field`/`--raw-field` on repo endpoints). Globs miss
+spellings like `-XPOST`, so `gh-api-guard.sh` (a PreToolUse hook on Bash) parses
+the call too: it exits 2 on any non-GET method or body flag and asks before
+`gh api graphql`, which is always a POST. Override with `CLAUDE_ALLOW_GH_API_WRITES=1`.
+Prefer the dedicated subcommands (`gh pr view`, `gh issue view`, `gh run view`,
+`gh pr checks`) and keep `gh api` for what they do not cover.
+
 ## Claude worktree cleanup
 
 `gws --clean` rescans and lists every `done` item (a merged or closed PR's head is
