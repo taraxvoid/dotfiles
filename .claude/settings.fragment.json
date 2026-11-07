@@ -56,8 +56,7 @@
 	"doc.rust-lang.org",
 	"static.crates.io",
 	"index.crates.io",
-	"proxy.golang.org",
-	"sum.golang.org"
+	"proxy.golang.org"
       ]
     },
     "credentials": {
