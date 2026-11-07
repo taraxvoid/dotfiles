@@ -125,6 +125,16 @@ the call too: it exits 2 on any non-GET method or body flag and asks before
 Prefer the dedicated subcommands (`gh pr view`, `gh issue view`, `gh run view`,
 `gh pr checks`) and keep `gh api` for what they do not cover.
 
+## Claude gh aw compile
+
+`gh aw compile --strict` is allowed unprompted (`permissions.allow`) so compile errors
+surface locally before a push instead of turning CI red. Compiling only regenerates
+`*.lock.yml` from the `.github/workflows/*.md` sources, so the self-modification risk
+is in editing those sources: `permissions.ask` has `Edit(/.github/workflows/**)`, so
+Claude must get approval before changing a workflow's frontmatter or prompt. The real
+boundary is server-side (CODEOWNERS, required review, a CI check that lock files are
+in sync); these rules are only a guard against mistakes. See issue #109.
+
 ## Claude worktree cleanup
 
 `gws --clean` rescans and lists every `done` item (a merged or closed PR's head is

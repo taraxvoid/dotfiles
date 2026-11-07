@@ -77,7 +77,8 @@
       "Bash(gh api repos/*)",
       "Bash(gh api /repos/*)",
       "Bash(gh api user)",
-      "Bash(gh api rate_limit)"
+      "Bash(gh api rate_limit)",
+      "Bash(gh aw compile --strict*)"
     ],
     "deny": [
       "Bash(git worktree remove*)",
@@ -110,6 +111,7 @@
       "Bash(gws *--yes*)"
     ],
     "ask": [
+    "Edit(/.github/workflows/**)",
       "Bash(gh pr merge *)",
       "Bash(gh repo edit *)",
       "Bash(gh secret *)",
