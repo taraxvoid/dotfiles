@@ -42,7 +42,21 @@
         "registry.npmjs.org",
         "pypi.org",
         "files.pythonhosted.org",
-        "firewall-api.socket.dev"
+        "firewall-api.socket.dev",
+        "registry.terraform.io",
+	"releases.hashicorp.com",
+	"developer.hashicorp.com",
+	"registry.opentofu.org",
+	"developers.cloudflare.com",
+	"docs.claude.com",
+	"docs.anthropic.com",
+	"bun.sh",
+	"docs.astral.sh",
+	"developer.mozilla.org",
+	"doc.rust-lang.org",
+	"static.crates.io",
+	"index.crates.io",
+	"proxy.golang.org"
       ]
     },
     "credentials": {
