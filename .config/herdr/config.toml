@@ -6,6 +6,11 @@ new_cwd = "follow"
 [theme]
 name = "terminal"
 
+# herdr has no dedicated pane border color (herdrdev/herdr#1985, closed as not
+# planned), so recolor the theme accent, which drives the borders.
+[theme.custom]
+accent = "#b794f6"
+
 [keys]
 prefix = "ctrl+a"
 cycle_pane_previous = "ctrl+h"
