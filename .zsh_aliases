@@ -107,7 +107,7 @@ ghelp() {
 alias grem="git remote -v"
 # Shared jq for PR status, used by gps (decide on a PR) and gwl (scan worktrees).
 # Colors are ANSI; rows come out as one line (fzf) or a 3-line block (table).
-typeset -g _gh_pr_fields='number,title,author,headRefName,isDraft,reviewDecision,mergeable,mergeStateStatus,statusCheckRollup,reviewRequests,additions,deletions,changedFiles,updatedAt,autoMergeRequest'
+typeset -g _gh_pr_fields='number,title,author,headRefName,baseRefName,isDraft,reviewDecision,mergeable,mergeStateStatus,statusCheckRollup,reviewRequests,additions,deletions,changedFiles,updatedAt,autoMergeRequest'
 typeset -g _gh_pr_jq_defs='
   def c(code; s): "\u001b[\(code)m\(s)\u001b[0m";
   def join_(a): a | map(select(. != "")) | join(" | ");
@@ -139,9 +139,9 @@ typeset -g _gh_pr_jq_defs='
     | if $s < 3600 then "\($s / 60 | floor)m" elif $s < 86400 then "\($s / 3600 | floor)h" else "\($s / 86400 | floor)d" end;
   def who: if .author.login == $me then c("35"; "you") else .author.login end;
   def asked: if any(.reviewRequests[]?; .login == $me) then c("35"; "review requested") else "" end;
-  def row: "\(.number)\t\(c("1;32"; "#\(.number)")) \(.title[0:60])  \(join_([who, checks, review, merge, asked]))";
+  def row: "\(.number)\t\(c("1;32"; "#\(.number)")) \(.title[0:60])  \(join_([c("36"; "-> \(.baseRefName)"), who, checks, review, merge, asked]))";
   def block:
-    "\(c("1;32"; "#\(.number)")) \(.title)  \(c("36"; .headRefName))\n"
+    "\(c("1;32"; "#\(.number)")) \(.title)  \(c("36"; "\(.headRefName) -> \(.baseRefName)"))\n"
     + "    \(join_([who, checks, review, merge, asked]))\n"
     + "    \(join_(["+\(.additions) -\(.deletions) in \(.changedFiles) files", "updated \(age) ago",
         (if .autoMergeRequest then c("36"; "auto-merge on") else "" end),
