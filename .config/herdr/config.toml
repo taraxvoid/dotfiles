@@ -27,6 +27,9 @@ next_workspace = "ctrl+alt+]"
 
 new_tab = "prefix+c"
 
+# clear the pane (ctrl+l as "cls") without relying on the shell's clear-screen
+clear_pane = "ctrl+l"
+
 # popup commands run via /bin/sh -c, and gps is a zsh function, so go through
 # an interactive zsh. _herdr_popup (.zsh_aliases) keeps output on screen until a
 # key is pressed and cd's the calling pane after a checkout.
