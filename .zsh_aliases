@@ -57,6 +57,8 @@ alias gs="git status"
 alias gb="git branch"
 #: gd -- git diff
 alias gd="git diff"
+#: gdm - git diff against local main
+alias gdm="git diff main"
 #: gl -- git log, last 5 commits
 alias gl="git log -5"
 alias lg="lazygit"
@@ -64,6 +66,9 @@ alias lg="lazygit"
 alias grs="git restore --staged ."
 #: gra -- git restore --staged - THROW AWAY unstaged files
 alias gra="git restore ."
+#: grb - git rebase - rebase branch
+alias gra="git rebase"
+
 
 # y [dir]: yazi, then cd to wherever it was left (q; Q quits without moving)
 if (( $+commands[yazi] )); then
