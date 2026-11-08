@@ -69,6 +69,7 @@ scan() {
 }
 
 rest=$cmd
+[[ $cmd =~ $re ]] || exit 0
 while [[ $rest =~ $re ]]; do
   rest=${rest#*"${BASH_REMATCH[0]}"}
   scan "$rest"
@@ -82,8 +83,20 @@ if [ ${#deny[@]} -gt 0 ]; then
   } >&2
   exit 2
 fi
+
+# Quote bare {owner}/{repo}/{branch} words. Unquoted next to another quoted
+# argument they stop the sandbox matching `gh *` as an excluded command, so the
+# call runs sandboxed and dies with a misleading keychain TLS error.
+orig=$(jq -r '.tool_input.command // empty' <<<"$input")
+fixed=$(sed -E "s/(^|[[:space:]])([^[:space:]'\"]*\\{(owner|repo|branch)\\}[^[:space:]'\"]*)/\\1'\\2'/g" <<<"$orig")
+fixed=${fixed%$'\n'}
+
+out='{"hookEventName":"PreToolUse"}'
 if [ ${#ask[@]} -gt 0 ]; then
-  jq -cn --arg r "${ask[0]}" \
-    '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: $r}}'
+  out=$(jq -cn --arg r "${ask[0]}" '{hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: $r}')
 fi
+if [ "$fixed" != "$orig" ]; then
+  out=$(jq -c --arg c "$fixed" --argjson i "$(jq -c '.tool_input' <<<"$input")" '. + {updatedInput: ($i + {command: $c})}' <<<"$out")
+fi
+[ "$out" = '{"hookEventName":"PreToolUse"}' ] || jq -cn --argjson o "$out" '{hookSpecificOutput: $o}'
 exit 0
