@@ -267,6 +267,58 @@ zb() {
   [[ "$output" == *"no open PR"* ]]
 }
 
+# zm <code>: like zb for gpm. The branch's open PR is 7 ($STATE is its merge
+# state, default BLOCKED); the repo allows auto-merge when $AUTO is true. gh
+# calls go to $HOME/gh-calls.
+zm() {
+  : >"$HOME/gh-calls"
+  zsh -fc '
+    source "$0"
+    gh() {
+      print -r -- "gh $*" >>"$HOME/gh-calls"
+      case "$1 $2" in
+        "pr view") [[ $* == *mergeStateStatus* ]] \
+          && print -r -- "https://github.com/o/r/pull/7	${STATE-BLOCKED}" || print 7 ;;
+        "api repos/o/r") print -r -- "${AUTO-false}" ;;
+      esac
+    }
+    '"$1" "$BATS_TEST_DIRNAME/../.zsh_aliases"
+}
+
+@test "gpm enables auto-merge without asking when the repo allows it and the PR is blocked" {
+  AUTO=true run zm 'gpm </dev/null; cat "$HOME/gh-calls"'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Enabling auto-merge for #7 (merge state BLOCKED)"* ]]
+  [[ "$output" == *"gh pr merge 7 --squash --auto"* ]]
+  [[ "$output" != *"[y/N]"* ]]
+  AUTO=true STATE=BEHIND run zm 'gpm -R o/r 7 </dev/null; cat "$HOME/gh-calls"'
+  [[ "$output" == *"gh pr view 7 -R o/r --json url,mergeStateStatus"* ]]
+  [[ "$output" == *"gh pr merge 7 --squash --auto -R o/r"* ]]
+}
+
+@test "gpm falls back to a confirmed merge when auto-merge is off, the PR is mergeable, or --no-auto/--admin" {
+  for case in false:BLOCKED true:CLEAN true:DIRTY; do
+    AUTO=${case%:*} STATE=${case#*:} run zm 'gpm </dev/null'
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Squash-merge #7?"* ]]
+    run grep -c 'pr merge' "$HOME/gh-calls"
+    [ "$output" = 0 ]
+  done
+  AUTO=true run zm 'gpm -y --no-auto; cat "$HOME/gh-calls"'
+  [[ "$output" == *"gh pr merge 7 --squash"* ]]
+  [[ "$output" != *"--auto"* ]]
+  [[ "$output" != *mergeStateStatus* ]]
+  AUTO=true run zm 'gpm -y --admin; cat "$HOME/gh-calls"'
+  [[ "$output" == *"gh pr merge 7 --squash --admin"* ]]
+  [[ "$output" != *"--auto"* ]]
+}
+
+@test "gpm --auto passes through without asking or probing" {
+  run zm 'gpm --auto; cat "$HOME/gh-calls"'
+  [[ "$output" == *"gh pr merge 7 --squash --auto"* ]]
+  [[ "$output" != *mergeStateStatus* ]]
+}
+
 @test "bare giv and gicm use the worktree-<N> branch's issue, else (or with -p) pick" {
   run zb 'giv; gicm; cat "$HOME/gh-calls"'
   [[ "$output" == *"gh issue view 12"* ]]
