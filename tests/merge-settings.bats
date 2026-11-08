@@ -5,6 +5,18 @@ setup() {
   s=$BATS_TEST_TMPDIR/settings.json
 }
 
+@test "every host sbx allows for untrusted code is also in the fragment allowlist" {
+  # sbx keeps its own, stricter list on purpose; this only catches a registry
+  # added to sbx but forgotten in the fragment
+  sbx=$BATS_TEST_DIRNAME/../.local/bin/sbx
+  doms=$(sed -n 's/^ *doms="\(.*\) \${SBX_DOMAINS:-}"$/\1/p' "$sbx")
+  [ -n "$doms" ]
+  for d in $doms; do
+    run jq -e --arg d "$d" '.sandbox.network.allowedDomains | index($d) != null' "$frag"
+    [ "$status" -eq 0 ] || { echo "missing from fragment: $d"; return 1; }
+  done
+}
+
 @test "fills an empty settings file" {
   echo '{}' >"$s"
   run merge-settings.sh "$frag" "$s"
