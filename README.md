@@ -125,6 +125,11 @@ the call too: it exits 2 on any non-GET method or body flag and asks before
 Prefer the dedicated subcommands (`gh pr view`, `gh issue view`, `gh run view`,
 `gh pr checks`) and keep `gh api` for what they do not cover.
 
+The hook also single-quotes bare `{owner}`/`{repo}`/`{branch}` words in `gh api`
+calls (via `updatedInput`). Unquoted, next to a quoted argument such as
+`-q '.[0].number'`, they stop the sandbox matching `gh *` as an excluded command,
+so the call runs sandboxed and fails with `x509: OSStatus -26276`.
+
 ## Claude gh aw compile
 
 `gh aw compile --strict` is allowed unprompted (`permissions.allow`) so compile errors

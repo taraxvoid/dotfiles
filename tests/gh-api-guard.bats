@@ -72,6 +72,33 @@ guard() { jq -cn --arg c "$1" '{tool_name: "Bash", tool_input: {command: $c}}' |
   [ "$status" -eq 0 ] && [ -z "$output" ]
 }
 
+rewritten() { jq -r '.hookSpecificOutput.updatedInput.command // empty' <<<"$output"; }
+
+@test "quotes bare {owner}/{repo} placeholders so the sandbox exclusion still matches" {
+  run guard "gh api repos/{owner}/{repo}/pulls -q '.[0].number'"
+  [ "$status" -eq 0 ]
+  [ "$(rewritten)" = "gh api 'repos/{owner}/{repo}/pulls' -q '.[0].number'" ]
+}
+
+@test "leaves already-quoted placeholders and literal repos alone" {
+  run guard "gh api 'repos/{owner}/{repo}/pulls' -q '.[0].number'"
+  [ "$status" -eq 0 ] && [ -z "$output" ]
+  run guard "gh api repos/o/r/pulls -q '.[0].number'"
+  [ "$status" -eq 0 ] && [ -z "$output" ]
+}
+
+@test "does not rewrite placeholders outside gh api" {
+  run guard "echo repos/{owner}/{repo}"
+  [ "$status" -eq 0 ] && [ -z "$output" ]
+}
+
+@test "keeps the graphql ask when it also rewrites" {
+  run guard "gh api graphql -f query='{viewer{login}}' -f o={owner}"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = ask ]
+  [ "$(rewritten)" = "gh api graphql -f query='{viewer{login}}' -f 'o={owner}'" ]
+}
+
 @test "CLAUDE_ALLOW_GH_API_WRITES=1 lifts the block" {
   CLAUDE_ALLOW_GH_API_WRITES=1 run guard "gh api repos/o/r -X POST"
   [ "$status" -eq 0 ]
