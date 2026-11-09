@@ -297,6 +297,7 @@
       "Exec(git add --force*)",
       "Exec(git add * -f*)",
       "Exec(git add * --force*)",
+      "Exec(comm)",
       "Exec(gws *--yes*)",
       "Write(~/**/.zshenv)",
       "Write(~/**/.zsh_aliases)",
