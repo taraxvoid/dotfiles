@@ -60,6 +60,11 @@
       "Fetch(domain:jdx.dev)",
       "Fetch(https://*.jdx.dev/*)",
       "Fetch(domain:blog.cloudflare.com)",
+      "Fetch(domain:pkg.go.dev)",
+      "Fetch(domain:openssf.org)",
+      "Fetch(https://*.openssf.org/*)",
+      "Fetch(domain:cncf.io)",
+      "Fetch(https://*.cncf.io/*)",
       "Exec(bun run build*)",
       "Exec(bun run check*)",
       "Exec(bun run dev*)",
@@ -251,7 +256,8 @@
       "Exec(mktemp)",
       "Exec(mkdir)",
       "Write(/private/tmp)",
-      "Exec(diff)"
+      "Exec(diff)",
+      "Fetch(domain:openssf.org)"
     ],
     "deny": [
       "Exec(git worktree remove*)",
@@ -397,7 +403,12 @@
       "synthomaha.net",
       "**.synthomaha.net",
       "jdx.dev",
-      "**.jdx.dev"
+      "**.jdx.dev",
+      "pkg.go.dev",
+      "openssf.org",
+      "**.openssf.org",
+      "cncf.io",
+      "**.cncf.io"
     ],
     "denied_domains": [],
     "network_mode": "full",
