@@ -75,6 +75,7 @@
       "Exec(ls)",
       "Exec(gh aw compile --strict*)",
       "Exec(gh pr create)",
+      "Exec(gh pr review)",
       "Write(~/.cache/uv/**)",
       "Write(~/.bun/install/cache/**)",
       "Write(~/.local/share/mise/**)",
@@ -99,7 +100,8 @@
       "Exec(git ls-remote)",
       "Exec(head)",
       "Write(/private/tmp)",
-      "Exec(diff)"
+      "Exec(diff)",
+      "Write(~/worktrees/personal/voidlife/20-writing-chore)"
     ],
     "deny": [
       "Exec(git worktree remove*)",
@@ -151,6 +153,7 @@
     ],
     "ask": [
       "Exec(gh pr merge *)",
+      "Exec(gh pr review *--approve*)",
       "Exec(gh repo edit *)",
       "Exec(gh secret *)",
       "Exec(gh variable *)",
