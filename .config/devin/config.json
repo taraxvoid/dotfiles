@@ -1,7 +1,7 @@
 {
   "version": 1,
   // No agent.model set: Devin's default routing can switch models per turn
-  // ("auto"/adaptive), which is a sharp edge — behavior and cost drift
+  // ("auto"/adaptive), which is a sharp edge: behavior and cost drift
   // mid-session. Pin "agent": { "model": "..." } if that bothers you.
   "permissions": {
     "allow": [
@@ -92,7 +92,9 @@
       "Exec(git commit)",
       "Exec(git merge)",
       "Exec(git pull)",
-      "Exec(git push)",
+      "Exec(git push origin *)",
+      "Exec(git push -u origin *)",
+      "Exec(git push --set-upstream origin *)",
       "Exec(git stash)",
       "Exec(git tag)",
       "Exec(git cherry-pick)",
@@ -248,7 +250,6 @@
       "Exec(date)",
       "Exec(which)",
       "Exec(sort)",
-      "Exec(uniq)",
       "Exec(cut)",
       "Exec(tr)",
       "Exec(column)",
@@ -258,9 +259,9 @@
       "Exec(pgrep)",
       "Exec(mktemp)",
       "Exec(mkdir)",
-      "Write(/private/tmp)",
-      "Exec(diff)",
-      "Fetch(domain:openssf.org)"
+      "Write(/private/tmp/**)",
+      "Write(/tmp/**)",
+      "Exec(diff)"
     ],
     "deny": [
       "Exec(git worktree remove*)",
@@ -294,11 +295,45 @@
       "Exec(git push *:master)",
       "Exec(git push * refs/heads/main*)",
       "Exec(git push * refs/heads/master*)",
+      "Exec(git push * main *)",
+      "Exec(git push * master *)",
+      "Exec(git push *:main *)",
+      "Exec(git push *:master *)",
+      "Exec(git push *refs/heads/main*)",
+      "Exec(git push *refs/heads/master*)",
+      "Exec(git push *--all*)",
+      "Exec(git push *--mirror*)",
+      "Exec(git -C * push*)",
+      "Exec(git -c * push*)",
       "Exec(git push --delete*)",
       "Exec(git push * --delete*)",
       "Exec(git push * :*)",
       "Exec(git branch -D*)",
       "Exec(git branch --force*)",
+      "Exec(git branch * -D*)",
+      "Exec(git branch * --force*)",
+      "Exec(git branch -f*)",
+      "Exec(git branch * -f*)",
+      "Exec(git branch -M*)",
+      "Exec(git branch * -M*)",
+      "Exec(git branch -C*)",
+      "Exec(git branch * -C*)",
+      "Exec(git switch -C*)",
+      "Exec(git switch * -C*)",
+      "Exec(git switch -f*)",
+      "Exec(git switch * -f*)",
+      "Exec(git switch --force*)",
+      "Exec(git switch * --force*)",
+      "Exec(git switch --discard-changes*)",
+      "Exec(git switch * --discard-changes*)",
+      "Exec(git tag -f*)",
+      "Exec(git tag * -f*)",
+      "Exec(git tag --force*)",
+      "Exec(git tag * --force*)",
+      "Exec(sort -o*)",
+      "Exec(sort * -o*)",
+      "Exec(sort --output*)",
+      "Exec(sort * --output*)",
       "Exec(git stash drop*)",
       "Exec(git stash clear*)",
       "Exec(git tag -d*)",
@@ -353,6 +388,8 @@
       "Exec(gh variable *)",
       "Write(**/.github/workflows/**)",
       "Write(~/.config/devin/**)",
+      "Write(~/.dotfiles/**)",
+      "Write(~/projects/personal/dotfiles/**)",
       "Write(~/.claude/settings.json)",
       "Write(~/.claude/settings.local.json)",
       "Write(~/.claude.json)",
@@ -431,11 +468,7 @@
         "Exec(depot *)",
         "Exec(git ls-remote *)",
         "Exec(gws)",
-        "Exec(gws *)",
-        "Exec(git -C * push *)",
-        "Exec(git -C * fetch *)",
-        "Exec(git -C * pull *)",
-        "Exec(git -C * ls-remote *)"
+        "Exec(gws *)"
       ]
     }
   }

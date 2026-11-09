@@ -75,7 +75,7 @@ the `--sandbox` domain/exclusion lists) is linked whole. Approval grants made
 in the Desktop UI persist into that same file, so expect it to drift and need
 committing after interactive sessions. It deliberately sets no `agent.model`:
 Devin's default routing can switch models per turn ("auto"/adaptive), a sharp
-edge for predictable behavior and cost — pin `agent.model` in the file if that
+edge for predictable behavior and cost. Pin `agent.model` in the file if that
 becomes annoying.
 
 Every package manager refuses releases younger than 3 days: bun (`.bunfig.toml`),
