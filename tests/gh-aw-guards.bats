@@ -121,6 +121,16 @@ push() {
   [[ $output == *"lock files"* ]]
 }
 
+@test "pre-push: blocks when compile rewrites a tracked lock file" {
+  stub_gh
+  printf 'old\n' >"$main/.github/workflows/hello.lock.yml"
+  git -C "$main" add .github/workflows/hello.lock.yml
+  git -C "$main" commit -q -m lock
+  FAKE_AW=dirty run push "git push"
+  [ "$status" -eq 2 ]
+  [[ $output == *"lock files"* ]]
+}
+
 @test "pre-push: escape hatch skips the check" {
   stub_gh
   FAKE_AW=fail CLAUDE_SKIP_GH_AW_PUSH_CHECK=1 run push "git push"
