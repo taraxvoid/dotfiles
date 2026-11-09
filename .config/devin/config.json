@@ -57,6 +57,8 @@
       "Fetch(https://*.soundryomaha.org/*)",
       "Fetch(domain:synthomaha.net)",
       "Fetch(https://*.synthomaha.net/*)",
+      "Fetch(domain:jdx.dev)",
+      "Fetch(https://*.jdx.dev/*)",
       "Exec(bun run build*)",
       "Exec(bun run check*)",
       "Exec(bun run dev*)",
@@ -397,7 +399,9 @@
       "soundryomaha.org",
       "**.soundryomaha.org",
       "synthomaha.net",
-      "**.synthomaha.net"
+      "**.synthomaha.net",
+      "jdx.dev",
+      "**.jdx.dev"
     ],
     "denied_domains": [],
     "network_mode": "full",
