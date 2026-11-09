@@ -70,6 +70,11 @@ rest of that file stays machine-specific. The sandbox keeps its "retry
 unsandboxed" escape hatch until you set `sandbox.allowUnsandboxedCommands` to
 `false` yourself.
 
+`.config/devin/config.json` (Devin CLI/Desktop permissions, fetch allows and
+the `--sandbox` domain/exclusion lists) is linked whole. Approval grants made
+in the Desktop UI persist into that same file, so expect it to drift and need
+committing after interactive sessions.
+
 Every package manager refuses releases younger than 3 days: bun (`.bunfig.toml`),
 uv (`.config/uv/uv.toml`), mise (`minimum_release_age` in the global config),
 and npm and pnpm (set in their user config by `install.sh`).

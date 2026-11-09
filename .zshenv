@@ -7,6 +7,9 @@ export ORI_TELEMETRY=0
 export DO_NOT_TRACK=1
 export _ZO_EXCLUDE_DIRS=$HOME:$HOME/worktrees/*
 
+# force Devin chatbot to use sandbox, similar to Claude's setup (/.config/devin/config.json)
+export DEVIN_SANDBOX=1
+
 # Claude's Bash sandbox can't write uv's tool dir (~/.local/share/uv/tools), and
 # uvx takes a lock and temp file there on every run, even for one-off tools. Point
 # it at the writable uv cache instead, so sandboxed tools can't touch the installed
