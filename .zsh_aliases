@@ -889,8 +889,10 @@ gwl() {
 # (the check rollup of 100 old PRs is most of the payload).
 _gw_fetch_prs() {
   setopt local_options no_monitor no_notify no_bg_nice
-  local f=$1 t p1 p2 s1 s2
+  local f=$1 t p1 p2 s1 s2 oldumask
   t=$(mktemp "$f.XXXXXX") || return 1
+  # the sidecars hold authenticated PR JSON: create them private
+  oldumask=$(umask); umask 077
   gh pr list --state open --limit 100 --json "$_gh_pr_fields,state,headRefOid" >|$t.open 2>/dev/null &
   p1=$!
   gh pr list --state all --limit 100 --json number,headRefName,headRefOid,state >|$t.all 2>/dev/null &
@@ -903,6 +905,7 @@ _gw_fetch_prs() {
     rm -f $t
   fi
   rm -f $t.open $t.all
+  umask $oldumask
 }
 
 # _gw_prs [-r]: the repo's PR JSON for _gw_rows, cached per repo in
@@ -965,7 +968,7 @@ _gw_rows() {
     have_gh=1
     prs=$(_gw_prs "$@")
   fi
-  wait $pids 2>/dev/null
+  (( ${#pids} )) && wait $pids 2>/dev/null
   while IFS=$'\t' read -r b o st t; do
     prtxt[$b]=$t; proid[$b]=$o; prstate[$b]=$st
   done < <(jq -r --arg me "" "$_gh_pr_jq_defs"'

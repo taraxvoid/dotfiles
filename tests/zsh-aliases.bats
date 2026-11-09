@@ -141,7 +141,7 @@ gwl_gh_stub='gh() {
   run zsh -fc "$gwl_gh_stub"'; source "$0"; gwl' "$BATS_TEST_DIRNAME/../.zsh_aliases"
   [[ "$output" == *"#7"*draft* ]]
   for _ in 1 2 3 4 5 6 7 8 9 10; do
-    [ "$(wc -l <"$GWL_CALLS")" -ge 4 ] && [ "$(find "$f" -newermt 2001-01-01 | wc -l)" -eq 1 ] && break
+    [ "$(wc -l <"$GWL_CALLS")" -ge 4 ] && [ "$(find "$f" -newermt 2001-01-01 | wc -l)" -eq 1 ] && [ ! -e "$f.lock" ] && break
     sleep 0.2
   done
   [ "$(wc -l <"$GWL_CALLS")" -eq 4 ]
