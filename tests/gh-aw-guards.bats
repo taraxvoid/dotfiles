@@ -92,6 +92,14 @@ push() {
   [ ! -s "$STUB_LOG" ]
 }
 
+@test "pre-push: skips workflow .md files without a frontmatter opener" {
+  stub_gh
+  printf '# notes\n' >"$wf"
+  run push "git push"
+  [ "$status" -eq 0 ]
+  [ ! -s "$STUB_LOG" ]
+}
+
 @test "pre-push: runs compile --strict and allows a clean result" {
   stub_gh
   run push "git push -u origin HEAD"
