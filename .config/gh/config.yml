@@ -14,8 +14,9 @@ aliases:
     draft-pr: pr create --draft
     # Fixed-shape writes Claude may run unprompted (see README, "Claude gh api guard").
     # reply-thread <pr> <comment-id> <body>: reply to an inline review comment in the current repo.
+    # Both ids must be digits only: anything else (e.g. '#' or '/') would reroute the URL.
     reply-thread: |-
-        !gh api "repos/{owner}/{repo}/pulls/$1/comments/$2/replies" -f body="$3" --jq .html_url
+        !for n in "$1" "$2"; do case "$n" in ''|*[!0-9]*) echo "usage: gh reply-thread <pr-number> <comment-id> <body>" >&2; exit 2;; esac; done; gh api "repos/{owner}/{repo}/pulls/$1/comments/$2/replies" -f body="$3" --jq .html_url
     # resolve-thread <thread-node-id>: resolve one review thread (id looks like PRRT_...).
     resolve-thread: |-
         !gh api graphql -f id="$1" -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' --jq .data.resolveReviewThread.thread.isResolved
