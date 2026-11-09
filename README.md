@@ -46,6 +46,9 @@ The zsh config detects what is installed instead of branching on OS:
   pushed so `gws` counts it as tracked.
 - git pages through delta (pinned in the global mise config) when it runs, and
   falls back to less.
+- git-branchless (pinned in the global mise config): `git sl` smartlog,
+  `git restack`, `git absorb`, `git submit` for stacked agent commits. Run
+  `git branchless init` once per repo to install its aliases and hooks.
 - yazi (file manager, pinned in the global mise config): `y [dir]` runs it and cds
   to wherever you quit (`Q` quits without moving); `prefix+e` in herdr opens it in a
   popup at the focused pane's dir. Config is in `.config/yazi` (each file linked
