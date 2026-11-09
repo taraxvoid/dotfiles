@@ -92,7 +92,9 @@
       "Bash(gh api /repos/*)",
       "Bash(gh api user)",
       "Bash(gh api rate_limit)",
-      "Bash(gh aw compile --strict*)"
+      "Bash(gh aw compile --strict*)",
+      "Bash(gh reply-thread *)",
+      "Bash(gh resolve-thread *)"
     ],
     "deny": [
       "Bash(git worktree remove*)",

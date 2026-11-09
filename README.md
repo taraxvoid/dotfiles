@@ -133,6 +133,16 @@ the call too: it exits 2 on any non-GET method or body flag and asks before
 Prefer the dedicated subcommands (`gh pr view`, `gh issue view`, `gh run view`,
 `gh pr checks`) and keep `gh api` for what they do not cover.
 
+Replying to and resolving review threads needs writes `gh` has no subcommand for, so
+two fixed-shape aliases in `.config/gh/config.yml` cover them: `gh reply-thread <pr>
+<comment-id> <body>` (REST reply, scoped to the current repo via `{owner}/{repo}`) and
+`gh resolve-thread <thread-node-id>` (GraphQL `resolveReviewThread` only). Both are in
+`permissions.allow`. They start with `gh`, so the sandbox exclusion matches, and the
+hook ignores them because it only inspects `gh api`. Claude supplies IDs and reply text,
+never a method or query, so it cannot delete, edit or merge anything through them.
+Thread node IDs (and the REST comment IDs to reply to) come from a
+`gh api graphql` query over `reviewThreads`, which the hook asks about each time.
+
 The hook also single-quotes bare `{owner}`/`{repo}`/`{branch}` words in `gh api`
 calls (via `updatedInput`). Unquoted, next to a quoted argument such as
 `-q '.[0].number'`, they stop the sandbox matching `gh *` as an excluded command,

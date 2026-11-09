@@ -103,3 +103,21 @@ rewritten() { jq -r '.hookSpecificOutput.updatedInput.command // empty' <<<"$out
   CLAUDE_ALLOW_GH_API_WRITES=1 run guard "gh api repos/o/r -X POST"
   [ "$status" -eq 0 ]
 }
+
+@test "leaves the reply-thread and resolve-thread aliases alone" {
+  run guard "gh reply-thread 12 345 'looks fixed in abc123'"
+  [ "$status" -eq 0 ] && [ -z "$output" ]
+  run guard "gh resolve-thread PRRT_kwDOabc"
+  [ "$status" -eq 0 ] && [ -z "$output" ]
+}
+
+@test "the review-thread aliases are allowed in the fragment and defined in gh config" {
+  frag="$BATS_TEST_DIRNAME/../.claude/settings.fragment.json"
+  cfg="$BATS_TEST_DIRNAME/../.config/gh/config.yml"
+  for a in reply-thread resolve-thread; do
+    [ "$(jq --arg r "Bash(gh $a *)" '.permissions.allow | index($r) != null' "$frag")" = true ]
+    [ "$(yq ".aliases.\"$a\" | test(\"^!gh api \")" "$cfg")" = true ]
+  done
+  # the graphql alias is pinned to the one resolve mutation
+  [ "$(yq '.aliases."resolve-thread" | test("resolveReviewThread")' "$cfg")" = true ]
+}
