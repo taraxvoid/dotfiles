@@ -98,7 +98,8 @@
       "Exec(jq empty)",
       "Exec(git ls-remote)",
       "Exec(head)",
-      "Write(/private/tmp)"
+      "Write(/private/tmp)",
+      "Exec(diff)"
     ],
     "deny": [
       "Exec(git worktree remove*)",
