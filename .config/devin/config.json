@@ -73,10 +73,6 @@
       "Exec(git mv)",
       "Exec(git clone)",
       "Exec(ls)",
-      "Exec(gh api repos/*)",
-      "Exec(gh api /repos/*)",
-      "Exec(gh api user)",
-      "Exec(gh api rate_limit)",
       "Exec(gh aw compile --strict*)",
       "Exec(gh pr create)",
       "Write(~/.cache/uv/**)",
@@ -101,7 +97,8 @@
       "Exec(bun install)",
       "Exec(jq empty)",
       "Exec(git ls-remote)",
-      "Exec(head)"
+      "Exec(head)",
+      "Write(/private/tmp)"
     ],
     "deny": [
       "Exec(git worktree remove*)",
