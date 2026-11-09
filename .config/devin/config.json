@@ -144,6 +144,7 @@
       "Exec(jq empty)",
       "Exec(git ls-remote)",
       "Exec(head)",
+      "Exec(wc)",
       "Write(/private/tmp)",
       "Exec(diff)",
       "Write(~/worktrees/personal/voidlife/20-writing-chore)",
