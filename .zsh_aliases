@@ -895,7 +895,7 @@ _gw_fetch_prs() {
   oldumask=$(umask); umask 077
   gh pr list --state open --limit 100 --json "$_gh_pr_fields,state,headRefOid" >|$t.open 2>/dev/null &
   p1=$!
-  gh pr list --state all --limit 100 --json number,headRefName,headRefOid,state >|$t.all 2>/dev/null &
+  gh pr list --state closed --limit 100 --json number,headRefName,headRefOid,state >|$t.all 2>/dev/null &
   p2=$!
   wait $p1; s1=$?
   wait $p2; s2=$?
