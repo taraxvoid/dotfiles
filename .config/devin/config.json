@@ -59,6 +59,7 @@
       "Fetch(https://*.synthomaha.net/*)",
       "Fetch(domain:jdx.dev)",
       "Fetch(https://*.jdx.dev/*)",
+      "Fetch(domain:blog.cloudflare.com)",
       "Exec(bun run build*)",
       "Exec(bun run check*)",
       "Exec(bun run dev*)",
