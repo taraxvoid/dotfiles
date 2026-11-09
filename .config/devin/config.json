@@ -1,5 +1,8 @@
 {
   "version": 1,
+  // No agent.model set: Devin's default routing can switch models per turn
+  // ("auto"/adaptive), which is a sharp edge — behavior and cost drift
+  // mid-session. Pin "agent": { "model": "..." } if that bothers you.
   "permissions": {
     "allow": [
       "Exec(fd)",
@@ -94,7 +97,8 @@
       "Exec(git log)",
       "Exec(gh issue)",
       "Exec(gh label)",
-      "Exec(bun install)"
+      "Exec(bun install)",
+      "Exec(jq empty)"
     ],
     "deny": [
       "Exec(git worktree remove*)",
