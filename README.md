@@ -57,6 +57,11 @@ The zsh config detects what is installed instead of branching on OS:
   bump them with `ya pkg upgrade`, Renovate doesn't.
 - Generated init scripts (zoxide, fzf, starship) are cached in `~/.cache/zsh`
   and regenerated when the tool's binary changes; delete that dir to force it.
+- rtk (trial, pinned in the global mise config): `rtk init -g` registers a
+  Claude Code PreToolUse hook that rewrites supported commands to `rtk <cmd>`
+  so the agent reads compressed output. It writes `~/.claude/settings.json`
+  directly; merge-settings only adds fragment hooks, so it survives install.sh
+  re-runs. Remove with `rtk init -g --uninstall`.
 
 `install.sh` leaves `~/.config/gh/hosts.yml` and `~/.config/poolside` alone
 (per-machine auth). It links `.ssh/config` but never keys or `~/.ssh/config.local`. It asks, default no, before linking `.claude/CLAUDE.md` and
