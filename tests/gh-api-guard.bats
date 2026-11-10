@@ -141,7 +141,7 @@ alias_run() {
   [ "$status" -eq 0 ]
   [ "$(sed -n 1p "$BATS_TEST_TMPDIR/argv")" = api ]
   [ "$(sed -n 2p "$BATS_TEST_TMPDIR/argv")" = 'repos/{owner}/{repo}/pulls/12/comments/345/replies' ]
-  rg -qx 'body=looks fixed' "$BATS_TEST_TMPDIR/argv"
+  grep -Fxq 'body=looks fixed' "$BATS_TEST_TMPDIR/argv"
 }
 
 @test "reply-thread refuses ids that could reroute the request" {
@@ -158,6 +158,6 @@ alias_run() {
 @test "resolve-thread sends the fixed mutation with the id as a variable" {
   alias_run resolve-thread PRRT_kwDOabc
   [ "$status" -eq 0 ]
-  rg -qx 'id=PRRT_kwDOabc' "$BATS_TEST_TMPDIR/argv"
-  rg -q 'resolveReviewThread\(input:\{threadId:\$id\}\)' "$BATS_TEST_TMPDIR/argv"
+  grep -Fxq 'id=PRRT_kwDOabc' "$BATS_TEST_TMPDIR/argv"
+  grep -Fq 'resolveReviewThread(input:{threadId:$id})' "$BATS_TEST_TMPDIR/argv"
 }
