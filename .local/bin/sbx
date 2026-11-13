@@ -105,6 +105,9 @@ if [ -n "$audit" ]; then
     args+=(--ro-bind "$tree" /run/sbx-tree --size $((work_mb * 1024 * 1024)) --tmpfs /work)
   else
     args+=(--bind "$tree" /work)
+    # host git runs whatever .git/config and hooks name, so a hostile build script
+    # must not persist them (same rule as the normal mode): mounted over the bind
+    if [ -e "$tree/.git" ]; then args+=(--ro-bind "$tree/.git" /work/.git); fi
   fi
   args+=(--chdir /work --clearenv
     --setenv HOME "$HOME" --setenv USER "${USER:-user}" --setenv TERM "${TERM:-xterm}"

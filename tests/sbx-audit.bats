@@ -112,6 +112,19 @@ has_seq() {
   grep -qxF -- 'MemoryMax=2G' "$FAKE_LOG/systemd-run"
 }
 
+@test "--audit-prepare keeps the tree's .git read-only, build output stays writable" {
+  mkdir "$tree/.git"
+  run "$sbx" --audit-prepare "$tree" make
+  [ "$status" -eq 0 ]
+  has_seq "$FAKE_LOG/bwrap" --bind "$tree" /work --ro-bind "$tree/.git" /work/.git
+}
+
+@test "--audit-prepare with a .git file (worktree) keeps it read-only too" {
+  echo "gitdir: /nowhere" >"$tree/.git"
+  run "$sbx" --audit-prepare "$tree" make
+  has_seq "$FAKE_LOG/bwrap" --ro-bind "$tree/.git" /work/.git
+}
+
 @test "the environment is cleared" {
   run "$sbx" --audit "$tree" true
   has_seq "$FAKE_LOG/bwrap" --clearenv

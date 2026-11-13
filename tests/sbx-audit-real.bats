@@ -55,6 +55,15 @@ setup() {
   [ "$status" -eq 0 ]
 }
 
+@test "--audit-prepare cannot write the tree's .git" {
+  git init -q "$tree"
+  run "$sbx" --audit-prepare "$tree" sh -c 'echo "[core] fsmonitor = evil" >>.git/config'
+  [ "$status" -ne 0 ]
+  ! grep -q evil "$tree/.git/config"
+  run "$sbx" --audit-prepare "$tree" sh -c 'touch built'
+  [ "$status" -eq 0 ]
+}
+
 @test "the /work tmpfs size caps disk" {
   SBX_AUDIT_WORK_MB=8 run "$sbx" --audit "$tree" sh -c 'dd if=/dev/zero of=big bs=1M count=64'
   [ "$status" -ne 0 ]
@@ -80,7 +89,10 @@ setup() {
 
 @test "the runtime cap kills a long runner" {
   start=$SECONDS
-  SBX_AUDIT_TIME=2 run "$sbx" --audit "$tree" sleep 60
+  SBX_AUDIT_TIME=2 run "$sbx" --audit "$tree" sh -c 'echo started; sleep 60'
   [ "$status" -ne 0 ]
+  # it ran, and was cut off by the 2 s cap rather than failing to start or finishing
+  [[ "$output" == *started* ]]
+  [ $((SECONDS - start)) -ge 1 ]
   [ $((SECONDS - start)) -lt 20 ]
 }

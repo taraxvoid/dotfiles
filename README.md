@@ -233,13 +233,15 @@ applied, checked with a probe). Always offline, a fresh tmpfs `$HOME` per call, 
 toolchain (`~/.local/share/sbx/mise`) read-only, and only `/work` writable.
 `--audit` copies TREE (bound read-only) into a size-limited tmpfs at `/work` and
 runs there, so every PoC starts from the same prepared tree. `--audit-prepare` binds
-TREE itself writable at `/work`: use it once, offline, to run install and build
+TREE itself writable at `/work` (its `.git` stays read-only, since host git runs what
+`.git/config` and hooks name): use it once, offline, to run install and build
 scripts after fetching dependencies with scripts disabled; the shared path keeps
 absolute paths in virtualenvs and native builds valid in each `--audit` copy. Limits
 come from a transient `systemd-run --user --scope` plus `ulimit -f`, overridable per
 call: `SBX_AUDIT_MEM` (2G), `SBX_AUDIT_TASKS` (256), `SBX_AUDIT_CPU` (100%),
 `SBX_AUDIT_TIME` (300 seconds), `SBX_AUDIT_FSIZE_MB` (1024, one file),
-`SBX_AUDIT_WORK_MB` (1024, size of `/work`), `SBX_AUDIT_SCRATCH_MB` (256, size of
+`SBX_AUDIT_WORK_MB` (1024, size of `/work` for `--audit` only: `--audit-prepare`
+writes to TREE's own filesystem and can use all the space there), `SBX_AUDIT_SCRATCH_MB` (256, size of
 `$HOME` and `/tmp`). Tests: `tests/sbx-audit.bats` (fake `bwrap` and `systemd-run`,
 runs anywhere) and `tests/sbx-audit-real.bats` (real limits, skipped without bwrap
 and a user scope).
