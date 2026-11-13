@@ -20,31 +20,108 @@
 # writable .git would let sandboxed code run commands outside the sandbox.
 # --rw-git lifts that for a git command that must write (commit, fetch); only use
 # it for commands you trust, never for installs or dev servers.
+#
+#   sbx --audit TREE cmd...           run a PoC on a copy of TREE with enforced limits
+#   sbx --audit-prepare TREE cmd...   same limits, TREE itself writable (install/build)
+# Audit mode is bwrap only and meant for a disposable Linux VM; see the block below.
 set -euo pipefail
 
 die() { echo "sbx: $*" >&2; exit 1; }
+net=--share-net rwgit=0 audit='' tree=''
+while [ $# -gt 0 ]; do
+  case $1 in
+    --offline) net='' ;;
+    --rw-git) rwgit=1 ;;
+    --audit | --audit-prepare)
+      [ -z "$audit" ] || die "--audit and --audit-prepare are mutually exclusive"
+      [ $# -ge 2 ] || die "$1 needs a TREE"
+      audit=${1#--} tree=$2
+      shift
+      ;;
+    --) shift; break ;;
+    *) break ;;
+  esac
+  shift
+done
+
 # bwrap where it exists (Linux), srt (Anthropic's sandbox-runtime: Seatbelt on macOS)
 # elsewhere; SBX_BACKEND=bwrap|srt forces one
 backend=${SBX_BACKEND:-}
 if [ -z "$backend" ]; then
   if command -v bwrap >/dev/null; then backend=bwrap; else backend=srt; fi
 fi
+[ -z "$audit" ] || [ "$backend" = bwrap ] || die "--$audit needs the bwrap backend (Linux VM), not $backend"
 case $backend in
   bwrap) command -v bwrap >/dev/null || die "bubblewrap not installed (apt install bubblewrap)" ;;
   srt) command -v srt >/dev/null || die "srt not installed (mise install)" ;;
   *) die "unknown SBX_BACKEND: $backend" ;;
 esac
 
-net=--share-net rwgit=0
-while [ $# -gt 0 ]; do
-  case $1 in
-    --offline) net='' ;;
-    --rw-git) rwgit=1 ;;
-    --) shift; break ;;
-    *) break ;;
-  esac
-  shift
-done
+if [ -n "$audit" ]; then
+  # Audit mode: run code from an untrusted repo with enforced limits, for a
+  # disposable Linux VM (not a workstation). Offline always, a fresh tmpfs $HOME per
+  # call, the toolchain read-only, and only /work writable: --audit copies TREE (bound
+  # read-only) into a size-limited tmpfs there, --audit-prepare binds TREE itself at
+  # /work (for offline install and build steps; same path, so absolute paths baked
+  # into venvs and native builds still resolve in each --audit copy). Memory, task,
+  # cpu and wall-clock caps come from a transient systemd scope, file size from
+  # ulimit -f; each is overridable (SBX_AUDIT_MEM, _TASKS, _CPU, _TIME, _FSIZE_MB,
+  # _WORK_MB, _SCRATCH_MB). Anything that cannot be enforced refuses to run.
+  [ "$rwgit" = 0 ] || die "--$audit cannot be combined with --rw-git"
+  [ -d "$tree" ] || die "TREE is not a directory: $tree"
+  tree=$(cd "$tree" && pwd -P)
+  command -v systemd-run >/dev/null || die "systemd-run not found: cannot apply --$audit limits"
+  mem=${SBX_AUDIT_MEM:-2G} tasks=${SBX_AUDIT_TASKS:-256} cpu=${SBX_AUDIT_CPU:-100%} rtime=${SBX_AUDIT_TIME:-300}
+  mb() { # mb <name> <default>: a positive integer from the env
+    local v=${!1:-$2}
+    case $v in '' | *[!0-9]* | 0) die "$1 must be a positive integer (MB), got: $v" ;; esac
+    echo "$v"
+  }
+  fsize_mb=$(mb SBX_AUDIT_FSIZE_MB 1024) work_mb=$(mb SBX_AUDIT_WORK_MB 1024) scratch_mb=$(mb SBX_AUDIT_SCRATCH_MB 256)
+  limits=(--user --scope --quiet -p "MemoryMax=$mem" -p MemorySwapMax=0 -p "TasksMax=$tasks" -p "CPUQuota=$cpu" -p "RuntimeMaxSec=$rtime")
+  # a scope that starts is not proof the controllers are delegated: look at the
+  # limits the cgroup actually got
+  # shellcheck disable=SC2016 # expanded by the sh inside the scope
+  probe='d=/sys/fs/cgroup$(sed -n "s/^0:://p" /proc/self/cgroup)
+    for f in memory.max pids.max cpu.max; do
+      v=$(cut -d" " -f1 "$d/$f" 2>/dev/null) && [ -n "$v" ] && [ "$v" != max ] || exit 1
+    done'
+  systemd-run "${limits[@]}" -- sh -c "$probe" sbx-probe >/dev/null 2>&1 ||
+    die "cannot apply memory, task and cpu limits through a systemd user scope here (cgroup v2 with delegated controllers needed); refusing to run --$audit"
+
+  state=$HOME/.local/share/sbx
+  mkdir -p "$state/mise"
+  args=(--unshare-all --die-with-parent --new-session
+    --ro-bind /usr /usr --ro-bind /etc /etc
+    --proc /proc --dev /dev
+    --size $((scratch_mb * 1024 * 1024)) --tmpfs /tmp
+    --size $((scratch_mb * 1024 * 1024)) --tmpfs "$HOME")
+  for d in bin lib lib64 sbin; do
+    if [ -L "/$d" ]; then args+=(--symlink "$(readlink "/$d")" "/$d"); elif [ -d "/$d" ]; then args+=(--ro-bind "/$d" "/$d"); fi
+  done
+  [ -x "$HOME/.local/bin/mise" ] && args+=(--ro-bind "$HOME/.local/bin/mise" "$HOME/.local/bin/mise")
+  args+=(--ro-bind "$state/mise" "$HOME/.local/share/mise")
+  if [ "$audit" = audit ]; then
+    args+=(--ro-bind "$tree" /run/sbx-tree --size $((work_mb * 1024 * 1024)) --tmpfs /work)
+  else
+    args+=(--bind "$tree" /work)
+  fi
+  args+=(--chdir /work --clearenv
+    --setenv HOME "$HOME" --setenv USER "${USER:-user}" --setenv TERM "${TERM:-xterm}"
+    --setenv LANG "${LANG:-C.UTF-8}" --setenv SBX 1
+    --setenv PATH "$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+    --setenv MISE_TRUSTED_CONFIG_PATHS /work)
+
+  [ $# -gt 0 ] || set -- "${SHELL:-bash}"
+  [ -x "$HOME/.local/bin/mise" ] && set -- "$HOME/.local/bin/mise" exec -- "$@"
+  if [ "$audit" = audit ]; then
+    set -- sh -c 'cp -a /run/sbx-tree/. /work/ && cd /work && exec "$@"' sbx-audit "$@"
+  fi
+  # shellcheck disable=SC2016 # expanded by the bash inside the scope
+  exec systemd-run "${limits[@]}" -- \
+    bash -c 'ulimit -f "$1" && shift && exec "$@"' sbx-limits $((fsize_mb * 1024)) \
+    bwrap "${args[@]}" "$@"
+fi
 
 roots=("$HOME/projects/untrusted" "$HOME/worktrees/untrusted")
 cwd=$(pwd -P)
