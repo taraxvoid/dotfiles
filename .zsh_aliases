@@ -871,54 +871,92 @@ gco() {
 # gwl: scannable worktree overview, like `git status` for all worktrees: path,
 # branch, local state (dirty files, ahead/behind upstream, locked) and the
 # branch's PR (checks, review, merge state; merged/closed shown plainly, with a
-# warning when the branch has commits newer than the merged PR). With args it is
-# plain `git worktree list`. `*` marks the worktree you are in.
-#: gwl -- every worktree with local state and its PR's status
+# warning when the branch has commits newer than the merged PR). With other args it
+# is plain `git worktree list`. `*` marks the worktree you are in. PR data is cached
+# (see _gw_prs); -r refreshes it first.
+#: gwl [-r] -- every worktree with local state and its PR's status (-r: refresh PRs)
 unalias gwl 2>/dev/null
 gwl() {
+  local -a opt
+  [[ ${1:-} == -r ]] && { opt=(-r); shift }
   if (( $# )); then git worktree list "$@"; return; fi
-  _gw_rows | cut -f3-
+  _gw_rows $opt | cut -f3-
 }
 
-# _gw_rows: one line per worktree, "<path>\t<branch>\t<aligned gwl row>" (gwl, gwo).
+# _gw_fetch_prs <cache file>: fetch the repo's PRs and write them to the cache file
+# atomically; on any failure the old cache is left alone. Two parallel `gh` calls:
+# open PRs with every field, and merged/closed ones with only what the rows need
+# (the check rollup of 100 old PRs is most of the payload).
+_gw_fetch_prs() {
+  setopt local_options no_monitor no_notify no_bg_nice
+  local f=$1 t p1 p2 s1 s2 oldumask
+  t=$(mktemp "$f.XXXXXX") || return 1
+  # the sidecars hold authenticated PR JSON: create them private
+  oldumask=$(umask); umask 077
+  gh pr list --state open --limit 100 --json "$_gh_pr_fields,state,headRefOid" >|$t.open 2>/dev/null &
+  p1=$!
+  gh pr list --state closed --limit 100 --json number,headRefName,headRefOid,state >|$t.all 2>/dev/null &
+  p2=$!
+  wait $p1; s1=$?
+  wait $p2; s2=$?
+  if (( ! s1 && ! s2 )) && jq -s '.[0] + (.[1] | map(select(.state != "OPEN")))' $t.open $t.all >|$t 2>/dev/null; then
+    mv -f $t $f
+  else
+    rm -f $t
+  fi
+  rm -f $t.open $t.all
+  umask $oldumask
+}
+
+# _gw_prs [-r]: the repo's PR JSON for _gw_rows, cached per repo in
+# ~/.cache/zsh/gwl-<key>.json. Younger than $GWL_TTL seconds (default 60) it is used
+# as is; older it is still printed at once and refreshed in the background (so the
+# next run is current); missing, or with -r, it is fetched first.
+_gw_prs() {
+  zmodload -F zsh/stat b:zstat 2>/dev/null; zmodload zsh/datetime 2>/dev/null
+  local d=${XDG_CACHE_HOME:-$HOME/.cache}/zsh key f lock
+  local -a m
+  key=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || { print '[]'; return }
+  key=$(print -rn -- $key | cksum); f=$d/gwl-${key%% *}.json; lock=$f.lock
+  mkdir -p $d 2>/dev/null
+  if [[ ${1:-} != -r && -s $f ]]; then
+    cat $f
+    zstat -A m +mtime $f
+    if (( EPOCHSECONDS - m[1] >= ${GWL_TTL:-60} )); then
+      # one refresher at a time; a lock older than 2 minutes is a killed one
+      if zstat -A m +mtime $lock 2>/dev/null && (( EPOCHSECONDS - m[1] > 120 )); then rmdir $lock 2>/dev/null; fi
+      if mkdir $lock 2>/dev/null; then
+        { _gw_fetch_prs $f; rmdir $lock 2>/dev/null } >/dev/null 2>&1 &!
+      fi
+    fi
+    return
+  fi
+  _gw_fetch_prs $f
+  if [[ -s $f ]]; then cat $f; else print '[]'; fi
+}
+
+# _gw_rows [-r]: one line per worktree, "<path>\t<branch>\t<aligned gwl row>" (gwl, gwo).
+# The per-worktree git status runs in parallel, overlapping the PR lookup.
 _gw_rows() {
-  local prs='[]' p h b lk o st t dirty lr pr loc cur w1=0 w2=0 i
+  setopt local_options no_monitor no_notify no_bg_nice
+  local prs='[]' p h b lk o st t cur w1=0 w2=0 i tmp have_gh=0 pr
   local dim=$'\e[2m' red=$'\e[31m' yel=$'\e[33m' rst=$'\e[0m'
   local -A prtxt proid prstate
-  local -a raw paths branches heads locals prcols
-  if (( $+commands[gh] )); then
-    prs=$(gh pr list --state all --limit 100 --json "$_gh_pr_fields,state,headRefOid" 2>/dev/null) || prs='[]'
-  fi
-  while IFS=$'\t' read -r b o st t; do
-    prtxt[$b]=$t; proid[$b]=$o; prstate[$b]=$st
-  done < <(jq -r --arg me "" "$_gh_pr_jq_defs"'
-    group_by(.headRefName)[] | (map(select(.state == "OPEN")) + sort_by(-.number)) | .[0]
-    | "\(.headRefName)\t\(.headRefOid)\t\(.state)\t\(pr_summary)"' <<<"$prs" 2>/dev/null)
+  local -a raw paths branches heads fheads locals prcols locks pids loc st_
+  tmp=$(mktemp -d) || return 1
   cur=$(git rev-parse --show-toplevel 2>/dev/null)
   while IFS=$'\t' read -r p h b lk; do
-    dirty=$(git -C "$p" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
-    loc=()
-    (( dirty )) && loc+=("${yel}${dirty} dirty${rst}")
-    if lr=$(git -C "$p" rev-list --left-right --count '@{u}...HEAD' 2>/dev/null); then
-      (( ${lr##*[[:space:]]} )) && loc+=("ahead ${lr##*[[:space:]]}")
-      (( ${lr%%[[:space:]]*} )) && loc+=("${yel}behind ${lr%%[[:space:]]*}${rst}")
-    elif [[ $b != "(detached)" ]]; then
-      loc+=("${dim}no upstream${rst}")
-    fi
-    [[ $lk == locked ]] && loc+=("locked")
-    (( ${#loc} )) || loc=("${dim}clean${rst}")
-    pr=""
-    if (( ${#paths} )) && [[ -n ${prtxt[$b]:-} ]]; then
-      pr=${prtxt[$b]}
-      [[ ${prstate[$b]} != OPEN && ${proid[$b]} != $h ]] && pr+=" ${red}(new commits since)${rst}"
-    elif (( ${#paths} )); then
-      pr="${dim}no PR${rst}"
-    fi
-    raw+=("$p"); paths+=("${p/#$HOME/~}"); branches+=("$b"); heads+=("${h[1,7]}")
-    locals+=("${(j: :)loc}"); prcols+=("$pr")
+    raw+=("$p"); paths+=("${p/#$HOME/~}"); branches+=("$b"); heads+=("${h[1,7]}"); fheads+=("$h"); locks+=("$lk")
     [[ $p == $cur ]] && paths[-1]="* ${paths[-1]}" || paths[-1]="  ${paths[-1]}"
     (( ${#paths[-1]} > w1 )) && w1=${#paths[-1]}
     (( ${#b} > w2 )) && w2=${#b}
+    # "<dirty> <ahead> <behind> <has upstream>"; no-optional-locks so parallel runs and
+    # background refreshes never fight over the index
+    git --no-optional-locks -C "$p" status --porcelain=v2 --branch 2>/dev/null | awk '
+      /^# branch.ab/ { a = substr($3, 2); bh = substr($4, 2); up = 1 }
+      !/^#/          { d++ }
+      END            { print d + 0, a + 0, bh + 0, up + 0 }' >|$tmp/${#raw} &
+    pids+=($!)
   done < <(git worktree list --porcelain | awk '
     function flush() { if (path != "") printf "%s\t%s\t%s\t%s\n", path, head, (branch == "" ? "(detached)" : branch), (locked ? "locked" : "-"); path = branch = head = ""; locked = 0 }
     /^worktree / { flush(); path = substr($0, 10) }
@@ -926,7 +964,39 @@ _gw_rows() {
     /^branch /   { branch = substr($0, 8); sub(/^refs\/heads\//, "", branch) }
     /^locked/    { locked = 1 }
     END          { flush() }')
-  for (( i = 1; i <= ${#paths}; i++ )); do
+  if (( $+commands[gh] || $+functions[gh] )); then
+    have_gh=1
+    prs=$(_gw_prs "$@")
+  fi
+  (( ${#pids} )) && wait $pids 2>/dev/null
+  while IFS=$'\t' read -r b o st t; do
+    prtxt[$b]=$t; proid[$b]=$o; prstate[$b]=$st
+  done < <(jq -r --arg me "" "$_gh_pr_jq_defs"'
+    group_by(.headRefName)[] | (map(select(.state == "OPEN")) + sort_by(-.number)) | .[0]
+    | "\(.headRefName)\t\(.headRefOid)\t\(.state)\t\(pr_summary)"' <<<"$prs" 2>/dev/null)
+  for (( i = 1; i <= ${#raw}; i++ )); do
+    b=${branches[i]}; h=${fheads[i]}
+    st_=(${=$(<$tmp/$i)}); loc=()
+    (( st_[1] )) && loc+=("${yel}${st_[1]} dirty${rst}")
+    if (( st_[4] )); then
+      (( st_[2] )) && loc+=("ahead ${st_[2]}")
+      (( st_[3] )) && loc+=("${yel}behind ${st_[3]}${rst}")
+    elif [[ $b != "(detached)" ]]; then
+      loc+=("${dim}no upstream${rst}")
+    fi
+    [[ ${locks[i]} == locked ]] && loc+=("locked")
+    (( ${#loc} )) || loc=("${dim}clean${rst}")
+    pr=""
+    if [[ -n ${prtxt[$b]:-} ]]; then
+      pr=${prtxt[$b]}
+      [[ ${prstate[$b]} != OPEN && ${proid[$b]} != $h ]] && pr+=" ${red}(new commits since)${rst}"
+    elif (( have_gh )); then
+      pr="${dim}no PR${rst}"
+    fi
+    locals+=("${(j: :)loc}"); prcols+=("$pr")
+  done
+  rm -rf $tmp
+  for (( i = 1; i <= ${#raw}; i++ )); do
     printf '%s\t%s\t%-*s  %-*s  %s  %s%s\n' "${raw[i]}" "${branches[i]}" $w1 "${paths[i]}" $w2 "${branches[i]}" "${heads[i]}" "${locals[i]}" "${prcols[i]:+  ${prcols[i]}}"
   done
 }

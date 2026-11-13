@@ -101,6 +101,65 @@ z() {
   [[ "${lines[1]}" != *$'\t'* ]]
 }
 
+# gwl_cache_repo: a repo with one worktree on branch feat, cwd inside it
+gwl_cache_repo() {
+  r=$BATS_TEST_TMPDIR/repo
+  git init -q -b main "$r"
+  git -C "$r" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+  git -C "$r" worktree add -q -b feat "$BATS_TEST_TMPDIR/wt"
+  cd "$BATS_TEST_TMPDIR/wt"
+  export XDG_CACHE_HOME=$BATS_TEST_TMPDIR/cache GWL_CALLS=$BATS_TEST_TMPDIR/calls
+}
+
+# gh stub: counts calls, answers "open" lists with PR #7 on feat, "all" lists with nothing
+gwl_gh_stub='gh() {
+  print x >>"$GWL_CALLS"
+  case "$*" in
+    *"--state open"*) print -r -- "[{\"number\":7,\"title\":\"t\",\"author\":{\"login\":\"x\"},\"headRefName\":\"feat\",\"headRefOid\":\"abc\",\"state\":\"OPEN\",\"isDraft\":true,\"updatedAt\":\"2026-01-01T00:00:00Z\"}]" ;;
+    *) print -r -- "[]" ;;
+  esac
+}'
+
+@test "gwl caches the PR lookup: a second run within the TTL makes no gh call, -r refetches" {
+  gwl_cache_repo
+  run zsh -fc "$gwl_gh_stub"'; source "$0"; gwl; wc -l <"$GWL_CALLS"' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"#7"*draft* ]]
+  [[ "${lines[${#lines[@]}-1]}" -eq 2 ]]
+  run zsh -fc "$gwl_gh_stub"'; source "$0"; gwl; wc -l <"$GWL_CALLS"' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [[ "$output" == *"#7"*draft* ]]
+  [[ "${lines[${#lines[@]}-1]}" -eq 2 ]]
+  run zsh -fc "$gwl_gh_stub"'; source "$0"; gwl -r; wc -l <"$GWL_CALLS"' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [[ "${lines[${#lines[@]}-1]}" -eq 4 ]]
+}
+
+@test "gwl serves a stale cache at once and refreshes it in the background" {
+  gwl_cache_repo
+  run zsh -fc "$gwl_gh_stub"'; source "$0"; gwl >/dev/null' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  f=$(echo "$XDG_CACHE_HOME"/zsh/gwl-*.json)
+  touch -t 200001010000 "$f"
+  run zsh -fc "$gwl_gh_stub"'; source "$0"; gwl' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [[ "$output" == *"#7"*draft* ]]
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    [ "$(wc -l <"$GWL_CALLS")" -ge 4 ] && [ "$(find "$f" -newermt 2001-01-01 | wc -l)" -eq 1 ] && [ ! -e "$f.lock" ] && break
+    sleep 0.2
+  done
+  [ "$(wc -l <"$GWL_CALLS")" -eq 4 ]
+  [ -z "$(find "$f.lock" 2>/dev/null)" ]
+}
+
+@test "gwl reports dirty files, ahead and behind from one status call per worktree" {
+  gwl_cache_repo
+  echo x >f
+  run zsh -fc 'gh() { return 1 }; source "$0"; gwl' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [[ "${lines[1]}" == *"1 dirty"* ]]
+  git add f
+  git -c user.name=t -c user.email=t@t commit -q -m c
+  git branch -q --set-upstream-to=main
+  run zsh -fc 'gh() { return 1 }; source "$0"; gwl' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [[ "${lines[1]}" == *"ahead 1"* && "${lines[1]}" != *dirty* ]]
+}
+
 @test "fdsd replaces a literal string in files matching the glob, hidden ones only with --hidden" {
   command -v fd >/dev/null && command -v sd >/dev/null || skip "fd and sd not installed"
   d=$BATS_TEST_TMPDIR/proj; mkdir -p "$d/.hid"
