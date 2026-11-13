@@ -66,8 +66,11 @@ setup() {
 }
 
 @test "the memory cap kills a runaway allocation" {
+  # killed by the memory cap, not by the 300 s runtime cap
+  start=$SECONDS
   SBX_AUDIT_MEM=64M run "$sbx" --audit "$tree" sh -c 'tail /dev/zero'
   [ "$status" -ne 0 ]
+  [ $((SECONDS - start)) -lt 60 ]
 }
 
 @test "the task cap stops a fork flood" {

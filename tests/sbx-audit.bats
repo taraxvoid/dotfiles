@@ -41,22 +41,22 @@ has_seq() {
   run "$sbx" --audit "$tree" echo hi
   [ "$status" -eq 0 ]
   has_seq "$FAKE_LOG/systemd-run" --user --scope
-  rg -qxF -- 'MemoryMax=2G' "$FAKE_LOG/systemd-run"
-  rg -qxF -- 'TasksMax=256' "$FAKE_LOG/systemd-run"
-  rg -qxF -- 'CPUQuota=100%' "$FAKE_LOG/systemd-run"
-  rg -qxF -- 'RuntimeMaxSec=300' "$FAKE_LOG/systemd-run"
+  grep -qxF -- 'MemoryMax=2G' "$FAKE_LOG/systemd-run"
+  grep -qxF -- 'TasksMax=256' "$FAKE_LOG/systemd-run"
+  grep -qxF -- 'CPUQuota=100%' "$FAKE_LOG/systemd-run"
+  grep -qxF -- 'RuntimeMaxSec=300' "$FAKE_LOG/systemd-run"
   # swap would let a PoC dodge MemoryMax
-  rg -qxF -- 'MemorySwapMax=0' "$FAKE_LOG/systemd-run"
+  grep -qxF -- 'MemorySwapMax=0' "$FAKE_LOG/systemd-run"
 }
 
 @test "each limit is overridable by an env var" {
   SBX_AUDIT_MEM=512M SBX_AUDIT_TASKS=32 SBX_AUDIT_CPU=50% SBX_AUDIT_TIME=20 \
     run "$sbx" --audit "$tree" true
   [ "$status" -eq 0 ]
-  rg -qxF -- 'MemoryMax=512M' "$FAKE_LOG/systemd-run"
-  rg -qxF -- 'TasksMax=32' "$FAKE_LOG/systemd-run"
-  rg -qxF -- 'CPUQuota=50%' "$FAKE_LOG/systemd-run"
-  rg -qxF -- 'RuntimeMaxSec=20' "$FAKE_LOG/systemd-run"
+  grep -qxF -- 'MemoryMax=512M' "$FAKE_LOG/systemd-run"
+  grep -qxF -- 'TasksMax=32' "$FAKE_LOG/systemd-run"
+  grep -qxF -- 'CPUQuota=50%' "$FAKE_LOG/systemd-run"
+  grep -qxF -- 'RuntimeMaxSec=20' "$FAKE_LOG/systemd-run"
 }
 
 @test "ulimit -f is applied before bwrap, default 1 GiB and overridable" {
@@ -71,13 +71,13 @@ has_seq() {
   run "$sbx" --audit "$tree" true
   [ "$status" -eq 0 ]
   has_seq "$FAKE_LOG/bwrap" --unshare-all
-  ! rg -qxF -- '--share-net' "$FAKE_LOG/bwrap"
+  ! grep -qxF -- '--share-net' "$FAKE_LOG/bwrap"
 }
 
 @test "HOME is a fresh tmpfs, never a persistent bind" {
   run "$sbx" --audit "$tree" true
   has_seq "$FAKE_LOG/bwrap" --size 268435456 --tmpfs "$HOME"
-  ! rg -qF -- '/.local/share/sbx/home' "$FAKE_LOG/bwrap"
+  ! grep -qF -- '/.local/share/sbx/home' "$FAKE_LOG/bwrap"
 }
 
 @test "the toolchain (mise dir) is read-only" {
@@ -93,8 +93,8 @@ has_seq() {
   has_seq "$FAKE_LOG/bwrap" --chdir /work
   # the tree itself is never bound writable
   ! has_seq "$FAKE_LOG/bwrap" --bind "$tree" /work
-  rg -qxF -- 'cp -a /run/sbx-tree/. /work/ && cd /work && exec "$@"' "$FAKE_LOG/bwrap"
-  rg -qxF -- 'echo' "$FAKE_LOG/bwrap"
+  grep -qxF -- 'cp -a /run/sbx-tree/. /work/ && cd /work && exec "$@"' "$FAKE_LOG/bwrap"
+  grep -qxF -- 'echo' "$FAKE_LOG/bwrap"
 }
 
 @test "the /work size is overridable" {
@@ -107,9 +107,9 @@ has_seq() {
   [ "$status" -eq 0 ]
   has_seq "$FAKE_LOG/bwrap" --bind "$tree" /work
   has_seq "$FAKE_LOG/bwrap" --chdir /work
-  ! rg -qxF -- '/run/sbx-tree' "$FAKE_LOG/bwrap"
-  ! rg -qxF -- '--share-net' "$FAKE_LOG/bwrap"
-  rg -qxF -- 'MemoryMax=2G' "$FAKE_LOG/systemd-run"
+  ! grep -qxF -- '/run/sbx-tree' "$FAKE_LOG/bwrap"
+  ! grep -qxF -- '--share-net' "$FAKE_LOG/bwrap"
+  grep -qxF -- 'MemoryMax=2G' "$FAKE_LOG/systemd-run"
 }
 
 @test "the environment is cleared" {
