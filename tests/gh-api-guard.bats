@@ -103,3 +103,61 @@ rewritten() { jq -r '.hookSpecificOutput.updatedInput.command // empty' <<<"$out
   CLAUDE_ALLOW_GH_API_WRITES=1 run guard "gh api repos/o/r -X POST"
   [ "$status" -eq 0 ]
 }
+
+@test "leaves the reply-thread and resolve-thread aliases alone" {
+  run guard "gh reply-thread 12 345 'looks fixed in abc123'"
+  [ "$status" -eq 0 ] && [ -z "$output" ]
+  run guard "gh resolve-thread PRRT_kwDOabc"
+  [ "$status" -eq 0 ] && [ -z "$output" ]
+}
+
+@test "the review-thread aliases are allowed in the fragment and defined in gh config" {
+  frag="$BATS_TEST_DIRNAME/../.claude/settings.fragment.json"
+  cfg="$BATS_TEST_DIRNAME/../.config/gh/config.yml"
+  for a in reply-thread resolve-thread; do
+    [ "$(jq --arg r "Bash(gh $a *)" '.permissions.allow | index($r) != null' "$frag")" = true ]
+    [ "$(yq ".aliases.\"$a\" | test(\"^!.*gh api \")" "$cfg")" = true ]
+  done
+  # the graphql alias is pinned to the one resolve mutation
+  [ "$(yq '.aliases."resolve-thread" | test("resolveReviewThread")' "$cfg")" = true ]
+}
+
+# alias_run <alias> args...: run the alias body the way gh does (sh -c body -- args)
+# with a stub gh that records its argv, one per line, in $BATS_TEST_TMPDIR/argv
+alias_run() {
+  local a=$1 body
+  shift
+  body=$(yq ".aliases.\"$a\"" "$BATS_TEST_DIRNAME/../.config/gh/config.yml")
+  body=${body#!}
+  mkdir -p "$BATS_TEST_TMPDIR/stub"
+  printf '#!/bin/sh\nprintf "%%s\\n" "$@" > "%s/argv"\n' "$BATS_TEST_TMPDIR" >"$BATS_TEST_TMPDIR/stub/gh"
+  chmod +x "$BATS_TEST_TMPDIR/stub/gh"
+  rm -f "$BATS_TEST_TMPDIR/argv"
+  PATH=$BATS_TEST_TMPDIR/stub:$PATH run sh -c "$body" -- "$@"
+}
+
+@test "reply-thread posts to the reply endpoint with numeric ids" {
+  alias_run reply-thread 12 345 'looks fixed'
+  [ "$status" -eq 0 ]
+  [ "$(sed -n 1p "$BATS_TEST_TMPDIR/argv")" = api ]
+  [ "$(sed -n 2p "$BATS_TEST_TMPDIR/argv")" = 'repos/{owner}/{repo}/pulls/12/comments/345/replies' ]
+  grep -Fxq 'body=looks fixed' "$BATS_TEST_TMPDIR/argv"
+}
+
+@test "reply-thread refuses ids that could reroute the request" {
+  for bad in '123/reviews#' '1?x=2' '12/../3' '' 'abc' '1 2'; do
+    alias_run reply-thread "$bad" 345 body
+    [ "$status" -eq 2 ]
+    [ ! -e "$BATS_TEST_TMPDIR/argv" ]
+    alias_run reply-thread 12 "$bad" body
+    [ "$status" -eq 2 ]
+    [ ! -e "$BATS_TEST_TMPDIR/argv" ]
+  done
+}
+
+@test "resolve-thread sends the fixed mutation with the id as a variable" {
+  alias_run resolve-thread PRRT_kwDOabc
+  [ "$status" -eq 0 ]
+  grep -Fxq 'id=PRRT_kwDOabc' "$BATS_TEST_TMPDIR/argv"
+  grep -Fq 'resolveReviewThread(input:{threadId:$id})' "$BATS_TEST_TMPDIR/argv"
+}

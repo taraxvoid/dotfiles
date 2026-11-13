@@ -92,7 +92,9 @@
       "Bash(gh api /repos/*)",
       "Bash(gh api user)",
       "Bash(gh api rate_limit)",
-      "Bash(gh aw compile --strict*)"
+      "Bash(gh aw compile --strict*)",
+      "Bash(gh reply-thread *)",
+      "Bash(gh resolve-thread *)"
     ],
     "deny": [
       "Bash(git worktree remove*)",
@@ -125,7 +127,8 @@
       "Bash(gws *--yes*)"
     ],
     "ask": [
-    "Edit(/.github/workflows/**)",
+    "Edit(/.github/workflows/*.yml)",
+      "Edit(/.github/workflows/*.yaml)",
       "Bash(gh pr merge *)",
       "Bash(gh repo edit *)",
       "Bash(gh secret *)",
@@ -171,6 +174,26 @@
             "type": "command",
             "command": "$HOME/.claude/scripts/require-worktree.sh",
             "if": "Bash(git commit*)"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/gh-aw-frontmatter-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/gh-aw-pre-push.sh",
+            "if": "Bash(git push*)",
+            "timeout": 120
           }
         ]
       },

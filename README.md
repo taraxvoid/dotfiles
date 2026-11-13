@@ -60,6 +60,11 @@ The zsh config detects what is installed instead of branching on OS:
   bump them with `ya pkg upgrade`, Renovate doesn't.
 - Generated init scripts (zoxide, fzf, starship) are cached in `~/.cache/zsh`
   and regenerated when the tool's binary changes; delete that dir to force it.
+- rtk (trial, pinned in the global mise config): `rtk init -g` registers a
+  Claude Code PreToolUse hook that rewrites supported commands to `rtk <cmd>`
+  so the agent reads compressed output. It writes `~/.claude/settings.json`
+  directly; merge-settings only adds fragment hooks, so it survives install.sh
+  re-runs. Remove with `rtk init -g --uninstall`.
 
 `install.sh` leaves `~/.config/gh/hosts.yml` and `~/.config/poolside` alone
 (per-machine auth). It links `.ssh/config` but never keys or `~/.ssh/config.local`. It asks, default no, before linking `.claude/CLAUDE.md` and
@@ -136,6 +141,16 @@ the call too: it exits 2 on any non-GET method or body flag and asks before
 Prefer the dedicated subcommands (`gh pr view`, `gh issue view`, `gh run view`,
 `gh pr checks`) and keep `gh api` for what they do not cover.
 
+Replying to and resolving review threads needs writes `gh` has no subcommand for, so
+two fixed-shape aliases in `.config/gh/config.yml` cover them: `gh reply-thread <pr>
+<comment-id> <body>` (REST reply, scoped to the current repo via `{owner}/{repo}`) and
+`gh resolve-thread <thread-node-id>` (GraphQL `resolveReviewThread` only). Both are in
+`permissions.allow`. They start with `gh`, so the sandbox exclusion matches, and the
+hook ignores them because it only inspects `gh api`. Claude supplies IDs and reply text,
+never a method or query, so it cannot delete, edit or merge anything through them.
+Thread node IDs (and the REST comment IDs to reply to) come from a
+`gh api graphql` query over `reviewThreads`, which the hook asks about each time.
+
 The hook also single-quotes bare `{owner}`/`{repo}`/`{branch}` words in `gh api`
 calls (via `updatedInput`). Unquoted, next to a quoted argument such as
 `-q '.[0].number'`, they stop the sandbox matching `gh *` as an excluded command,
@@ -146,10 +161,22 @@ so the call runs sandboxed and fails with `x509: OSStatus -26276`.
 `gh aw compile --strict` is allowed unprompted (`permissions.allow`) so compile errors
 surface locally before a push instead of turning CI red. Compiling only regenerates
 `*.lock.yml` from the `.github/workflows/*.md` sources, so the self-modification risk
-is in editing those sources: `permissions.ask` has `Edit(/.github/workflows/**)`, so
-Claude must get approval before changing a workflow's frontmatter or prompt. The real
-boundary is server-side (CODEOWNERS, required review, a CI check that lock files are
-in sync); these rules are only a guard against mistakes. See issue #109.
+is in editing those sources:
+
+- `gh-aw-frontmatter-guard.sh` (PreToolUse on Edit|Write) asks when an edit to a
+  `.github/workflows/*.md` file changes `permissions`, `tools`, `network`,
+  `safe-outputs`, `engine` or `imports` compared with `origin/main`, or when the
+  file is new on the branch. Prompt-body edits pass silently.
+- `permissions.ask` covers `Edit(/.github/workflows/*.yml)` and `*.yaml` (plain
+  Actions workflows and lock files).
+- `gh-aw-pre-push.sh` (PreToolUse on `git push`) runs `gh aw compile --strict` in
+  repos that have gh aw sources and blocks the push if it fails or rewrites a lock
+  file. Skip with `CLAUDE_SKIP_GH_AW_PUSH_CHECK=1`.
+
+These local rules are only a guard against mistakes. The intended real boundary is
+server-side and is planned, not in place: CODEOWNERS on `.github/workflows/`,
+required review, and a CI check that lock files are in sync, set up per target
+repo. See issue #109.
 
 ## Claude worktree cleanup
 

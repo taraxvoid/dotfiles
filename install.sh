@@ -387,16 +387,25 @@ gen_completion starship starship completions zsh
 gen_completion rustup rustup completions zsh rustup
 gen_completion cargo rustup completions zsh cargo
 gen_completion cf cf complete zsh # Cloudflare's cf CLI
-# yazi has no generator; its release tarball ships the completions next to the binaries
-if command -v mise >/dev/null && yazi_bin=$(cd "$HOME" && mise which yazi 2>/dev/null); then
-  for name in yazi ya; do
-    src=$(dirname "$yazi_bin")/completions/_$name
-    if [ -r "$src" ] && ! cmp -s "$src" "$comp_dir/_$name"; then
-      cp "$src" "$comp_dir/_$name"
-      say "completion: $name"
-    fi
-  done
-fi
+# Some tools have no generator but ship #compdef files next to the binary in
+# their release tarball; copy them into fpath like gen_completion output.
+# ship_completion <name> <tool> <path-relative-to-binary-dir>
+ship_completion() {
+  local name=$1 tool=$2 rel=$3 bin src
+  command -v mise >/dev/null || return 0
+  bin=$(cd "$HOME" && mise which "$tool" 2>/dev/null) || return 0
+  src=$(dirname "$bin")/$rel
+  [ -r "$src" ] || return 0
+  if ! cmp -s "$src" "$comp_dir/_$name"; then
+    cp "$src" "$comp_dir/_$name"
+    say "completion: $name"
+  fi
+}
+ship_completion yazi yazi completions/_yazi
+ship_completion ya yazi completions/_ya
+ship_completion sd sd completions/_sd
+ship_completion bat bat autocomplete/bat.zsh
+ship_completion watchexec watchexec completions/zsh
 # mise's completions call out to `usage` at tab time; pinned like the other tools
 USAGE_VERSION=6.12.1
 if command -v mise >/dev/null && [ "$(cd "$HOME" && mise ls --global --no-header usage 2>/dev/null | awk '{print $2}')" != "$USAGE_VERSION" ]; then

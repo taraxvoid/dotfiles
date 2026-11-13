@@ -23,6 +23,7 @@ bat = "0.26.1" # aliased to cat in .zsh_aliases
 starship = "1.26.0"
 "aqua:dandavison/delta" = "0.20.1" # git pager (.gitconfig falls back to less without it)
 "aqua:arxanas/git-branchless" = "0.11.1" # stacked commits: git sl/smartlog/restack/submit; init per repo
+"aqua:rtk-ai/rtk" = "1.1.0" # trial: compresses CLI output for agents; activate with `rtk init -g`
 shellcheck = "0.11.0"
 "npm:@anthropic-ai/sandbox-runtime" = "0.0.79" # srt: the sbx backend where bwrap is absent (macOS)
 herdr = "0.9.5"
