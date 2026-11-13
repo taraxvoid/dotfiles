@@ -148,10 +148,22 @@ so the call runs sandboxed and fails with `x509: OSStatus -26276`.
 `gh aw compile --strict` is allowed unprompted (`permissions.allow`) so compile errors
 surface locally before a push instead of turning CI red. Compiling only regenerates
 `*.lock.yml` from the `.github/workflows/*.md` sources, so the self-modification risk
-is in editing those sources: `permissions.ask` has `Edit(/.github/workflows/**)`, so
-Claude must get approval before changing a workflow's frontmatter or prompt. The real
-boundary is server-side (CODEOWNERS, required review, a CI check that lock files are
-in sync); these rules are only a guard against mistakes. See issue #109.
+is in editing those sources:
+
+- `gh-aw-frontmatter-guard.sh` (PreToolUse on Edit|Write) asks when an edit to a
+  `.github/workflows/*.md` file changes `permissions`, `tools`, `network`,
+  `safe-outputs`, `engine` or `imports` compared with `origin/main`, or when the
+  file is new on the branch. Prompt-body edits pass silently.
+- `permissions.ask` covers `Edit(/.github/workflows/*.yml)` and `*.yaml` (plain
+  Actions workflows and lock files).
+- `gh-aw-pre-push.sh` (PreToolUse on `git push`) runs `gh aw compile --strict` in
+  repos that have gh aw sources and blocks the push if it fails or rewrites a lock
+  file. Skip with `CLAUDE_SKIP_GH_AW_PUSH_CHECK=1`.
+
+These local rules are only a guard against mistakes. The intended real boundary is
+server-side and is planned, not in place: CODEOWNERS on `.github/workflows/`,
+required review, and a CI check that lock files are in sync, set up per target
+repo. See issue #109.
 
 ## Claude worktree cleanup
 

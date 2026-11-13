@@ -66,9 +66,11 @@ setup() {
 @test "adds every guardrail hook and the worktree deny rules to a fresh file" {
   echo '{}' >"$s"
   merge-settings.sh "$frag" "$s"
-  [ "$(jq '.hooks.PreToolUse | length' "$s")" = 3 ]
+  [ "$(jq '.hooks.PreToolUse | length' "$s")" = 5 ]
   [ "$(jq -r '.hooks.PreToolUse[1].hooks[0].if' "$s")" = 'Bash(git commit*)' ]
-  [ "$(jq -r '.hooks.PreToolUse[2].hooks[0].command' "$s")" = '$HOME/.claude/scripts/gh-api-guard.sh' ]
+  [ "$(jq -r '.hooks.PreToolUse[2].hooks[0].command' "$s")" = '$HOME/.claude/scripts/gh-aw-frontmatter-guard.sh' ]
+  [ "$(jq -r '.hooks.PreToolUse[3].hooks[0].command' "$s")" = '$HOME/.claude/scripts/gh-aw-pre-push.sh' ]
+  [ "$(jq -r '.hooks.PreToolUse[4].hooks[0].command' "$s")" = '$HOME/.claude/scripts/gh-api-guard.sh' ]
   [ "$(jq -r '.hooks.WorktreeCreate[0].hooks[0].command' "$s")" = '$HOME/.claude/scripts/worktree-create.sh' ]
   [ "$(jq '.hooks.WorktreeRemove | length' "$s")" = 1 ]
   [ "$(jq -r '.permissions.deny[0]' "$s")" = 'Bash(git worktree remove*)' ]
@@ -93,7 +95,7 @@ setup() {
 @test "a machine that already wired the hooks by hand gets no duplicates" {
   jq '{hooks: {PreToolUse: .hooks.PreToolUse, WorktreeCreate: .hooks.WorktreeCreate}}' "$frag" >"$s"
   merge-settings.sh "$frag" "$s"
-  [ "$(jq '.hooks.PreToolUse | length' "$s")" = 3 ]
+  [ "$(jq '.hooks.PreToolUse | length' "$s")" = 5 ]
   [ "$(jq '.hooks.WorktreeCreate | length' "$s")" = 1 ]
 }
 
