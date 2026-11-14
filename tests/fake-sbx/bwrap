@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Fake bwrap for sbx audit tests: records one argument per line, runs nothing.
+printf '%s\n' "$@" >"${FAKE_LOG:?}/bwrap"
