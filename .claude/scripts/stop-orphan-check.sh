@@ -27,15 +27,22 @@ mark=$marks/$(printf '%s' "$top" | tr '/ ' '%_')
 # Mark first, so a check that hangs or fails is not retried every turn at this HEAD
 mkdir -p "$marks" && printf '%s\n' "$head" >"$mark" || exit 0
 # gh can hang (offline); cut gws off well before Claude Code's hook timeout.
-# Background job plus a sleeping killer, since macOS has no timeout(1).
+# Background job plus a sleeping killer, since macOS has no timeout(1). Job
+# control (set -m) puts each in its own process group so the kill reaches gws's
+# whole tree: a bare kill of gws is deferred by its EXIT trap until the hung gh
+# child finishes.
 out=$marks/.out.$$
+set -m
 "$gws" --here "$top" >"$out" 2>/dev/null &
 pid=$!
-(sleep "${GWS_HOOK_TIMEOUT:-8}"; kill "$pid" 2>/dev/null) >/dev/null 2>&1 &
+(sleep "${GWS_HOOK_TIMEOUT:-8}"; kill -- "-$pid" 2>/dev/null) >/dev/null 2>&1 &
 killer=$!
-wait "$pid"
+# disown so bash does not print a "Terminated" job notice (it would land on stderr)
+disown "$killer" 2>/dev/null
+wait "$pid" 2>/dev/null
 rc=$?
-kill "$killer" 2>/dev/null
+kill -- "-$killer" 2>/dev/null
+set +m
 line=$(cat "$out" 2>/dev/null)
 rm -f "$out"
 [ "$rc" = 2 ] || exit 0

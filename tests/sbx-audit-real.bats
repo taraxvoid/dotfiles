@@ -75,9 +75,12 @@ setup() {
 }
 
 @test "the memory cap kills a runaway allocation" {
-  # killed by the memory cap, not by the 300 s runtime cap
+  # killed by the memory cap, not by the 300 s runtime cap. Touch 1 GiB for real:
+  # `tail /dev/zero` is not a reliable allocator (uutils tail on Ubuntu 26.04 never
+  # grew and ran into the runtime cap instead).
+  command -v python3 >/dev/null || skip "python3 not installed"
   start=$SECONDS
-  SBX_AUDIT_MEM=64M run "$sbx" --audit "$tree" sh -c 'tail /dev/zero'
+  SBX_AUDIT_MEM=64M run "$sbx" --audit "$tree" python3 -c 'b"x" * (1 << 30)'
   [ "$status" -ne 0 ]
   [ $((SECONDS - start)) -lt 60 ]
 }
