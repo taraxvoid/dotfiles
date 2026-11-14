@@ -16,14 +16,14 @@ cache() { # cache <path> <state> <reason> <pr|null> <issue|null> <orphans>
   main=$(make_repo personal/app)
   wt=$(add_worktree "$main" worktree-42-feat)
   cache "$wt" tracked "" 20 42 3
-  [ "$(line "$wt")" = "app/worktree-42-feat - #42 tracked (PR #20) - 3 orphans" ]
+  [ "$(line "$wt")" = "app/worktree-42-feat - #42 tracked (PR #20)" ]
 }
 
 @test "orphaned worktree shows its reason" {
   main=$(make_repo personal/app)
   wt=$(add_worktree "$main" worktree-feat)
   cache "$wt" orphaned "never pushed" null null 1
-  [ "$(line "$wt")" = "app/worktree-feat - orphan: never pushed - 1 orphan" ]
+  [ "$(line "$wt")" = "app/worktree-feat - orphan: never pushed" ]
 }
 
 @test "uncommitted changes are appended" {
@@ -31,14 +31,12 @@ cache() { # cache <path> <state> <reason> <pr|null> <issue|null> <orphans>
   wt=$(add_worktree "$main" worktree-feat)
   cache "$wt" orphaned "never pushed" null null 1
   touch "$wt/x"
-  [ "$(line "$wt")" = "app/worktree-feat - orphan: never pushed, local changes - 1 orphan" ]
+  [ "$(line "$wt")" = "app/worktree-feat - orphan: never pushed, local changes" ]
 }
 
-@test "main checkout shows branch and count, zero count is omitted" {
+@test "main checkout shows just the branch" {
   main=$(make_repo personal/app)
   cache /elsewhere tracked "" null null 2
-  [ "$(line "$main")" = "app (main) - 2 orphans" ]
-  cache /elsewhere tracked "" null null 0
   [ "$(line "$main")" = "app (main)" ]
 }
 
@@ -52,7 +50,7 @@ cache() { # cache <path> <state> <reason> <pr|null> <issue|null> <orphans>
   main=$(make_repo personal/app)
   cache /elsewhere tracked "" null null 2
   touch -t 202001010000 "$GWS_CACHE"
-  [[ "$(line "$main")" =~ ^"app (main) - 2 orphans - scan "[0-9]+"d old"$ ]]
+  [[ "$(line "$main")" =~ ^"app (main) - scan "[0-9]+"d old"$ ]]
 }
 
 @test "empty cache file does not break the line" {
@@ -72,5 +70,5 @@ cache() { # cache <path> <state> <reason> <pr|null> <issue|null> <orphans>
   wt=$(add_worktree "$main" worktree-feat)
   cache "$wt" orphaned "never pushed" null null 1
   git -C "$wt" push -q -u origin worktree-feat
-  [ "$(line "$wt")" = "app/worktree-feat - pushed since scan - 1 orphan" ]
+  [ "$(line "$wt")" = "app/worktree-feat - pushed since scan" ]
 }
