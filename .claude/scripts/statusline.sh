@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Claude Code status line: repo/worktree - this worktree's gws state - orphan
-# count. Reads only local git and the gws cache and never calls gh, so it stays
-# fast. Plain text on purpose: the count is a fact, not an alarm.
+# Claude Code status line: repo/worktree - this worktree's gws state. Reads only
+# local git and the gws cache and never calls gh, so it stays fast.
 set -o pipefail
 
 input=$(cat)
@@ -44,12 +43,6 @@ else
 fi
 
 if [ "$valid" = 1 ]; then
-  n=$(jq -r '.totals.orphaned // 0' "$cache")
-  case $n in
-    0 | '' | *[!0-9]*) ;;
-    1) parts+=("1 orphan") ;;
-    *) parts+=("$n orphans") ;;
-  esac
   age=$((($(date +%s) - $(date -r "$cache" +%s)) / 86400))
   if [ "$age" -ge 1 ]; then parts+=("scan ${age}d old"); fi
 fi
