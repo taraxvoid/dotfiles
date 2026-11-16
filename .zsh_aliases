@@ -532,7 +532,40 @@ alias gpdn="gh pr diff --name-only"
 # commit range. The base is fetched first so a stale origin/<base> can't
 # inflate the list, and a base with no shared history aborts before pushing.
 # Later --title/--body args override these.
-#: gpp [-B base] [create args] -- push this branch and open a PR (Closes #N on worktree-<N>-* branches)
+# gpp helper: on the base/main checkout, move the unpushed commits onto a new
+# worktree-<slug> branch (slug from the newest commit subject), put local <base>
+# back on origin/<base>, add a worktree at ~/worktrees/<tier>/<repo>/<slug> and
+# cd into it, so the push (and its pre-push hook) runs on a pushable branch.
+_gpp_branch_off() {
+  local base=$1 top slug name wt cur
+  if [[ -n $(git status --porcelain) ]]; then
+    print -u2 -- "gpp: uncommitted changes, commit or stash first"
+    return 1
+  fi
+  if [[ -z $(git rev-list -1 origin/$base..HEAD) ]]; then
+    print -u2 -- "gpp: no commits ahead of origin/$base, nothing to push"
+    return 1
+  fi
+  top=$(git rev-parse --show-toplevel)
+  slug=$(git log -1 --format=%s | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//' | cut -c1-40 | sed -E 's/-+$//')
+  : ${slug:=change}
+  name=$slug
+  while git show-ref -q --verify refs/heads/worktree-$name; do name=$slug-$RANDOM; done
+  if [[ $top == $HOME/projects/* ]]; then
+    wt=$HOME/worktrees/${top#$HOME/projects/}/$name
+  else
+    wt=$HOME/worktrees/other/${top:t}/$name
+  fi
+  cur=$(git branch --show-current)
+  git switch -q -c worktree-$name || return
+  git branch -f $cur origin/$cur || return
+  git switch -q $cur || return
+  git worktree add "$wt" worktree-$name || return
+  print -u2 -- "gpp: moved commits from $cur to worktree-$name at $wt"
+  cd "$wt"
+}
+
+#: gpp [-B base] [create args] -- push this branch and open a PR (Closes #N on worktree-<N>-* branches); on main/base it first moves the commits to a new branch + worktree
 gpp() {
   local branch=$(git branch --show-current) base= arg prev=
   for arg in "$@"; do
@@ -549,6 +582,10 @@ gpp() {
   if ! git merge-base origin/$base HEAD >/dev/null; then
     print -u2 -- "gpp: $branch shares no history with origin/$base"
     return 1
+  fi
+  if [[ $branch == (main|master|$base) ]]; then
+    _gpp_branch_off "$base" || return
+    branch=$(git branch --show-current)
   fi
   git push -u origin HEAD || return
   local -a own=( $(git rev-list --reverse --first-parent --no-merges origin/$base..HEAD) )
@@ -578,6 +615,9 @@ gpp() {
 $body}"
   gh pr create --title "$title" --body "$body" "$@"
 }
+
+#: gppn [create args] -- gpp with base next
+alias gppn="gpp --base next"
 
 # Issues (gi*)
 #: gin <title> -- create an issue
