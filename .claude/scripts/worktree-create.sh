@@ -36,7 +36,7 @@ if [ ! -e "$dest" ]; then
   if git -C "$main" rev-parse -q --verify "refs/heads/$branch" >/dev/null; then
     git -C "$main" worktree add -q "$dest" "$branch" >&2
   else
-    git -C "$main" worktree add -q -b "$branch" "$dest" "$base" >&2
+    git -C "$main" worktree add -q --no-track -b "$branch" "$dest" "$base" >&2
   fi
 fi
 
