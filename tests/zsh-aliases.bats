@@ -401,6 +401,27 @@ zm() {
   [[ "$output" != *"[y/N]"* ]]
 }
 
+@test "gix passes the issue number to gh once, wherever it sits among the options" {
+  run zb 'gix -y 4; gix -y --comment done 5; gix -y --reason completed #6; cat "$HOME/gh-calls"'
+  [[ "$output" == *$'gh issue close 4\n'* || "$output" == *"gh issue close 4" ]]
+  [[ "$output" == *"gh issue close 5 --comment done"* ]]
+  [[ "$output" == *"gh issue close 6 --reason completed"* ]]
+  [[ "$output" != *"close 4 4"* && "$output" != *"close 5 5"* ]]
+}
+
+@test "gix confirms the issue it will close when an option precedes the number" {
+  run zb 'gix --reason completed 9 </dev/null'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Close #9?"* ]]
+}
+
+@test "gix and gic fall back to the picker off a worktree branch" {
+  BRANCH=main run zb 'gix -y'
+  [[ "$output" == *picker* ]]
+  BRANCH=main run zb 'gic'
+  [[ "$output" == *picker* ]]
+}
+
 @test "every git/gh shortcut has a #: line for ghelp" {
   run zsh -fc 'source "$0"
     setopt extendedglob

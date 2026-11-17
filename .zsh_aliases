@@ -874,14 +874,19 @@ gix() {
   for a in "$@"; do
     case $a in -y|--yes) yes=1 ;; *) args+=("$a") ;; esac
   done
+  local i pick=0
   if [[ ${args[1]:-} == (-p|--pick) ]]; then
-    shift args
-  elif (( $#args )); then
-    n=${args[1]#\#}
-    shift args
-  elif n=$(_gh_branch_issue); then
-    :
+    pick=1; shift args
   fi
+  # the issue is the first bare number or #N, wherever it sits among the options
+  for (( i = 1; i <= $#args; i++ )); do
+    if [[ ${args[i]} == (\#|)<-> ]]; then
+      n=${args[i]#\#}
+      args[i]=()
+      break
+    fi
+  done
+  (( pick )) || [[ -n ${n:-} ]] || n=$(_gh_branch_issue) || n=
   if [[ -z ${n:-} ]]; then
     n=$(gh issue list --limit 100 --json number,title -q '.[] | "\(.number)\t\(.title)"' \
       | fzf --delimiter='\t' --prompt='close issue> ' --preview='gh issue view {1}' --preview-window=right,60% \
