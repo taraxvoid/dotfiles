@@ -496,10 +496,6 @@ alias gpw="gh pr checks --watch"
 # gpb: open the PR in the browser; if the branch has none yet, open the create-PR page instead
 #: gpb -- open this branch's PR in the browser, or the create-PR page
 gpb() { gh pr view --web 2>/dev/null || gh pr create --web; }
-#: gpn [create args] -- create a PR, title and body from the commits
-alias gpn="gh pr create --fill"
-#: gpndt <title> -- create a draft PR with that title
-alias gpndt="gh pr create --draft --title"
 #: gpe [pr] -- edit a PR (title, body, labels, reviewers...)
 alias gpe="gh pr edit"
 #: gpr [pr] -- mark a draft PR ready for review
