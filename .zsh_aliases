@@ -179,7 +179,7 @@ _page() {
 
 # Bare commands act on the current branch when that is safe: its open PR
 # (_gh_pr_current) or, on a worktree-<N>-<slug> branch, issue N (_gh_branch_issue).
-# Destructive ones (gpm, gpx, gic) ask first via _confirm unless given -y/--yes.
+# Destructive ones (gpm, gpx, gix) ask first via _confirm unless given -y/--yes.
 _gh_pr_current() {
   local n
   n=$(gh pr view --json number,state -q 'select(.state == "OPEN") | .number' 2>/dev/null)
@@ -840,12 +840,12 @@ gwr() {
 
 # fzf pickers: these run their usual command when given args and fall back to an
 # fzf picker when called bare (like gwo and gwr). `gh issue` needs a number, so
-# bare giv/giw/gie/gic/gicm use the current worktree-<N>-<slug> branch's issue
-# N, else (or with -p/--pick) pick an open issue first. Bare gic asks before
-# closing the branch's issue unless given -y/--yes. gh already prompts on
+# bare giv/giw/gie/gix/gic use the current worktree-<N>-<slug> branch's issue
+# N, else (or with -p/--pick) pick an open issue first. gix (close) always asks
+# first, even with an explicit number, unless given -y/--yes. gh already prompts on
 # its own for `gh run view/cancel/download/rerun` and `gh workflow run`.
 # (gid, `gh issue develop`, is gone: gwc starts an issue in a worktree instead.)
-unalias giv giw gie gic gicm gid gco 2>/dev/null
+unalias giv giw gie gix gic gicm gid gco 2>/dev/null
 _gi() { # _gi "<gh issue subcommand + flags>" [args...]
   local sub=$1 n; shift
   if [[ ${1:-} == (-p|--pick) ]]; then
@@ -867,21 +867,32 @@ giv() { _gi view "$@" }
 giw() { _gi "view --web" "$@" }
 #: gie [issue] -- edit an issue; bare, this branch's issue, else pick one
 gie() { _gi edit "$@" }
-#: gic [issue] -- close an issue; bare, this branch's issue (confirms), else pick one
-gic() {
+#: gix [issue] -- close an issue (always confirms, -y skips); bare, this branch's issue, else pick one
+gix() {
   local a n yes=0
   local -a args
   for a in "$@"; do
     case $a in -y|--yes) yes=1 ;; *) args+=("$a") ;; esac
   done
-  if (( ! $#args )) && n=$(_gh_branch_issue); then
-    (( yes )) || _confirm "Close #$n (this branch's issue)?" || return 1
-    gh issue close $n; return
+  if [[ ${args[1]:-} == (-p|--pick) ]]; then
+    shift args
+  elif (( $#args )); then
+    n=${args[1]#\#}
+    shift args
+  elif n=$(_gh_branch_issue); then
+    :
   fi
-  _gi close "${args[@]}"
+  if [[ -z ${n:-} ]]; then
+    n=$(gh issue list --limit 100 --json number,title -q '.[] | "\(.number)\t\(.title)"' \
+      | fzf --delimiter='\t' --prompt='close issue> ' --preview='gh issue view {1}' --preview-window=right,60% \
+      | cut -f1) || return 1
+    [[ -n "$n" ]] || return 1
+  fi
+  (( yes )) || _confirm "Close #$n?" || return 1
+  gh issue close $n "${args[@]}"
 }
-#: gicm [issue] -- comment on an issue; bare, this branch's issue, else pick one
-gicm() { _gi comment "$@" }
+#: gic [issue] -- comment on an issue; bare, this branch's issue, else pick one
+gic() { _gi comment "$@" }
 unfunction gid 2>/dev/null
 # gco: bare, pick a local branch (most recent first, preview shows its log).
 # A single branch name (picked or typed) that is checked out in another worktree
