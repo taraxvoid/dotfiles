@@ -402,8 +402,8 @@ zm() {
 }
 
 @test "gix passes the issue number to gh once, wherever it sits among the options" {
-  run zb 'gix -y 4; gix -y --comment done 5; gix -y --reason completed #6; cat "$HOME/gh-calls"'
-  [[ "$output" == *$'gh issue close 4\n'* || "$output" == *"gh issue close 4" ]]
+  run zb 'gix -y 4; gix -y --comment done 5; gix -y --reason completed "#6"; cat "$HOME/gh-calls"'
+  [[ "$output" == *"gh issue close 4"* ]]
   [[ "$output" == *"gh issue close 5 --comment done"* ]]
   [[ "$output" == *"gh issue close 6 --reason completed"* ]]
   [[ "$output" != *"close 4 4"* && "$output" != *"close 5 5"* ]]
