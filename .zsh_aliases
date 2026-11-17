@@ -616,8 +616,8 @@ $body}"
   gh pr create --title "$title" --body "$body" "$@"
 }
 
-#: gppn [create args] -- gpp with base next
-alias gppn="gpp --base next"
+#: gpn [create args] -- gpp with base next
+alias gpn="gpp --base next"
 
 # Issues (gi*)
 #: gin <title> -- create an issue
