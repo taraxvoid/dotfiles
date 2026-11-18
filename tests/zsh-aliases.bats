@@ -378,8 +378,8 @@ zm() {
   [[ "$output" != *mergeStateStatus* ]]
 }
 
-@test "bare giv and gicm use the worktree-<N> branch's issue, else (or with -p) pick" {
-  run zb 'giv; gicm; cat "$HOME/gh-calls"'
+@test "bare giv and gic use the worktree-<N> branch's issue, else (or with -p) pick" {
+  run zb 'giv; gic; cat "$HOME/gh-calls"'
   [[ "$output" == *"gh issue view 12"* ]]
   [[ "$output" == *"gh issue comment 12"* ]]
   BRANCH=main run zb 'giv'
@@ -388,14 +388,38 @@ zm() {
   [[ "$output" == *picker* ]]
 }
 
-@test "bare gic asks before closing the branch's issue, -y skips it, a number does not ask" {
-  run zb 'gic </dev/null'
+@test "gix always asks before closing (branch issue or a number), -y skips it" {
+  run zb 'gix </dev/null'
   [ "$status" -eq 1 ]
   [[ "$output" == *"Close #12"* ]]
-  run zb 'gic -y; gic 4; cat "$HOME/gh-calls"'
+  run zb 'gix 4 </dev/null'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Close #4?"* ]]
+  run zb 'gix -y; gix -y 4; cat "$HOME/gh-calls"'
   [[ "$output" == *"gh issue close 12"* ]]
   [[ "$output" == *"gh issue close 4"* ]]
   [[ "$output" != *"[y/N]"* ]]
+}
+
+@test "gix passes the issue number to gh once, wherever it sits among the options" {
+  run zb 'gix -y 4; gix -y --comment done 5; gix -y --reason completed "#6"; cat "$HOME/gh-calls"'
+  [[ "$output" == *"gh issue close 4"* ]]
+  [[ "$output" == *"gh issue close 5 --comment done"* ]]
+  [[ "$output" == *"gh issue close 6 --reason completed"* ]]
+  [[ "$output" != *"close 4 4"* && "$output" != *"close 5 5"* ]]
+}
+
+@test "gix confirms the issue it will close when an option precedes the number" {
+  run zb 'gix --reason completed 9 </dev/null'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Close #9?"* ]]
+}
+
+@test "gix and gic fall back to the picker off a worktree branch" {
+  BRANCH=main run zb 'gix -y'
+  [[ "$output" == *picker* ]]
+  BRANCH=main run zb 'gic'
+  [[ "$output" == *picker* ]]
 }
 
 @test "every git/gh shortcut has a #: line for ghelp" {
