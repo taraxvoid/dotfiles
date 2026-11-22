@@ -49,10 +49,36 @@ guard() { jq -cn --arg c "$1" '{tool_name: "Bash", tool_input: {command: $c}}' |
   done
 }
 
-@test "asks for graphql instead of denying its -f query" {
-  run guard "gh api graphql -f query='{viewer{login}}'"
+@test "asks for graphql mutations instead of denying their -f query" {
+  run guard "gh api graphql -f id=X -f query='mutation(\$id:ID!){resolveReviewThread(input:{threadId:\$id}){thread{id}}}'"
   [ "$status" -eq 0 ]
   [ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = ask ]
+  run guard "gh api graphql -f query='MUTATION{x}'"
+  [ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = ask ]
+}
+
+@test "allows a lone read-only graphql query" {
+  run guard "gh api graphql -f query='{viewer{login}}'"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = allow ]
+  run guard "gh api graphql -F owner='{owner}' -f query='query { repository { pullRequests { nodes { id } } } }' --jq '.data | length'"
+  [ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = allow ]
+}
+
+@test "asks for graphql it cannot prove read-only" {
+  for c in \
+    "gh api graphql -f query='{viewer{login}}' && rm -rf x" \
+    "gh api graphql -f query='{viewer{login}}'; echo hi" \
+    "gh api graphql -f query='{viewer{login}}' | cat" \
+    "gh api graphql -f query='{viewer{login}}' > out" \
+    "gh api graphql -F query=@q.graphql" \
+    "gh api graphql --input q.json" \
+    "gh api graphql -f query=\"\$(cat q)\"" \
+    "echo hi && gh api graphql -f query='{viewer{login}}'"; do
+    run guard "$c"
+    [ "$status" -eq 0 ]
+    [ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = ask ]
+  done
 }
 
 @test "finds gh api after other commands and on later lines" {
@@ -92,11 +118,13 @@ rewritten() { jq -r '.hookSpecificOutput.updatedInput.command // empty' <<<"$out
   [ "$status" -eq 0 ] && [ -z "$output" ]
 }
 
-@test "keeps the graphql ask when it also rewrites" {
+@test "keeps the graphql decision when it also rewrites" {
   run guard "gh api graphql -f query='{viewer{login}}' -f o={owner}"
   [ "$status" -eq 0 ]
-  [ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = ask ]
+  [ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = allow ]
   [ "$(rewritten)" = "gh api graphql -f query='{viewer{login}}' -f 'o={owner}'" ]
+  run guard "gh api graphql -f query='mutation{x}' -f o={owner}"
+  [ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = ask ]
 }
 
 @test "CLAUDE_ALLOW_GH_API_WRITES=1 lifts the block" {

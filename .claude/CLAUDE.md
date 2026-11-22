@@ -34,6 +34,7 @@ Bots in CI (CodeRabbit, Codacy) / Tara may review PRs
 - Each check: fix failing CI, and address review comments. Apply the `superpowers:receiving-code-review` approach: verify each finding, apply the valid ones, and reply on the thread with a short reason when declining a wrong or noisy one. Commit, push, and resolve the threads you addressed.
 - If a check pushed changes, schedule one more check about 10 minutes later (new pushes retrigger the bots). If a follow-up check (not the initial one) finds no new comments, no new reviews and CI green (or still pending with no failures), stop: do not schedule another, and say the PR is quiet.
 - Never loop indefinitely: stop after 3 max follow-up rounds even if comments keep arriving, and tell Tara what remains. When stopping, cancel any pending schedule: `ScheduleWakeup` with `stop: true` under `/loop`, or `CronDelete` for a PR-specific cron job.
+- `gh api` is read-only (a hook blocks writes, don't try to bypass it). To reply on an inline review thread use `gh reply-thread <pr> <comment-id> <body>` (comment-id is the databaseId of the thread's first comment). To resolve one use `gh resolve-thread <thread-node-id>` (the GraphQL `PRRT_...` id from `gh api graphql` reviewThreads, read with `-f query=`; that read prompts for approval). Both are pre-allowed aliases; never fall back to a general PR comment just because `gh api` writes are blocked.
 - Keep every `gh` call a bare call (see Bash sandbox note above): no pipes, chains, or shell loops around it.
 - Do not merge the PR; that stays Tara's call.
 

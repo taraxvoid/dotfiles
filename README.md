@@ -137,7 +137,9 @@ read endpoints Claude may call unprompted (`repos/*`, `/repos/*`, `user`,
 `--input`, and `-f`/`-F`/`--field`/`--raw-field` on repo endpoints). Globs miss
 spellings like `-XPOST`, so `gh-api-guard.sh` (a PreToolUse hook on Bash) parses
 the call too: it exits 2 on any non-GET method or body flag and asks before
-`gh api graphql`, which is always a POST. Override with `CLAUDE_ALLOW_GH_API_WRITES=1`.
+`gh api graphql`, which is always a POST, unless the call is a lone query it can
+show is read-only (no `mutation`, no `@file` or `--input` body, no `$(...)`, no
+chaining, pipes or redirects), which it allows. Override with `CLAUDE_ALLOW_GH_API_WRITES=1`.
 Prefer the dedicated subcommands (`gh pr view`, `gh issue view`, `gh run view`,
 `gh pr checks`) and keep `gh api` for what they do not cover.
 
@@ -149,7 +151,7 @@ two fixed-shape aliases in `.config/gh/config.yml` cover them: `gh reply-thread 
 hook ignores them because it only inspects `gh api`. Claude supplies IDs and reply text,
 never a method or query, so it cannot delete, edit or merge anything through them.
 Thread node IDs (and the REST comment IDs to reply to) come from a
-`gh api graphql` query over `reviewThreads`, which the hook asks about each time.
+`gh api graphql` query over `reviewThreads`, which the hook allows because it is read-only.
 
 The hook also single-quotes bare `{owner}`/`{repo}`/`{branch}` words in `gh api`
 calls (via `updatedInput`). Unquoted, next to a quoted argument such as
