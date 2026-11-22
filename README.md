@@ -169,8 +169,9 @@ is in editing those sources:
   `.github/workflows/*.md` file changes `permissions`, `tools`, `network`,
   `safe-outputs`, `engine` or `imports` compared with `origin/main`, or when the
   file is new on the branch. Prompt-body edits pass silently.
-- `permissions.ask` covers `Edit(/.github/workflows/*.yml)` and `*.yaml` (plain
-  Actions workflows and lock files).
+- `permissions.ask` covers `Edit` and `Write` on `**/.github/workflows/**` (plain
+  Actions workflows and lock files). A leading single `/` in a user-settings rule
+  is relative to `~/.claude`, so the earlier `/.github/...` form never matched.
 - `gh-aw-pre-push.sh` (PreToolUse on `git push`) runs `gh aw compile --strict` in
   repos that have gh aw sources and blocks the push if it fails or rewrites a lock
   file. Skip with `CLAUDE_SKIP_GH_AW_PUSH_CHECK=1`.
@@ -179,6 +180,40 @@ These local rules are only a guard against mistakes. The intended real boundary 
 server-side and is planned, not in place: CODEOWNERS on `.github/workflows/`,
 required review, and a CI check that lock files are in sync, set up per target
 repo. See issue #109.
+
+## Claude sandbox boundaries
+
+The sandbox only helps if nothing it can write is later run outside it. Excluded
+commands (`gh`, `git push`, `git fetch`, `gws`), hooks, and Tara's own shell all run
+unsandboxed, so `.claude/settings.fragment.json` keeps their inputs out of reach:
+
+- `denyWrite` covers the parts of the dotfiles main checkout that `~/.dotfiles`
+  makes live: `.claude` (hooks), `.config` (gh aliases, mise, uv, Devin),
+  `.local/bin` (`gws`, `sbx`), `.ssh` (`ProxyCommand`), `.gitconfig` and
+  `.bunfig.toml`. Seatbelt resolves symlinks, so these name the checkout, not
+  `~/.claude/scripts` and friends. Edit them in a worktree as usual.
+- `~/.local/share/mise` is not writable: the installed tools there (gh included)
+  run unsandboxed. Install or bump mise tools from your own shell.
+- `git pull` is not excluded, because it merges in the unsandboxed process and
+  runs post-merge/post-checkout hooks. Fetch, then merge sandboxed.
+- `git-push-no-verify.sh` (PreToolUse on `git push`) rewrites the call to
+  `git push --no-verify ...`: a pre-push hook would run lefthook, which reads
+  `lefthook.yml`/`lefthook-local.yml` and runs project code from the worktree.
+  Claude runs `lefthook run pre-push` sandboxed before pushing instead. Override
+  with `CLAUDE_ALLOW_PUSH_HOOKS=1`.
+- `gh` subcommands that leave code behind or print the token are denied (`gh alias
+  set/import`, `gh extension`, `gh config set`, `gh auth status -t`, `gh auth
+  login/refresh/setup-git`, `gh codespace`); `gh gist create` asks.
+
+`merge-settings.sh` only adds entries, so a machine merged before this keeps
+`~/.local/share/mise` in `allowWrite` and `git pull *` in `excludedCommands`.
+Remove both from `~/.claude/settings.json` by hand.
+
+Known gaps, accepted for now: `~/worktrees` is writable from every session, so one
+session can plant a `mise.toml` or `lefthook.yml` in another trusted repo's
+worktree; the bun and uv caches are writable and reused by unsandboxed installs;
+`gh` and `github.com` remain exfiltration channels; secrets fnox loads into the
+shell Claude starts from are visible in the sandbox.
 
 ## Claude worktree cleanup
 

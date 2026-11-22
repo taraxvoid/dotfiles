@@ -66,11 +66,12 @@ setup() {
 @test "adds every guardrail hook and the worktree deny rules to a fresh file" {
   echo '{}' >"$s"
   merge-settings.sh "$frag" "$s"
-  [ "$(jq '.hooks.PreToolUse | length' "$s")" = 5 ]
+  [ "$(jq '.hooks.PreToolUse | length' "$s")" = 6 ]
   [ "$(jq -r '.hooks.PreToolUse[1].hooks[0].if' "$s")" = 'Bash(git commit*)' ]
   [ "$(jq -r '.hooks.PreToolUse[2].hooks[0].command' "$s")" = '$HOME/.claude/scripts/gh-aw-frontmatter-guard.sh' ]
   [ "$(jq -r '.hooks.PreToolUse[3].hooks[0].command' "$s")" = '$HOME/.claude/scripts/gh-aw-pre-push.sh' ]
-  [ "$(jq -r '.hooks.PreToolUse[4].hooks[0].command' "$s")" = '$HOME/.claude/scripts/gh-api-guard.sh' ]
+  [ "$(jq -r '.hooks.PreToolUse[4].hooks[0].command' "$s")" = '$HOME/.claude/scripts/git-push-no-verify.sh' ]
+  [ "$(jq -r '.hooks.PreToolUse[5].hooks[0].command' "$s")" = '$HOME/.claude/scripts/gh-api-guard.sh' ]
   [ "$(jq -r '.hooks.WorktreeCreate[0].hooks[0].command' "$s")" = '$HOME/.claude/scripts/worktree-create.sh' ]
   [ "$(jq '.hooks.WorktreeRemove | length' "$s")" = 1 ]
   [ "$(jq -r '.permissions.deny[0]' "$s")" = 'Bash(git worktree remove*)' ]
@@ -95,7 +96,7 @@ setup() {
 @test "a machine that already wired the hooks by hand gets no duplicates" {
   jq '{hooks: {PreToolUse: .hooks.PreToolUse, WorktreeCreate: .hooks.WorktreeCreate}}' "$frag" >"$s"
   merge-settings.sh "$frag" "$s"
-  [ "$(jq '.hooks.PreToolUse | length' "$s")" = 5 ]
+  [ "$(jq '.hooks.PreToolUse | length' "$s")" = 6 ]
   [ "$(jq '.hooks.WorktreeCreate | length' "$s")" = 1 ]
 }
 
@@ -108,6 +109,12 @@ setup() {
   [ "$(jq '.sandbox.filesystem.allowWrite | index("~/Library/Preferences/.wrangler") != null' "$s")" = true ]
   [ "$(jq '.sandbox.filesystem.allowWrite | index("~/Library/pnpm") != null' "$s")" = true ]
   [ "$(jq '.sandbox.filesystem.allowWrite | index("~/.local/share/aube") != null' "$s")" = true ]
+  # mise installs run unsandboxed (gh among them), so the sandbox must not write them
+  [ "$(jq '.sandbox.filesystem.allowWrite | index("~/.local/share/mise") == null' "$s")" = true ]
+  # the dotfiles main checkout is live config behind ~/.dotfiles
+  [ "$(jq '.sandbox.filesystem.denyWrite | index("~/projects/personal/dotfiles/.claude") != null' "$s")" = true ]
+  # pull merges in the unsandboxed process, running post-merge/post-checkout hooks
+  [ "$(jq '.sandbox.excludedCommands | index("git pull *") == null' "$s")" = true ]
   [ "$(jq '.sandbox.filesystem.allowWrite | index("~/worktrees") != null' "$s")" = true ]
   [ "$(jq '.sandbox.filesystem.denyWrite | index("~/**/.zshenv") != null' "$s")" = true ]
   [ "$(jq .sandbox.network.allowLocalBinding "$s")" = true ]
