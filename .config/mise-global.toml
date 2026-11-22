@@ -30,6 +30,7 @@ herdr = "0.9.5"
 lazygit = "0.66.3"
 yazi = "26.9.1" # file manager, config in .config/yazi
 watchexec = "2.8.0"
+fnox = "1.42.1"
 
 [settings]
 # Supply-chain cooldown, same 3 days as ~/.bunfig.toml, npm, pnpm and uv
