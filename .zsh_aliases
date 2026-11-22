@@ -558,7 +558,26 @@ _gpp_branch_off() {
   git switch -q $cur || return
   git worktree add "$wt" worktree-$name || return
   print -u2 -- "gpp: moved commits from $cur to worktree-$name at $wt"
-  cd "$wt"
+  cd "$wt" || return
+  _gpp_install_deps
+}
+
+# gpp helper: a fresh worktree has no node_modules, so pre-push hooks (lint,
+# typecheck, tests) fail. Install JS deps from the lockfile before pushing.
+_gpp_install_deps() {
+  [[ -f package.json && ! -d node_modules ]] || return 0
+  print -u2 -- "gpp: installing dependencies in new worktree"
+  if [[ -f pnpm-lock.yaml ]]; then
+    pnpm install --frozen-lockfile
+  elif [[ -f yarn.lock ]]; then
+    yarn install --frozen-lockfile
+  elif [[ -f package-lock.json ]]; then
+    npm ci
+  elif [[ -f bun.lock || -f bun.lockb ]]; then
+    bun install --frozen-lockfile
+  else
+    bun install
+  fi || print -u2 -- "gpp: dependency install failed, push may fail its hook"
 }
 
 #: gpp [-B base] [create args] -- push this branch and open a PR (Closes #N on worktree-<N>-* branches); on main/base it first moves the commits to a new branch + worktree
