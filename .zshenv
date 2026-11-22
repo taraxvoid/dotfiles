@@ -13,6 +13,14 @@ if [[ $OSTYPE == darwin* ]] || { command -v bwrap >/dev/null && command -v socat
   export DEVIN_SANDBOX=1
 fi
 
+# Inside Claude's Bash sandbox, uv and bun get caches of their own. A shared cache
+# would let a sandboxed command plant a package that a later unsandboxed install
+# (yours, in a normal shell) picks up. The sandbox may write only these dirs.
+if [[ -n $SANDBOX_RUNTIME ]]; then
+  : "${UV_CACHE_DIR:=$HOME/.cache/sandbox/uv}" "${BUN_INSTALL_CACHE_DIR:=$HOME/.cache/sandbox/bun}"
+  export UV_CACHE_DIR BUN_INSTALL_CACHE_DIR
+fi
+
 # Claude's Bash sandbox can't write uv's tool dir (~/.local/share/uv/tools), and
 # uvx takes a lock and temp file there on every run, even for one-off tools. Point
 # it at the writable uv cache instead, so sandboxed tools can't touch the installed

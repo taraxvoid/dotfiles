@@ -211,18 +211,32 @@ unsandboxed, so `.claude/settings.fragment.json` keeps their inputs out of reach
   unsandboxed (which runs the post-checkout hook and so mise) are denied: `gh alias
   set/import`, `gh extension`, `gh config set`, `gh auth status -t`, `gh auth
   login/refresh/setup-git`, `gh codespace`, `gh pr checkout`, `gh repo clone/fork`.
-  `gh gist create` asks. Claude fetches PR branches with `git fetch` instead.
+  `gh gist`, `gh repo create`, `gh release create`, and `gh issue/pr create` or
+  `comment` aimed at another repo (`-R`/`--repo`) ask. Claude fetches PR branches
+  with `git fetch` instead.
+- `~/worktrees` is not writable as a whole. Claude Code adds the session's own
+  worktree, so one session can't plant a `mise.toml` or `lefthook.yml` in another
+  repo's worktree.
+- Inside the sandbox `.zshenv` points `UV_CACHE_DIR` and `BUN_INSTALL_CACHE_DIR`
+  at `~/.cache/sandbox/{uv,bun}`, the only cache the sandbox may write. The caches
+  your own shell installs from stay read-only to it.
+- `CF_TOKEN_ADMIN` and `CLOUDFLARE_API_TOKEN` are withheld from sandboxed commands,
+  for when Claude starts from a shell where fnox has loaded them.
 
 The fragment's `obsolete` lists name entries an earlier version added and that are
 now unsafe (`~/.local/share/mise` in `allowWrite`, `git pull *` in
 `excludedCommands`); `merge-settings.sh` removes them from an existing settings
-file.
+file. Remove `~/.cache/uv`, `~/.bun/install/cache` and `~/worktrees` from an
+existing `sandbox.filesystem.allowWrite` by hand.
 
-Known gaps, accepted for now: `~/worktrees` is writable from every session, so one
-session can plant a `mise.toml` or `lefthook.yml` in another trusted repo's
-worktree; the bun and uv caches are writable and reused by unsandboxed installs;
-`gh` and `github.com` remain exfiltration channels; secrets fnox loads into the
-shell Claude starts from are visible in the sandbox.
+`.config/devin/config.json` follows the same rules where Devin has them: no mise
+writes, no `git pull` exclusion, the same `gh` denies. Devin keeps `~/worktrees`
+and the shared caches writable, and has no push hooks.
+
+Known gaps, accepted for now: `gh` and `github.com` remain exfiltration channels.
+The sandbox can reach the macOS keychain (sandbox-runtime always allows
+`securityd`), so a sandboxed command can read fnox's keychain secrets without a
+prompt; see #149.
 
 ## Claude worktree cleanup
 

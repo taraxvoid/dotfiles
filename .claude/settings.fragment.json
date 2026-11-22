@@ -17,8 +17,7 @@
     ],
     "filesystem": {
       "allowWrite": [
-        "~/.cache/uv",
-        "~/.bun/install/cache",
+        "~/.cache/sandbox",
         "~/.claude/plans",
         "~/Library/Preferences/.wrangler",
         "~/Library/pnpm",
@@ -26,8 +25,7 @@
         "~/.local/state/pnpm",
         "~/.cache/aube",
         "~/.local/share/aube",
-        "~/Library/Caches/aube",
-        "~/worktrees"
+        "~/Library/Caches/aube"
       ],
       "denyWrite": [
         "~/**/.zshenv",
@@ -95,6 +93,14 @@
         },
         {
           "name": "GH_ENTERPRISE_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "CF_TOKEN_ADMIN",
+          "mode": "deny"
+        },
+        {
+          "name": "CLOUDFLARE_API_TOKEN",
           "mode": "deny"
         }
       ]
@@ -172,7 +178,17 @@
     "ask": [
       "Edit(**/.github/workflows/**)",
       "Write(**/.github/workflows/**)",
-      "Bash(gh gist create*)",
+      "Bash(gh gist *)",
+      "Bash(gh repo create*)",
+      "Bash(gh release create*)",
+      "Bash(gh issue create*-R*)",
+      "Bash(gh issue create*--repo*)",
+      "Bash(gh issue comment*-R*)",
+      "Bash(gh issue comment*--repo*)",
+      "Bash(gh pr create*-R*)",
+      "Bash(gh pr create*--repo*)",
+      "Bash(gh pr comment*-R*)",
+      "Bash(gh pr comment*--repo*)",
       "Bash(gh pr merge *)",
       "Bash(gh repo edit *)",
       "Bash(gh secret *)",

@@ -120,7 +120,11 @@ setup() {
     [ "$(jq --arg r "$r" '.permissions.deny | index($r) != null' "$frag")" = true ]
   done
   [ "$(jq '.permissions.ask | index("Edit(**/.github/workflows/**)") != null' "$frag")" = true ]
-  [ "$(jq '[.sandbox.credentials.envVars[].name] | index("GH_TOKEN") != null' "$frag")" = true ]
+  [ "$(jq '.permissions.ask | index("Bash(gh pr create*--repo*)") != null' "$frag")" = true ]
+  [ "$(jq '.permissions.ask | index("Bash(gh gist *)") != null' "$frag")" = true ]
+  for v in GH_TOKEN CF_TOKEN_ADMIN; do
+    [ "$(jq --arg v "$v" '[.sandbox.credentials.envVars[].name] | index($v) != null' "$frag")" = true ]
+  done
 }
 
 @test "turns the sandbox on and adds its allowlists to a fresh file" {
@@ -138,7 +142,11 @@ setup() {
   [ "$(jq '.sandbox.filesystem.denyWrite | index("~/projects/personal/dotfiles/.claude") != null' "$s")" = true ]
   # pull merges in the unsandboxed process, running post-merge/post-checkout hooks
   [ "$(jq '.sandbox.excludedCommands | index("git pull *") == null' "$s")" = true ]
-  [ "$(jq '.sandbox.filesystem.allowWrite | index("~/worktrees") != null' "$s")" = true ]
+  # the session's own worktree is added by Claude Code; other sessions' stay read-only
+  [ "$(jq '.sandbox.filesystem.allowWrite | index("~/worktrees") == null' "$s")" = true ]
+  # uv/bun caches the sandbox writes are its own (.zshenv), not the ones used unsandboxed
+  [ "$(jq '.sandbox.filesystem.allowWrite | index("~/.cache/sandbox") != null' "$s")" = true ]
+  [ "$(jq '.sandbox.filesystem.allowWrite | index("~/.cache/uv") == null' "$s")" = true ]
   [ "$(jq '.sandbox.filesystem.denyWrite | index("~/**/.zshenv") != null' "$s")" = true ]
   [ "$(jq .sandbox.network.allowLocalBinding "$s")" = true ]
   [ "$(jq -r '.sandbox.credentials.files[] | select(.path == "~/.ssh") | .mode' "$s")" = deny ]
