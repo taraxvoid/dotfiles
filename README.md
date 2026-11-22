@@ -217,9 +217,12 @@ unsandboxed, so `.claude/settings.fragment.json` keeps their inputs out of reach
 - `~/worktrees` is not writable as a whole. Claude Code adds the session's own
   worktree, so one session can't plant a `mise.toml` or `lefthook.yml` in another
   repo's worktree.
-- Inside the sandbox `.zshenv` points `UV_CACHE_DIR` and `BUN_INSTALL_CACHE_DIR`
-  at `~/.cache/sandbox/{uv,bun}`, the only cache the sandbox may write. The caches
-  your own shell installs from stay read-only to it.
+- Inside the sandbox `.zshenv` points the uv and bun caches, the aube store and
+  cache, and pnpm's store, cache, state and `PNPM_HOME` at `~/.cache/sandbox/...`,
+  the only package dir the sandbox may write. The ones your own shell installs
+  from and runs out of (aube runs packages from its cache's global virtual store,
+  pnpm runs its self-managed versions from `PNPM_HOME`) stay read-only to it.
+  `~/Library/Caches/aube` stays writable; it holds only network tuning state.
 - `CF_TOKEN_ADMIN` and `CLOUDFLARE_API_TOKEN` are withheld from sandboxed commands,
   for when Claude starts from a shell where fnox has loaded them.
 

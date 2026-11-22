@@ -134,8 +134,10 @@ setup() {
   [ "$(jq '.sandbox.network.allowedDomains | index("github.com") != null' "$s")" = true ]
   [ "$(jq '.sandbox.filesystem.allowWrite | index("~/.claude/plans") != null' "$s")" = true ]
   [ "$(jq '.sandbox.filesystem.allowWrite | index("~/Library/Preferences/.wrangler") != null' "$s")" = true ]
-  [ "$(jq '.sandbox.filesystem.allowWrite | index("~/Library/pnpm") != null' "$s")" = true ]
-  [ "$(jq '.sandbox.filesystem.allowWrite | index("~/.local/share/aube") != null' "$s")" = true ]
+  # aube/pnpm stores the sandbox writes are its own too (.zshenv)
+  [ "$(jq '.sandbox.filesystem.allowWrite | index("~/Library/pnpm") == null' "$s")" = true ]
+  [ "$(jq '.sandbox.filesystem.allowWrite | index("~/.local/share/aube") == null' "$s")" = true ]
+  [ "$(jq '.sandbox.filesystem.allowWrite | index("~/.cache/aube") == null' "$s")" = true ]
   # mise installs run unsandboxed (gh among them), so the sandbox must not write them
   [ "$(jq '.sandbox.filesystem.allowWrite | index("~/.local/share/mise") == null' "$s")" = true ]
   # the dotfiles main checkout is live config behind ~/.dotfiles

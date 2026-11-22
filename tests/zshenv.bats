@@ -3,7 +3,9 @@ setup() {
   command -v zsh >/dev/null || skip "zsh not installed"
   export HOME=$BATS_TEST_TMPDIR/home
   mkdir -p "$HOME"
-  unset UV_TOOL_DIR UV_CACHE_DIR BUN_INSTALL_CACHE_DIR SANDBOX_RUNTIME
+  unset UV_TOOL_DIR UV_CACHE_DIR BUN_INSTALL_CACHE_DIR SANDBOX_RUNTIME \
+    AUBE_STORE_DIR AUBE_CACHE_DIR PNPM_HOME \
+    pnpm_config_store_dir pnpm_config_cache_dir pnpm_config_state_dir
 }
 
 zenv() { # <var>: its value in a fresh zsh that read our .zshenv
@@ -44,6 +46,17 @@ tooldir() { zenv UV_TOOL_DIR; }
   [ "$output" = "$HOME/.cache/sandbox/uv" ]
   SANDBOX_RUNTIME=1 run zenv BUN_INSTALL_CACHE_DIR
   [ "$output" = "$HOME/.cache/sandbox/bun" ]
+}
+
+@test "inside the sandbox aube and pnpm get stores and caches apart from the shared ones" {
+  for kv in AUBE_STORE_DIR=aube/store AUBE_CACHE_DIR=aube/cache PNPM_HOME=pnpm/home \
+    pnpm_config_store_dir=pnpm/store pnpm_config_cache_dir=pnpm/cache \
+    pnpm_config_state_dir=pnpm/state; do
+    SANDBOX_RUNTIME=1 run zenv "${kv%%=*}"
+    [ "$output" = "$HOME/.cache/sandbox/${kv#*=}" ] || { echo "$kv: $output"; return 1; }
+    run zenv "${kv%%=*}"
+    [ "$output" = unset ]
+  done
 }
 
 @test "inside the sandbox an explicit cache dir wins" {
