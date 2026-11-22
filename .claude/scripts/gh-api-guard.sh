@@ -2,7 +2,8 @@
 # Claude Code PreToolUse hook for Bash. Keeps `gh api` read-only:
 #   - denies (exit 2) any call that writes: -X/--method other than GET, -f/-F/
 #     --field/--raw-field (they turn the call into a POST), or --input;
-#   - asks for `gh api graphql` (always a POST, and it takes -f query=...);
+#   - asks for `gh api graphql` (always a POST, and it takes -f query=...),
+#     except a lone, mutation-free query call, which it allows (see gql_read_only);
 #   - says nothing otherwise, so the permissions.allow/deny rules in
 #     settings.fragment.json decide.
 # Unlike glob rules it copes with -XPOST, --method=POST, -fname=x and flags
@@ -16,7 +17,24 @@ cmd=$(jq -r '.tool_input.command // empty' <<<"$input")
 cmd=${cmd//$'\n'/ }
 
 re='(^|[;&|(]|[[:space:]])gh[[:space:]]+api([[:space:]]+|$)'
-deny=() ask=()
+deny=() ask=() gql=0
+
+# gql_read_only: true when the whole command is one `gh api graphql` call that
+# cannot mutate: no "mutation" anywhere, no query read from a file (-F x=@f) or
+# --input, no command substitution, and no chaining/pipes/redirects outside
+# quotes (so the allow decision covers nothing but this call).
+gql_read_only() {
+  local c=$cmd bare
+  [[ $c =~ ^[[:space:]]*gh[[:space:]]+api[[:space:]]+graphql([[:space:]]|$) ]] || return 1
+  shopt -s nocasematch
+  [[ $c == *mutation* ]] && { shopt -u nocasematch; return 1; }
+  shopt -u nocasematch
+  # shellcheck disable=SC2016 # a literal $( and backtick are what we look for
+  [[ $c == *'$('* || $c == *'`'* || $c == *'=@'* || $c == *--input* ]] && return 1
+  bare=$(sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g" <<<"$c")
+  [[ $bare == *[';&|<>']* ]] && return 1
+  return 0
+}
 
 # scan <args after "gh api">: sets deny/ask reasons
 scan() {
@@ -62,6 +80,7 @@ scan() {
   done
   # graphql needs -f query=..., so its body flags are asked about, not denied
   if [ "${endpoint#/}" = graphql ]; then
+    gql=1
     ask+=("gh api graphql is a POST and can mutate")
   elif [ ${#bad[@]} -gt 0 ]; then
     deny+=("${bad[0]}")
@@ -92,7 +111,9 @@ fixed=$(sed -E "s/(^|[[:space:]])([^[:space:]'\"]*\\{(owner|repo|branch)\\}[^[:s
 fixed=${fixed%$'\n'}
 
 out='{"hookEventName":"PreToolUse"}'
-if [ ${#ask[@]} -gt 0 ]; then
+if [ ${#ask[@]} -gt 0 ] && [ ${#deny[@]} -eq 0 ] && [ "$gql" = 1 ] && [ ${#ask[@]} -eq 1 ] && gql_read_only; then
+  out='{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"read-only graphql query"}'
+elif [ ${#ask[@]} -gt 0 ]; then
   out=$(jq -cn --arg r "${ask[0]}" '{hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: $r}')
 fi
 if [ "$fixed" != "$orig" ]; then
