@@ -571,12 +571,18 @@ _gpp_install_deps() {
     pnpm install --frozen-lockfile
   elif [[ -f yarn.lock ]]; then
     yarn install --frozen-lockfile
-  elif [[ -f package-lock.json ]]; then
+  elif [[ -f package-lock.json || -f npm-shrinkwrap.json ]]; then
     npm ci
   elif [[ -f bun.lock || -f bun.lockb ]]; then
     bun install --frozen-lockfile
   else
-    bun install
+    # no lockfile: follow package.json's packageManager field, else bun
+    case $(jq -r '.packageManager // "" | split("@")[0]' package.json 2>/dev/null) in
+      pnpm) pnpm install ;;
+      yarn) yarn install ;;
+      npm) npm install ;;
+      *) bun install ;;
+    esac
   fi || print -u2 -- "gpp: dependency install failed, push may fail its hook"
 }
 

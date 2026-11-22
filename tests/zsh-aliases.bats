@@ -446,3 +446,42 @@ zm() {
   [[ "$output" == *"gpm [pr]"* ]]
   [[ "$output" != *"gpv [pr]"* ]]
 }
+
+# gid <code>: run code in an empty scratch project dir with the package managers stubbed to echo their args
+gid() {
+  local d=$BATS_TEST_TMPDIR/proj
+  rm -rf "$d"
+  mkdir -p "$d"
+  cd "$d" || return
+  zsh -fc '
+    for pm in pnpm yarn npm bun; do eval "$pm() { print -r -- \"$pm \$*\"; return \${FAIL:-0}; }"; done
+    source "$0"
+    '"$1" "$BATS_TEST_DIRNAME/../.zsh_aliases"
+}
+
+@test "_gpp_install_deps picks the installer from the lockfile, else packageManager, else bun" {
+  run gid 'echo {} >package.json; : >pnpm-lock.yaml; _gpp_install_deps'
+  [[ "$output" == *"pnpm install --frozen-lockfile"* ]]
+  run gid 'echo {} >package.json; : >yarn.lock; _gpp_install_deps'
+  [[ "$output" == *"yarn install --frozen-lockfile"* ]]
+  run gid 'echo {} >package.json; : >npm-shrinkwrap.json; _gpp_install_deps'
+  [[ "$output" == *"npm ci"* ]]
+  run gid 'echo {} >package.json; : >bun.lock; _gpp_install_deps'
+  [[ "$output" == *"bun install --frozen-lockfile"* ]]
+  run gid 'echo "{\"packageManager\":\"pnpm@9.1.0\"}" >package.json; _gpp_install_deps'
+  [[ "$output" == *"pnpm install"* ]]
+  run gid 'echo {} >package.json; _gpp_install_deps'
+  [[ "$output" == *"bun install"* ]]
+}
+
+@test "_gpp_install_deps skips without package.json or with node_modules, and warns (returns 0) on failure" {
+  run gid '_gpp_install_deps'
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  run gid 'echo {} >package.json; mkdir node_modules; _gpp_install_deps'
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  FAIL=1 run gid 'echo {} >package.json; _gpp_install_deps'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"dependency install failed"* ]]
+}
