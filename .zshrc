@@ -118,6 +118,10 @@ select-word-style bash
 # absolute path ($_mise_bin, found in .zshenv): ~/.local/bin isn't on PATH yet here
 [[ -n $_mise_bin ]] && eval "$("$_mise_bin" activate zsh)"
 
+# fnox: loads per-directory secrets into the env via a chpwd/precmd hook. After mise
+# activate (fnox is mise-managed); its output is static, so it is safe to cache.
+_cache_eval fnox fnox activate zsh
+
 # zoxide: `j <part of dir>` jumps to the best frecent match, `ji` is an fzf picker
 _cache_eval zoxide zoxide init zsh --cmd j
 
