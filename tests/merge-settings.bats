@@ -66,12 +66,13 @@ setup() {
 @test "adds every guardrail hook and the worktree deny rules to a fresh file" {
   echo '{}' >"$s"
   merge-settings.sh "$frag" "$s"
-  [ "$(jq '.hooks.PreToolUse | length' "$s")" = 6 ]
+  [ "$(jq '.hooks.PreToolUse | length' "$s")" = 7 ]
   [ "$(jq -r '.hooks.PreToolUse[1].hooks[0].if' "$s")" = 'Bash(git commit*)' ]
   [ "$(jq -r '.hooks.PreToolUse[2].hooks[0].command' "$s")" = '$HOME/.claude/scripts/gh-aw-frontmatter-guard.sh' ]
   [ "$(jq -r '.hooks.PreToolUse[3].hooks[0].command' "$s")" = '$HOME/.claude/scripts/gh-aw-pre-push.sh' ]
   [ "$(jq -r '.hooks.PreToolUse[4].hooks[0].command' "$s")" = '$HOME/.claude/scripts/git-push-no-verify.sh' ]
-  [ "$(jq -r '.hooks.PreToolUse[5].hooks[0].command' "$s")" = '$HOME/.claude/scripts/gh-api-guard.sh' ]
+  [ "$(jq -r '.hooks.PreToolUse[5].hooks[0].command' "$s")" = '$HOME/.claude/scripts/git-remote-guard.sh' ]
+  [ "$(jq -r '.hooks.PreToolUse[6].hooks[0].command' "$s")" = '$HOME/.claude/scripts/gh-api-guard.sh' ]
   [ "$(jq -r '.hooks.WorktreeCreate[0].hooks[0].command' "$s")" = '$HOME/.claude/scripts/worktree-create.sh' ]
   [ "$(jq '.hooks.WorktreeRemove | length' "$s")" = 1 ]
   [ "$(jq -r '.permissions.deny[0]' "$s")" = 'Bash(git worktree remove*)' ]
@@ -96,8 +97,30 @@ setup() {
 @test "a machine that already wired the hooks by hand gets no duplicates" {
   jq '{hooks: {PreToolUse: .hooks.PreToolUse, WorktreeCreate: .hooks.WorktreeCreate}}' "$frag" >"$s"
   merge-settings.sh "$frag" "$s"
-  [ "$(jq '.hooks.PreToolUse | length' "$s")" = 6 ]
+  [ "$(jq '.hooks.PreToolUse | length' "$s")" = 7 ]
   [ "$(jq '.hooks.WorktreeCreate | length' "$s")" = 1 ]
+}
+
+@test "obsolete sandbox entries from an earlier merge are removed, the rest kept" {
+  echo '{"sandbox":{"excludedCommands":["git pull *","mine *"],"filesystem":{"allowWrite":["~/.local/share/mise","~/mine"]}}}' >"$s"
+  merge-settings.sh "$frag" "$s"
+  [ "$(jq '.sandbox.excludedCommands | index("git pull *")' "$s")" = null ]
+  [ "$(jq '.sandbox.excludedCommands | index("mine *") != null' "$s")" = true ]
+  [ "$(jq '.sandbox.filesystem.allowWrite | index("~/.local/share/mise")' "$s")" = null ]
+  [ "$(jq '.sandbox.filesystem.allowWrite | index("~/mine") != null' "$s")" = true ]
+  # the fragment never lists what it marks obsolete
+  [ "$(jq '[.obsolete.excludedCommands[] as $x | .sandbox.excludedCommands | index($x)] | all(. == null)' "$frag")" = true ]
+  [ "$(jq '[.obsolete.allowWrite[] as $x | .sandbox.filesystem.allowWrite | index($x)] | all(. == null)' "$frag")" = true ]
+}
+
+@test "the fragment denies the gh and push spellings that escape the sandbox" {
+  for r in 'Bash(gh auth status*--show-token*)' 'Bash(gh alias set*)' 'Bash(gh extension *)' \
+    'Bash(gh config set*)' 'Bash(gh pr checkout*)' 'Bash(gh repo clone*)' \
+    'Bash(git push *refs/heads/main*)' 'Bash(git push *--mirror*)' 'Bash(git push *:master)'; do
+    [ "$(jq --arg r "$r" '.permissions.deny | index($r) != null' "$frag")" = true ]
+  done
+  [ "$(jq '.permissions.ask | index("Edit(**/.github/workflows/**)") != null' "$frag")" = true ]
+  [ "$(jq '[.sandbox.credentials.envVars[].name] | index("GH_TOKEN") != null' "$frag")" = true ]
 }
 
 @test "turns the sandbox on and adds its allowlists to a fresh file" {

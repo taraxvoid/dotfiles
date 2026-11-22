@@ -201,13 +201,22 @@ unsandboxed, so `.claude/settings.fragment.json` keeps their inputs out of reach
   `lefthook.yml`/`lefthook-local.yml` and runs project code from the worktree.
   Claude runs `lefthook run pre-push` sandboxed before pushing instead. Override
   with `CLAUDE_ALLOW_PUSH_HOOKS=1`.
-- `gh` subcommands that leave code behind or print the token are denied (`gh alias
+- `git-remote-guard.sh` (PreToolUse on `git push|fetch|ls-remote`) blocks the call
+  unless git would read its config only from the expected files. The sandbox
+  protects `.git/config` and `.git/hooks`, but a worktree's `.git` file and its
+  gitdir's `commondir` are writable, and repointing them at a git dir in a scratch
+  dir would hand its `core.sshCommand`, credential helper or `receivepack` to the
+  unsandboxed git. Override with `CLAUDE_ALLOW_GIT_REMOTE_ANYWHERE=1`.
+- `gh` subcommands that leave code behind, print the token or check out code
+  unsandboxed (which runs the post-checkout hook and so mise) are denied: `gh alias
   set/import`, `gh extension`, `gh config set`, `gh auth status -t`, `gh auth
-  login/refresh/setup-git`, `gh codespace`); `gh gist create` asks.
+  login/refresh/setup-git`, `gh codespace`, `gh pr checkout`, `gh repo clone/fork`.
+  `gh gist create` asks. Claude fetches PR branches with `git fetch` instead.
 
-`merge-settings.sh` only adds entries, so a machine merged before this keeps
-`~/.local/share/mise` in `allowWrite` and `git pull *` in `excludedCommands`.
-Remove both from `~/.claude/settings.json` by hand.
+The fragment's `obsolete` lists name entries an earlier version added and that are
+now unsafe (`~/.local/share/mise` in `allowWrite`, `git pull *` in
+`excludedCommands`); `merge-settings.sh` removes them from an existing settings
+file.
 
 Known gaps, accepted for now: `~/worktrees` is writable from every session, so one
 session can plant a `mise.toml` or `lefthook.yml` in another trusted repo's

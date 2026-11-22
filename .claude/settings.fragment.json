@@ -1,4 +1,8 @@
 {
+  "obsolete": {
+    "excludedCommands": ["git pull *"],
+    "allowWrite": ["~/.local/share/mise"]
+  },
   "sandbox": {
     "enabled": true,
     "allowUnsandboxedCommands": false,
@@ -128,6 +132,9 @@
       "Bash(gh ext *)",
       "Bash(gh config set*)",
       "Bash(gh codespace *)",
+      "Bash(gh pr checkout*)",
+      "Bash(gh repo clone*)",
+      "Bash(gh repo fork*)",
       "Bash(gh cs *)",
       "Bash(gh api *DELETE*)",
       "Bash(gh api * -X*)",
@@ -241,6 +248,16 @@
             "type": "command",
             "command": "$HOME/.claude/scripts/git-push-no-verify.sh",
             "if": "Bash(git push*)"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/git-remote-guard.sh",
+            "if": "Bash(git *)"
           }
         ]
       },

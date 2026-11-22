@@ -7,7 +7,9 @@
 # their denied subdirs, domains, credential files by path, env vars by name) are unioned with what is
 # there (existing entries win), each hook entry is appended to its event unless one of
 # its commands is already registered there, permissions.allow, permissions.deny and permissions.ask rules
-# missing from settings are appended, and every other key is left alone.
+# missing from settings are appended, the fragment's obsolete.excludedCommands and
+# obsolete.allowWrite entries (once added, now unsafe) are removed, and every other
+# key is left alone.
 # Backs settings.json up to settings.json.bak.<timestamp> before changing it and
 # does nothing when it is already up to date, so re-running is safe.
 set -euo pipefail
@@ -31,6 +33,11 @@ new=$(jq --slurpfile f "$frag" '
       | .sandbox.credentials.files = merge(.sandbox.credentials.files; $frag.sandbox.credentials.files; .path)
       | .sandbox.credentials.envVars = merge(.sandbox.credentials.envVars; $frag.sandbox.credentials.envVars; .name)
     else . end)
+  # entries an earlier fragment added that are now unsafe; dropped wherever they are
+  | (if $frag.obsolete.excludedCommands and .sandbox.excludedCommands then
+      .sandbox.excludedCommands -= $frag.obsolete.excludedCommands else . end)
+  | (if $frag.obsolete.allowWrite and .sandbox.filesystem.allowWrite then
+      .sandbox.filesystem.allowWrite -= $frag.obsolete.allowWrite else . end)
   | reduce ("allow", "deny", "ask") as $k (.; if $frag.permissions[$k] then .permissions[$k] = (reduce $frag.permissions[$k][] as $d
       (.permissions[$k] // []; if any(.[]; . == $d) then . else . + [$d] end)) else . end)
   | .hooks = (reduce (($frag.hooks // {}) | to_entries[]) as $e (.hooks // {};
