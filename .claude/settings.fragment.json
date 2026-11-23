@@ -1,4 +1,8 @@
 {
+  "obsolete": {
+    "excludedCommands": ["git pull *"],
+    "allowWrite": ["~/.local/share/mise"]
+  },
   "sandbox": {
     "enabled": true,
     "allowUnsandboxedCommands": false,
@@ -7,30 +11,27 @@
       "git ls-remote *",
       "git push *",
       "git fetch *",
-      "git pull *",
       "gh *",
       "gws",
       "gws *"
     ],
     "filesystem": {
       "allowWrite": [
-        "~/.cache/uv",
-        "~/.bun/install/cache",
-        "~/.local/share/mise",
+        "~/.cache/sandbox",
         "~/.claude/plans",
         "~/Library/Preferences/.wrangler",
-        "~/Library/pnpm",
-        "~/Library/Caches/pnpm",
-        "~/.local/state/pnpm",
-        "~/.cache/aube",
-        "~/.local/share/aube",
-        "~/Library/Caches/aube",
-        "~/worktrees"
+        "~/Library/Caches/aube"
       ],
       "denyWrite": [
         "~/**/.zshenv",
         "~/**/.zsh_aliases",
-        "~/**/.zsh_plugins.txt"
+        "~/**/.zsh_plugins.txt",
+        "~/projects/personal/dotfiles/.claude",
+        "~/projects/personal/dotfiles/.config",
+        "~/projects/personal/dotfiles/.local/bin",
+        "~/projects/personal/dotfiles/.ssh",
+        "~/projects/personal/dotfiles/.gitconfig",
+        "~/projects/personal/dotfiles/.bunfig.toml"
       ]
     },
     "network": {
@@ -80,6 +81,22 @@
         {
           "name": "NPM_TOKEN",
           "mode": "deny"
+        },
+        {
+          "name": "GH_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "GH_ENTERPRISE_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "CF_TOKEN_ADMIN",
+          "mode": "deny"
+        },
+        {
+          "name": "CLOUDFLARE_API_TOKEN",
+          "mode": "deny"
         }
       ]
     }
@@ -105,6 +122,21 @@
       "Bash(gh repo delete *)",
       "Bash(gh release delete *)",
       "Bash(gh auth token*)",
+      "Bash(gh auth status*-t*)",
+      "Bash(gh auth status*--show-token*)",
+      "Bash(gh auth login*)",
+      "Bash(gh auth refresh*)",
+      "Bash(gh auth setup-git*)",
+      "Bash(gh alias set*)",
+      "Bash(gh alias import*)",
+      "Bash(gh extension *)",
+      "Bash(gh ext *)",
+      "Bash(gh config set*)",
+      "Bash(gh codespace *)",
+      "Bash(gh pr checkout*)",
+      "Bash(gh repo clone*)",
+      "Bash(gh repo fork*)",
+      "Bash(gh cs *)",
       "Bash(gh api *DELETE*)",
       "Bash(gh api * -X*)",
       "Bash(gh api * --method*)",
@@ -125,12 +157,33 @@
       "Bash(git push * main)",
       "Bash(git push * master)",
       "Bash(git push *:main)",
-      "Bash(rm -rf ~/worktrees*)",
+      "Bash(git push *:master)",
+      "Bash(git push * main *)",
+      "Bash(git push * master *)",
+      "Bash(git push *:main *)",
+      "Bash(git push *:master *)",
+      "Bash(git push *refs/heads/main*)",
+      "Bash(git push *refs/heads/master*)",
+      "Bash(git push *--all*)",
+      "Bash(git push *--mirror*)",
+      "Bash(git push *--delete*)",
+      "Bash(git push * :*)",
       "Bash(gws *--yes*)"
     ],
     "ask": [
-    "Edit(/.github/workflows/*.yml)",
-      "Edit(/.github/workflows/*.yaml)",
+      "Edit(**/.github/workflows/**)",
+      "Write(**/.github/workflows/**)",
+      "Bash(gh gist *)",
+      "Bash(gh repo create*)",
+      "Bash(gh release create*)",
+      "Bash(gh issue create*-R*)",
+      "Bash(gh issue create*--repo*)",
+      "Bash(gh issue comment*-R*)",
+      "Bash(gh issue comment*--repo*)",
+      "Bash(gh pr create*-R*)",
+      "Bash(gh pr create*--repo*)",
+      "Bash(gh pr comment*-R*)",
+      "Bash(gh pr comment*--repo*)",
       "Bash(gh pr merge *)",
       "Bash(gh repo edit *)",
       "Bash(gh secret *)",
@@ -196,6 +249,26 @@
             "command": "$HOME/.claude/scripts/gh-aw-pre-push.sh",
             "if": "Bash(git push*)",
             "timeout": 120
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/git-push-no-verify.sh",
+            "if": "Bash(git push*)"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/git-remote-guard.sh",
+            "if": "Bash(git *)"
           }
         ]
       },

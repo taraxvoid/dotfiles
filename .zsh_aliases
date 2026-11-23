@@ -64,10 +64,10 @@ alias gl="git log -5"
 alias lg="lazygit"
 #: grs -- git restore --staged - unstage staged files
 alias grs="git restore --staged ."
-#: gra -- git restore --staged - THROW AWAY unstaged files
+#: gra -- git restore . - THROW AWAY unstaged changes
 alias gra="git restore ."
-#: grb - git rebase - rebase branch
-alias gra="git rebase"
+#: grb -- git rebase
+alias grb="git rebase"
 
 
 # y [dir]: yazi, then cd to wherever it was left (q; Q quits without moving)

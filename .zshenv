@@ -13,6 +13,23 @@ if [[ $OSTYPE == darwin* ]] || { command -v bwrap >/dev/null && command -v socat
   export DEVIN_SANDBOX=1
 fi
 
+# Inside Claude's Bash sandbox, uv, bun, aube and pnpm get stores and caches of
+# their own. A shared one would let a sandboxed command plant or edit a package
+# that a later unsandboxed install or run (yours, in a normal shell) picks up; aube
+# even runs packages straight from its cache's global virtual store. The sandbox
+# may write only ~/.cache/sandbox. pnpm 12 reads pnpm_config_*, not npm_config_*.
+if [[ -n $SANDBOX_RUNTIME ]]; then
+  () {
+    local s=$HOME/.cache/sandbox
+    : "${UV_CACHE_DIR:=$s/uv}" "${BUN_INSTALL_CACHE_DIR:=$s/bun}"
+    : "${AUBE_STORE_DIR:=$s/aube/store}" "${AUBE_CACHE_DIR:=$s/aube/cache}"
+    : "${pnpm_config_store_dir:=$s/pnpm/store}" "${pnpm_config_cache_dir:=$s/pnpm/cache}"
+    : "${pnpm_config_state_dir:=$s/pnpm/state}" "${PNPM_HOME:=$s/pnpm/home}"
+  }
+  export UV_CACHE_DIR BUN_INSTALL_CACHE_DIR AUBE_STORE_DIR AUBE_CACHE_DIR \
+    pnpm_config_store_dir pnpm_config_cache_dir pnpm_config_state_dir PNPM_HOME
+fi
+
 # Claude's Bash sandbox can't write uv's tool dir (~/.local/share/uv/tools), and
 # uvx takes a lock and temp file there on every run, even for one-off tools. Point
 # it at the writable uv cache instead, so sandboxed tools can't touch the installed
