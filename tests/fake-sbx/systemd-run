@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Fake systemd-run for sbx audit tests: records its arguments (one per line), then
+# runs the command after `--` like a real scope would. The capability probe (marked
+# by the sbx-probe argument) is answered by FAKE_PROBE_STATUS instead of run.
+printf '%s\n' "$@" >>"${FAKE_LOG:?}/systemd-run"
+for a in "$@"; do
+  if [ "$a" = sbx-probe ]; then exit "${FAKE_PROBE_STATUS:-0}"; fi
+done
+while [ $# -gt 0 ] && [ "$1" != -- ]; do shift; done
+shift
+exec "$@"
