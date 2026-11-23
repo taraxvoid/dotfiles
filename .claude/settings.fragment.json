@@ -167,8 +167,10 @@
       "Bash(git push *--all*)",
       "Bash(git push *--mirror*)",
       "Bash(git push *--delete*)",
-      "Bash(git push * :*)",
-      "Bash(gws *--yes*)"
+      "Bash(git push *--force*)",
+	"Bash(git push *-f *)",
+	"Bash(git push origin :*)",
+	"Bash(gws *--yes*)"
     ],
     "ask": [
       "Edit(**/.github/workflows/**)",
