@@ -113,7 +113,8 @@
       "Bash(gh api rate_limit)",
       "Bash(gh aw compile --strict*)",
       "Bash(gh reply-thread *)",
-      "Bash(gh resolve-thread *)"
+      "Bash(gh resolve-thread *)",
+      "Bash(gh pending-deploys*)"
     ],
     "deny": [
       "Bash(git worktree remove*)",

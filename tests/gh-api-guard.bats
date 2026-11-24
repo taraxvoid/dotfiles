@@ -189,3 +189,61 @@ alias_run() {
   grep -Fxq 'id=PRRT_kwDOabc' "$BATS_TEST_TMPDIR/argv"
   grep -Fq 'resolveReviewThread(input:{threadId:$id})' "$BATS_TEST_TMPDIR/argv"
 }
+
+@test "pending-deploys is allowed, review-deploy is defined but not allowed" {
+  frag="$BATS_TEST_DIRNAME/../.claude/settings.fragment.json"
+  cfg="$BATS_TEST_DIRNAME/../.config/gh/config.yml"
+  [ "$(jq '.permissions.allow | index("Bash(gh pending-deploys*)") != null' "$frag")" = true ]
+  [ "$(jq '[.permissions.allow[] | select(test("review-deploy"))] | length' "$frag")" = 0 ]
+  [ "$(yq '.aliases | has("review-deploy")' "$cfg")" = true ]
+}
+
+# deploy_stub <pending-json>: gh stub answering the pending_deployments read with
+# the json and recording the POST body (stdin) and argv of the write
+deploy_stub() {
+  mkdir -p "$BATS_TEST_TMPDIR/stub"
+  cat >"$BATS_TEST_TMPDIR/stub/gh" <<STUB
+#!/bin/sh
+case "\$*" in
+  *"--method POST"*) printf '%s\n' "\$@" >"$BATS_TEST_TMPDIR/argv"; cat >"$BATS_TEST_TMPDIR/body"; echo prod ;;
+  *) echo '$1' | jq -c "\${*##*--jq }" 2>/dev/null || echo '$1' | jq -c '[.[] | select(.current_user_can_approve) | .environment.id]' ;;
+esac
+STUB
+  chmod +x "$BATS_TEST_TMPDIR/stub/gh"
+}
+
+review_run() {
+  local body
+  body=$(yq '.aliases."review-deploy"' "$BATS_TEST_DIRNAME/../.config/gh/config.yml")
+  rm -f "$BATS_TEST_TMPDIR/argv" "$BATS_TEST_TMPDIR/body"
+  PATH=$BATS_TEST_TMPDIR/stub:$PATH run sh -c "${body#!}" -- "$@"
+}
+
+@test "review-deploy posts the reviewable environment ids with state and comment" {
+  deploy_stub '[{"environment":{"id":5},"current_user_can_approve":true},{"environment":{"id":6},"current_user_can_approve":false}]'
+  review_run approved 99 'ship it'
+  [ "$status" -eq 0 ]
+  grep -Fxq 'repos/{owner}/{repo}/actions/runs/99/pending_deployments' "$BATS_TEST_TMPDIR/argv"
+  [ "$(jq -c . "$BATS_TEST_TMPDIR/body")" = '{"environment_ids":[5],"state":"approved","comment":"ship it"}' ]
+}
+
+@test "review-deploy defaults the comment and refuses bad state or run id" {
+  deploy_stub '[{"environment":{"id":5},"current_user_can_approve":true}]'
+  review_run rejected 99
+  [ "$(jq -r .comment "$BATS_TEST_TMPDIR/body")" = 'rejected via gh' ]
+  for bad in 'approve' '' 'x'; do
+    review_run "$bad" 99
+    [ "$status" -eq 2 ]
+  done
+  for bad in '' 'abc' '1/../2' '1 2'; do
+    review_run approved "$bad"
+    [ "$status" -eq 2 ]
+  done
+}
+
+@test "review-deploy fails without posting when nothing is reviewable" {
+  deploy_stub '[{"environment":{"id":6},"current_user_can_approve":false}]'
+  review_run approved 99
+  [ "$status" -eq 1 ]
+  [ ! -e "$BATS_TEST_TMPDIR/argv" ]
+}

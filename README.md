@@ -153,6 +153,13 @@ never a method or query, so it cannot delete, edit or merge anything through the
 Thread node IDs (and the REST comment IDs to reply to) come from a
 `gh api graphql` query over `reviewThreads`, which the hook allows because it is read-only.
 
+Deployment reviews (environments with required reviewers) work the same way. `gh
+pending-deploys` (zsh `gdp`) lists waiting runs with their environments and is in
+`permissions.allow`. `gh review-deploy <approved|rejected> <run-id> [comment]` (zsh `gda`
+approves, `gdd` denies) looks up the environments you can review and POSTs the decision.
+It is deliberately not in `permissions.allow`, so Claude has to ask before it runs.
+GitHub notifies you of waiting reviews itself (Settings > Notifications > Actions).
+
 The hook also single-quotes bare `{owner}`/`{repo}`/`{branch}` words in `gh api`
 calls (via `updatedInput`). Unquoted, next to a quoted argument such as
 `-q '.[0].number'`, they stop the sandbox matching `gh *` as an excluded command,
