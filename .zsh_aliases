@@ -651,8 +651,8 @@ alias gim="gh issue list --assignee @me"
 alias grvl="gh run view"
 #: grlg [run] -- full log of a workflow run
 alias grlg="gh run view --log"
-#: gdp -- runs waiting on a deployment review (run id, environment, can-approve)
-alias gdp="gh pending-deploys"
+#: gdl -- runs waiting on a deployment review (run id, environment, can-approve)
+alias gdl="gh pending-deploys"
 #: gda <run> [comment] -- approve a run's pending deployments
 alias gda="gh review-deploy approved"
 #: gdd <run> [comment] -- reject (deny) a run's pending deployments

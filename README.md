@@ -154,7 +154,7 @@ Thread node IDs (and the REST comment IDs to reply to) come from a
 `gh api graphql` query over `reviewThreads`, which the hook allows because it is read-only.
 
 Deployment reviews (environments with required reviewers) work the same way. `gh
-pending-deploys` (zsh `gdp`) lists waiting runs with their environments and is in
+pending-deploys` (zsh `gdl`) lists waiting runs with their environments and is in
 `permissions.allow`. `gh review-deploy <approved|rejected> <run-id> [comment]` (zsh `gda`
 approves, `gdd` denies) looks up the environments you can review and POSTs the decision.
 It is deliberately not in `permissions.allow`, so Claude has to ask before it runs.
