@@ -6,6 +6,7 @@
   "sandbox": {
     "enabled": true,
     "allowUnsandboxedCommands": false,
+    "enableWeakerNetworkIsolation": true,
     "excludedCommands": [
       "depot *",
       "git ls-remote *",
@@ -20,7 +21,9 @@
         "~/.cache/sandbox",
         "~/.claude/plans",
         "~/Library/Preferences/.wrangler",
-        "~/Library/Caches/aube"
+        "~/Library/Caches/aube",
+        "/private/tmp/pnpm-store-operation-locks-*",
+        "/private/tmp/pnpm-store-operation-locks-*/**"
       ],
       "denyWrite": [
         "~/**/.zshenv",
@@ -59,7 +62,11 @@
 	"doc.rust-lang.org",
 	"static.crates.io",
 	"index.crates.io",
-	"proxy.golang.org"
+	"proxy.golang.org",
+	"sum.golang.org",
+	"npm.jsr.io",
+	"api.osv.dev",
+	"osv-vulnerabilities.storage.googleapis.com"
       ]
     },
     "credentials": {
@@ -260,7 +267,8 @@
           {
             "type": "command",
             "command": "$HOME/.claude/scripts/git-push-no-verify.sh",
-            "if": "Bash(git push*)"
+            "if": "Bash(git push*)",
+            "timeout": 600
           }
         ]
       },

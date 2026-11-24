@@ -101,6 +101,20 @@ setup() {
   [ "$(jq '.hooks.WorktreeCreate | length' "$s")" = 1 ]
 }
 
+@test "an already registered hook takes the fragment's new fields, others untouched" {
+  echo '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"$HOME/.claude/scripts/git-push-no-verify.sh","if":"Bash(git push*)"}]},{"matcher":"Bash","hooks":[{"type":"command","command":"mine","timeout":5}]}]}}' >"$s"
+  merge-settings.sh "$frag" "$s"
+  [ "$(jq '[.hooks.PreToolUse[].hooks[] | select(.command | endswith("git-push-no-verify.sh"))] | length' "$s")" = 1 ]
+  [ "$(jq '.hooks.PreToolUse[0].hooks[0].timeout' "$s")" = 600 ]
+  [ "$(jq '.hooks.PreToolUse[1].hooks[0].timeout' "$s")" = 5 ]
+}
+
+@test "turns on trustd access when the fragment asks" {
+  echo '{}' >"$s"
+  merge-settings.sh "$frag" "$s"
+  [ "$(jq '.sandbox.enableWeakerNetworkIsolation' "$s")" = true ]
+}
+
 @test "obsolete sandbox entries from an earlier merge are removed, the rest kept" {
   echo '{"sandbox":{"excludedCommands":["git pull *","mine *"],"filesystem":{"allowWrite":["~/.local/share/mise","~/mine"]}}}' >"$s"
   merge-settings.sh "$frag" "$s"

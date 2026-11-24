@@ -196,11 +196,20 @@ unsandboxed, so `.claude/settings.fragment.json` keeps their inputs out of reach
   run unsandboxed. Install or bump mise tools from your own shell.
 - `git pull` is not excluded, because it merges in the unsandboxed process and
   runs post-merge/post-checkout hooks. Fetch, then merge sandboxed.
-- `git-push-no-verify.sh` (PreToolUse on `git push`) rewrites the call to
-  `git push --no-verify ...`: a pre-push hook would run lefthook, which reads
-  `lefthook.yml`/`lefthook-local.yml` and runs project code from the worktree.
-  Claude runs `lefthook run pre-push` sandboxed before pushing instead. Override
-  with `CLAUDE_ALLOW_PUSH_HOOKS=1`.
+- `git-push-no-verify.sh` (PreToolUse on `git push`) runs the repo's pre-push
+  hook itself, inside `srt` (sandbox-runtime) with the rules of Claude's sandbox
+  read from `~/.claude/settings.json`, the worktree and a fresh `TMPDIR` writable,
+  and git's usual arguments and stdin. A failing hook blocks the push with its
+  output; a passing one (or none) gets the call rewritten to
+  `git push --no-verify ...`, so git doesn't run the hook again unsandboxed (it
+  would run lefthook, `lefthook.yml` and project code from the worktree). A push
+  that already says `--no-verify` is still checked, unless that commit already
+  passed for that remote branch (passes are recorded in
+  `~/.cache/claude-push-checks`, outside the sandbox's reach): auto mode makes
+  Claude re-issue a rewritten call, and that shouldn't run the checks twice. A
+  missing `srt` blocks, and any error in the hook script blocks rather than
+  letting git run the hook. Override
+  with `CLAUDE_ALLOW_PUSH_HOOKS=1` (git runs the hook unsandboxed).
 - `git-remote-guard.sh` (PreToolUse on `git push|fetch|ls-remote`) blocks the call
   unless git would read its config only from the expected files. The sandbox
   protects `.git/config` and `.git/hooks`, but a worktree's `.git` file and its
@@ -223,6 +232,16 @@ unsandboxed, so `.claude/settings.fragment.json` keeps their inputs out of reach
   from and runs out of (aube runs packages from its cache's global virtual store,
   pnpm runs its self-managed versions from `PNPM_HOME`) stay read-only to it.
   `~/Library/Caches/aube` stays writable; it holds only network tuning state.
+  `CARGO_HOME`, `GOPATH` and `GOCACHE` move there too (cargo's registry holds the
+  crate sources whose `build.rs` runs on build); `~/.cargo/bin` stays on `PATH`.
+- pnpm 12 takes its store lock in `/tmp/pnpm-store-operation-locks-<uid>` whatever
+  `TMPDIR` says, so that dir and the lock files in it are writable (the glob needs
+  a separate `/**` entry, since `*` does not cross `/`).
+- `enableWeakerNetworkIsolation` lets sandboxed commands reach
+  `com.apple.trustd.agent`. aube and pnpm 12 (Rust, rustls-platform-verifier) and
+  Go tools verify TLS through Security.framework, which fails without it
+  (`OSStatus -26276`). The cost: trustd fetches OCSP/CRL/AIA URLs for the
+  certificates it checks, outside the proxy, a narrow exfiltration path.
 - `CF_TOKEN_ADMIN` and `CLOUDFLARE_API_TOKEN` are withheld from sandboxed commands,
   for when Claude starts from a shell where fnox has loaded them.
 
