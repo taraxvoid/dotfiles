@@ -22,7 +22,8 @@
         "~/.claude/plans",
         "~/Library/Preferences/.wrangler",
         "~/Library/Caches/aube",
-        "/private/tmp/pnpm-store-operation-locks-*"
+        "/private/tmp/pnpm-store-operation-locks-*",
+        "/private/tmp/pnpm-store-operation-locks-*/**"
       ],
       "denyWrite": [
         "~/**/.zshenv",
