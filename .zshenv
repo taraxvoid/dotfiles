@@ -25,9 +25,13 @@ if [[ -n $SANDBOX_RUNTIME ]]; then
     : "${AUBE_STORE_DIR:=$s/aube/store}" "${AUBE_CACHE_DIR:=$s/aube/cache}"
     : "${pnpm_config_store_dir:=$s/pnpm/store}" "${pnpm_config_cache_dir:=$s/pnpm/cache}"
     : "${pnpm_config_state_dir:=$s/pnpm/state}" "${PNPM_HOME:=$s/pnpm/home}"
+    # cargo keeps its registry (crate sources whose build.rs runs on build) in
+    # CARGO_HOME; ~/.cargo/bin stays on PATH, rustup still finds ~/.rustup
+    : "${CARGO_HOME:=$s/cargo}" "${GOPATH:=$s/go}" "${GOCACHE:=$s/go-build}"
   }
   export UV_CACHE_DIR BUN_INSTALL_CACHE_DIR AUBE_STORE_DIR AUBE_CACHE_DIR \
-    pnpm_config_store_dir pnpm_config_cache_dir pnpm_config_state_dir PNPM_HOME
+    pnpm_config_store_dir pnpm_config_cache_dir pnpm_config_state_dir PNPM_HOME \
+    CARGO_HOME GOPATH GOCACHE
 fi
 
 # Claude's Bash sandbox can't write uv's tool dir (~/.local/share/uv/tools), and

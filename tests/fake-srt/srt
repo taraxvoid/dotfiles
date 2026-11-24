@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Fake srt for tests: saves the config it was given and the TMPDIR and
+# SANDBOX_RUNTIME it sees into $FAKE_SRT_DIR, then runs the -c command unsandboxed.
+set -euo pipefail
+cfg='' cmd=''
+while [ $# -gt 0 ]; do
+  case $1 in
+    -s) cfg=$2; shift 2 ;;
+    -c) cmd=$2; shift 2 ;;
+    *) shift ;;
+  esac
+done
+cp "$cfg" "$FAKE_SRT_DIR/cfg.json"
+printf '%s\n' "$TMPDIR" "${SANDBOX_RUNTIME:-}" >"$FAKE_SRT_DIR/env"
+exec bash -c "$cmd"
