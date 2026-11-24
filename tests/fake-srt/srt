@@ -11,5 +11,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 cp "$cfg" "$FAKE_SRT_DIR/cfg.json"
+# like srt: the child's TMPDIR comes from CLAUDE_CODE_TMPDIR, not the caller's TMPDIR
+export TMPDIR=${CLAUDE_CODE_TMPDIR:-${CLAUDE_TMPDIR:-/tmp/claude}} SANDBOX_RUNTIME=1
 printf '%s\n' "$TMPDIR" "${SANDBOX_RUNTIME:-}" >"$FAKE_SRT_DIR/env"
 exec bash -c "$cmd"

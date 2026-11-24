@@ -234,6 +234,10 @@ unsandboxed, so `.claude/settings.fragment.json` keeps their inputs out of reach
   `~/Library/Caches/aube` stays writable; it holds only network tuning state.
   `CARGO_HOME`, `GOPATH` and `GOCACHE` move there too (cargo's registry holds the
   crate sources whose `build.rs` runs on build); `~/.cargo/bin` stays on `PATH`.
+  So do miniflare's and wrangler's dev registries (`CLOUDFLARE_DEV_REGISTRY_PATH`,
+  `WRANGLER_REGISTRY_PATH`), which local workers use to find each other: a
+  sandboxed dev server can't point your own ones elsewhere. `workers.cloudflare.com`
+  is allowed for miniflare's `cf.json` fetch.
 - pnpm 12 takes its store lock in `/tmp/pnpm-store-operation-locks-<uid>` whatever
   `TMPDIR` says, so that dir and the lock files in it are writable (the glob needs
   a separate `/**` entry, since `*` does not cross `/`).
