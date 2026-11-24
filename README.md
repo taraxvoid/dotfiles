@@ -235,7 +235,8 @@ unsandboxed, so `.claude/settings.fragment.json` keeps their inputs out of reach
   `CARGO_HOME`, `GOPATH` and `GOCACHE` move there too (cargo's registry holds the
   crate sources whose `build.rs` runs on build); `~/.cargo/bin` stays on `PATH`.
 - pnpm 12 takes its store lock in `/tmp/pnpm-store-operation-locks-<uid>` whatever
-  `TMPDIR` says, so that dir is writable (lock files only).
+  `TMPDIR` says, so that dir and the lock files in it are writable (the glob needs
+  a separate `/**` entry, since `*` does not cross `/`).
 - `enableWeakerNetworkIsolation` lets sandboxed commands reach
   `com.apple.trustd.agent`. aube and pnpm 12 (Rust, rustls-platform-verifier) and
   Go tools verify TLS through Security.framework, which fails without it
