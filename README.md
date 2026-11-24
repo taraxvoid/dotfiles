@@ -203,8 +203,12 @@ unsandboxed, so `.claude/settings.fragment.json` keeps their inputs out of reach
   output; a passing one (or none) gets the call rewritten to
   `git push --no-verify ...`, so git doesn't run the hook again unsandboxed (it
   would run lefthook, `lefthook.yml` and project code from the worktree). A push
-  that already says `--no-verify` is left alone, a missing `srt` blocks, and any
-  error in the hook script blocks rather than letting git run the hook. Override
+  that already says `--no-verify` is still checked, unless that commit already
+  passed for that remote branch (passes are recorded in
+  `~/.cache/claude-push-checks`, outside the sandbox's reach): auto mode makes
+  Claude re-issue a rewritten call, and that shouldn't run the checks twice. A
+  missing `srt` blocks, and any error in the hook script blocks rather than
+  letting git run the hook. Override
   with `CLAUDE_ALLOW_PUSH_HOOKS=1` (git runs the hook unsandboxed).
 - `git-remote-guard.sh` (PreToolUse on `git push|fetch|ls-remote`) blocks the call
   unless git would read its config only from the expected files. The sandbox

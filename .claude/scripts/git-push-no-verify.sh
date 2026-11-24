@@ -16,7 +16,11 @@
 #
 # Only a lone `git push` is handled: anything chained or prefixed does not match
 # the sandbox exclusion anyway, so it runs sandboxed and cannot push. A push that
-# already says --no-verify is left alone (no check, no rewrite).
+# already says --no-verify is not rewritten but still checked, unless the same
+# commit already passed for the same remote branch: auto mode makes Claude re-issue
+# the rewritten call, and that second call should not run the checks again. Passes
+# are recorded in CLAUDE_PUSH_CHECK_DIR (default ~/.cache/claude-push-checks),
+# which sandboxed commands can't write.
 # Escape hatch: CLAUDE_ALLOW_PUSH_HOOKS=1 (git runs the hook itself, unsandboxed).
 # Overrides, for tests: CLAUDE_SETTINGS (settings file), SRT_BIN (srt binary).
 set -uo pipefail
@@ -31,7 +35,8 @@ re='^([[:space:]]*git[[:space:]]+push)([[:space:]]|$)(.*)$'
 [[ $cmd =~ $re ]] || exit 0
 rest=${BASH_REMATCH[2]}${BASH_REMATCH[3]}
 # already skipping hooks (push has no short form: its -n is --dry-run)
-[[ " $rest " == *[[:space:]]--no-verify[[:space:]]* ]] && exit 0
+noverify=0
+[[ " $rest " == *[[:space:]]--no-verify[[:space:]]* ]] && noverify=1
 
 block() { echo "Blocked push: $1" >&2; exit 2; }
 
@@ -75,9 +80,14 @@ run_pre_push() {
   rsha=$(git rev-parse --verify -q "refs/remotes/$remote/${dst#refs/heads/}") ||
     rsha=0000000000000000000000000000000000000000
 
+  local stamps=${CLAUDE_PUSH_CHECK_DIR:-$HOME/.cache/claude-push-checks} stamp
+  stamp=$stamps/$(printf '%s\n' "$top" "$lsha" "$remote" "$dst" "$(git hash-object "$hook")" |
+    git hash-object --stdin)
+  [ -e "$stamp" ] && return 0
+
   local srt=${SRT_BIN:-srt} settings=${CLAUDE_SETTINGS:-$HOME/.claude/settings.json}
   command -v "$srt" >/dev/null ||
-    block "srt (sandbox-runtime) not found, so the pre-push hook can't run sandboxed. Run \`lefthook run pre-push\` (or the hook) yourself, then push with --no-verify."
+    block "srt (sandbox-runtime) not found, so the pre-push hook can't run sandboxed. Install it (mise use -g npm:@anthropic-ai/sandbox-runtime) or set CLAUDE_ALLOW_PUSH_HOOKS=1."
   local cfgdir tmp cfg
   cfgdir=$(mktemp -d) tmp=$(mktemp -d)
   # shellcheck disable=SC2064 # expand now: the dirs are fixed
@@ -109,7 +119,10 @@ run_pre_push() {
   out=$(cd "$top" && printf '%s %s %s %s\n' "$src" "$lsha" "$dst" "$rsha" |
     TMPDIR=$tmp SANDBOX_RUNTIME=1 "$srt" -s "$cfg" -c "$(printf '%q -c %q' "$sh" "$inner")" 2>&1)
   rc=$?
-  [ "$rc" -eq 0 ] && return 0
+  if [ "$rc" -eq 0 ]; then
+    mkdir -p "$stamps" && touch "$stamp"
+    return 0
+  fi
   {
     echo "Blocked push: the pre-push hook failed (exit $rc), run sandboxed via srt. Fix what it reports and push again:"
     tail -n 40 <<<"$out"
@@ -121,6 +134,7 @@ run_pre_push() {
 (run_pre_push)
 rc=$?
 [ "$rc" -eq 0 ] || { [ "$rc" -eq 2 ] || echo "Blocked push: ${0##*/} failed (exit $rc) checking the pre-push hook." >&2; exit 2; }
+[ "$noverify" = 1 ] && exit 0
 
 # Insert right after `git push` so deny rules anchored on the tail
 # (`git push * main`, `git push * --force*`) still match.

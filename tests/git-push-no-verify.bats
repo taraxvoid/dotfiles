@@ -56,6 +56,7 @@ repo_with_hook() {
 setup_srt() {
   export FAKE_SRT_DIR=$BATS_TEST_TMPDIR/srt SRT_BIN=$BATS_TEST_DIRNAME/fake-srt/srt
   export ZDOTDIR=$BATS_TEST_TMPDIR CLAUDE_SETTINGS=$BATS_TEST_TMPDIR/settings.json
+  export CLAUDE_PUSH_CHECK_DIR=$BATS_TEST_TMPDIR/stamps
   mkdir -p "$FAKE_SRT_DIR"
   echo '{"sandbox":{"network":{"allowedDomains":["github.com"]},"filesystem":{"allowWrite":["~/.cache/sandbox"],"denyWrite":["~/x"]},"credentials":{"envVars":[{"name":"GH_TOKEN","mode":"deny"}]},"enableWeakerNetworkIsolation":true}}' >"$CLAUDE_SETTINGS"
 }
@@ -98,6 +99,27 @@ setup_srt() {
   main=$(make_repo personal/q)
   run in_repo "git push" "$main"
   [ "$status" -eq 0 ] && [ "$(rewritten)" = "git push --no-verify" ] && [ ! -e "$FAKE_SRT_DIR/cfg.json" ]
+}
+
+@test "an explicit --no-verify is still checked, and not rewritten" {
+  setup_srt
+  wt=$(repo_with_hook 1)
+  run in_repo "git push --no-verify" "$wt"
+  [ "$status" -eq 2 ] && [[ $output == *hook-says-no* ]]
+}
+
+@test "a commit that already passed is not checked again (auto mode re-issue)" {
+  setup_srt
+  wt=$(repo_with_hook 0)
+  run in_repo "git push" "$wt"
+  [ "$status" -eq 0 ] && [ -e "$FAKE_SRT_DIR/hook.log" ]
+  rm "$FAKE_SRT_DIR/hook.log"
+  run in_repo "git push --no-verify" "$wt"
+  [ "$status" -eq 0 ] && [ -z "$output" ] && [ ! -e "$FAKE_SRT_DIR/hook.log" ]
+  # a new commit is checked again
+  git -C "$wt" commit -q --allow-empty -m again
+  run in_repo "git push --no-verify" "$wt"
+  [ "$status" -eq 0 ] && [ -e "$FAKE_SRT_DIR/hook.log" ]
 }
 
 @test "blocks when srt is missing and a hook exists" {
