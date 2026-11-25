@@ -251,11 +251,25 @@ _gh_pr_pick() {
 unalias gpl 2>/dev/null
 gpl() { gps -l "$@"; }
 
+# _gh_pr_rerun_failed <pr>: rerun the failed jobs of every failed run on the PR's head commit
+_gh_pr_rerun_failed() {
+  local sha ids id
+  sha=$(gh pr view "$1" --json headRefOid -q .headRefOid) || return 1
+  ids=$(gh run list --commit "$sha" --status failure --json databaseId -q '.[].databaseId') || return 1
+  if [[ -z "$ids" ]]; then
+    print -u2 -- "no failed runs on #$1 (${sha[1,7]})"
+    return 1
+  fi
+  for id in ${(f)ids}; do
+    gh run rerun --failed "$id"
+  done
+}
+
 # Action menu for one PR number (called by gps). Merge, auto-merge and close ask first.
 _gh_pr_act() {
   local n=$1 action
-  action=$(printf '%s\n' approve "automerge (squash)" browser "checkout (cd worktree)" checks close \
-    diff logs "merge (commit)" "merge (squash)" ready review "update (base)" view watch \
+  action=$(printf '%s\n' approve "automerge (squash)" browser "checkout (cd worktree)" checks close comment \
+    diff logs "merge (commit)" "merge (squash)" ready review "rerun all failed" "update (base)" view watch \
     | fzf --prompt="#$n> " --height=~40%) || return 1
   case $action in
     view) gh pr view $n ;;
@@ -268,6 +282,8 @@ _gh_pr_act() {
     "automerge (squash)") read -q "?Enable auto-merge for #$n and delete the branch after? [y/N] " && { echo; gh pr merge $n --squash --auto --delete-branch } ;;
     approve) gh pr review $n --approve ;;
     review) gh pr review $n ;;
+    comment) gh pr comment $n ;;
+    "rerun all failed") _gh_pr_rerun_failed $n ;;
     "update (base)") gh pr update-branch $n ;;
     watch) gh pr checks $n --watch ;;
     ready) gh pr ready $n ;;
@@ -423,10 +439,6 @@ alias gfm="git fetch --all && git merge origin/main"
 #: gfn -- fetch all remotes, merge origin/next
 alias gfn="git fetch --all && git merge origin/next"
 
-# one-shot status of the current PR's checks (gpw is the --watch version)
-#: gpc [pr] -- PR check status, once
-alias gpc="gh pr checks"
-
 # Resolve the databaseId of a PR's most recent run (current branch, or pass
 # a PR number/branch). 
 _gh_pr_run_id() {
@@ -440,7 +452,7 @@ _gh_pr_run_id() {
 }
 
 # Stream live job output for a PR's most recent run (current branch, or pass
-# a PR number/branch). Unlike `gpc` (which polls check *status*), this tails
+# a PR number/branch). Unlike `gpw` (which polls check *status*), this tails
 # the actual log via `gh run watch`. If the run already finished, `gh run
 # watch` just prints a one-liner, so fall back to the full annotated summary
 # (catches things like workflow-syntax failures that never produced jobs).
@@ -506,8 +518,8 @@ alias gpma="gh pr merge --squash --auto --delete-branch"
 alias gplm="gh pr list --author @me"
 #: gpq -- PRs waiting on your review
 alias gpq="gh pr list --search 'review-requested:@me'"
-#: gpcm [pr] -- comment on a PR
-alias gpcm="gh pr comment"
+#: gpc [pr] -- comment on a PR
+alias gpc="gh pr comment"
 #: gpa [pr] -- approve a PR
 alias gpa="gh pr review --approve"
 #: gprv [pr] -- review a PR (approve, comment or request changes)
