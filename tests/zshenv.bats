@@ -5,7 +5,7 @@ setup() {
   mkdir -p "$HOME"
   unset UV_TOOL_DIR UV_CACHE_DIR BUN_INSTALL_CACHE_DIR SANDBOX_RUNTIME \
     AUBE_STORE_DIR AUBE_CACHE_DIR PNPM_HOME \
-    pnpm_config_store_dir pnpm_config_cache_dir pnpm_config_state_dir CARGO_HOME GOPATH GOCACHE
+    pnpm_config_store_dir pnpm_config_cache_dir pnpm_config_state_dir CARGO_HOME GOPATH GOCACHE CLOUDFLARE_DEV_REGISTRY_PATH WRANGLER_REGISTRY_PATH
 }
 
 zenv() { # <var>: its value in a fresh zsh that read our .zshenv
@@ -60,7 +60,8 @@ tooldir() { zenv UV_TOOL_DIR; }
 }
 
 @test "inside the sandbox cargo and go get homes and caches apart from the shared ones" {
-  for kv in CARGO_HOME=cargo GOPATH=go GOCACHE=go-build; do
+  for kv in CARGO_HOME=cargo GOPATH=go GOCACHE=go-build \
+    CLOUDFLARE_DEV_REGISTRY_PATH=cloudflare/dev-registry WRANGLER_REGISTRY_PATH=wrangler/registry; do
     SANDBOX_RUNTIME=1 run zenv "${kv%%=*}"
     [ "$output" = "$HOME/.cache/sandbox/${kv#*=}" ] || { echo "$kv: $output"; return 1; }
   done

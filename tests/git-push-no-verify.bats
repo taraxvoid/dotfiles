@@ -47,8 +47,8 @@ repo_with_hook() {
   main=$(make_repo personal/p)
   wt=$(add_worktree "$main" feat --push)
   git -C "$wt" commit -q --allow-empty -m more
-  printf '#!/usr/bin/env bash\necho "args $*" >"%s/hook.log"\ncat >>"%s/hook.log"\necho hook-says-no\nexit %s\n' \
-    "$FAKE_SRT_DIR" "$FAKE_SRT_DIR" "$1" >"$main/.git/hooks/pre-push"
+  printf '#!/usr/bin/env bash\necho "args $*" >"%s/hook.log"\ncat >>"%s/hook.log"\necho "$TMPDIR" >"%s/hook.tmpdir"\necho hook-says-no\nexit %s\n' \
+    "$FAKE_SRT_DIR" "$FAKE_SRT_DIR" "$FAKE_SRT_DIR" "$1" >"$main/.git/hooks/pre-push"
   chmod +x "$main/.git/hooks/pre-push"
   printf '%s\n' "$wt"
 }
@@ -84,6 +84,8 @@ setup_srt() {
   [ "$(jq --arg w "$wt" '.filesystem.allowWrite | index($w) != null' "$c")" = true ]
   [ "$(jq --arg t "$tmp" '.filesystem.allowWrite | index($t) != null' "$c")" = true ]
   [ "$(sed -n 2p "$FAKE_SRT_DIR/env")" = 1 ]
+  # srt hands the child CLAUDE_CODE_TMPDIR as TMPDIR; it must be the fresh dir
+  [ "$(cat "$FAKE_SRT_DIR/hook.tmpdir")" = "$tmp" ]
   [ ! -e "$tmp" ]
 }
 

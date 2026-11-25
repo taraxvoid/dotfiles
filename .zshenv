@@ -28,10 +28,15 @@ if [[ -n $SANDBOX_RUNTIME ]]; then
     # cargo keeps its registry (crate sources whose build.rs runs on build) in
     # CARGO_HOME; ~/.cargo/bin stays on PATH, rustup still finds ~/.rustup
     : "${CARGO_HOME:=$s/cargo}" "${GOPATH:=$s/go}" "${GOCACHE:=$s/go-build}"
+    # miniflare/wrangler's dev registry (local workers find each other through it)
+    # defaults to ~/Library/Preferences/cloudflare; a sandbox one of its own keeps
+    # sandboxed dev servers from redirecting your unsandboxed ones
+    : "${CLOUDFLARE_DEV_REGISTRY_PATH:=$s/cloudflare/dev-registry}"
+    : "${WRANGLER_REGISTRY_PATH:=$s/wrangler/registry}"
   }
   export UV_CACHE_DIR BUN_INSTALL_CACHE_DIR AUBE_STORE_DIR AUBE_CACHE_DIR \
     pnpm_config_store_dir pnpm_config_cache_dir pnpm_config_state_dir PNPM_HOME \
-    CARGO_HOME GOPATH GOCACHE
+    CARGO_HOME GOPATH GOCACHE CLOUDFLARE_DEV_REGISTRY_PATH WRANGLER_REGISTRY_PATH
 fi
 
 # Claude's Bash sandbox can't write uv's tool dir (~/.local/share/uv/tools), and
