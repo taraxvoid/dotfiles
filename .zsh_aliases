@@ -423,10 +423,6 @@ alias gfm="git fetch --all && git merge origin/main"
 #: gfn -- fetch all remotes, merge origin/next
 alias gfn="git fetch --all && git merge origin/next"
 
-# one-shot status of the current PR's checks (gpw is the --watch version)
-#: gpc [pr] -- PR check status, once
-alias gpc="gh pr checks"
-
 # Resolve the databaseId of a PR's most recent run (current branch, or pass
 # a PR number/branch). 
 _gh_pr_run_id() {
@@ -440,7 +436,7 @@ _gh_pr_run_id() {
 }
 
 # Stream live job output for a PR's most recent run (current branch, or pass
-# a PR number/branch). Unlike `gpc` (which polls check *status*), this tails
+# a PR number/branch). Unlike `gpw` (which polls check *status*), this tails
 # the actual log via `gh run watch`. If the run already finished, `gh run
 # watch` just prints a one-liner, so fall back to the full annotated summary
 # (catches things like workflow-syntax failures that never produced jobs).
@@ -506,8 +502,8 @@ alias gpma="gh pr merge --squash --auto --delete-branch"
 alias gplm="gh pr list --author @me"
 #: gpq -- PRs waiting on your review
 alias gpq="gh pr list --search 'review-requested:@me'"
-#: gpcm [pr] -- comment on a PR
-alias gpcm="gh pr comment"
+#: gpc [pr] -- comment on a PR
+alias gpc="gh pr comment"
 #: gpa [pr] -- approve a PR
 alias gpa="gh pr review --approve"
 #: gprv [pr] -- review a PR (approve, comment or request changes)
