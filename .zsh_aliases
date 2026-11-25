@@ -651,6 +651,12 @@ alias gim="gh issue list --assignee @me"
 alias grvl="gh run view"
 #: grlg [run] -- full log of a workflow run
 alias grlg="gh run view --log"
+#: gdl -- runs waiting on a deployment review (run id, environment, can-approve)
+alias gdl="gh pending-deploys"
+#: gda <run> [comment] -- approve a run's pending deployments
+alias gda="gh review-deploy approved"
+#: gdd <run> [comment] -- reject (deny) a run's pending deployments
+alias gdd="gh review-deploy rejected"
 #: grx [run] -- cancel a workflow run
 alias grx="gh run cancel"
 # full rerun of the current branch's latest run (grf = failed only); any args

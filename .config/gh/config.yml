@@ -20,6 +20,13 @@ aliases:
     # resolve-thread <thread-node-id>: resolve one review thread (id looks like PRRT_...).
     resolve-thread: |-
         !gh api graphql -f id="$1" -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' --jq .data.resolveReviewThread.thread.isResolved
+    # pending-deploys: runs waiting on a deployment review, one line per environment (run id, environment, can-approve|no-access).
+    pending-deploys: |-
+        !for id in $(gh run list --status waiting --json databaseId -q '.[].databaseId'); do gh api "repos/{owner}/{repo}/actions/runs/$id/pending_deployments" --jq '.[] | "\(.environment.name)\t\(if .current_user_can_approve then "can-approve" else "no-access" end)"' | awk -v id="$id" '{print id "\t" $0}'; done
+    # review-deploy <approved|rejected> <run-id> [comment]: review every pending environment you can approve on one run.
+    # Deliberately not in permissions.allow: Claude must ask before approving or rejecting a deployment.
+    review-deploy: |-
+        !usage() { echo "usage: gh review-deploy <approved|rejected> <run-id> [comment]" >&2; exit 2; }; case "$1" in approved|rejected) ;; *) usage;; esac; case "$2" in ''|*[!0-9]*) usage;; esac; ids=$(gh api "repos/{owner}/{repo}/actions/runs/$2/pending_deployments" --jq '[.[] | select(.current_user_can_approve) | .environment.id]') || exit 1; [ -n "$ids" ] && [ "$ids" != "[]" ] || { echo "no pending deployments you can review on run $2" >&2; exit 1; }; jq -n --argjson ids "$ids" --arg s "$1" --arg c "${3:-$1 via gh}" '{environment_ids:$ids,state:$s,comment:$c}' | gh api --method POST "repos/{owner}/{repo}/actions/runs/$2/pending_deployments" --input - --jq '.[].environment.name'
 # The path to a unix socket through which to send HTTP connections. If blank, HTTP traffic will be handled by net/http.DefaultTransport.
 http_unix_socket:
 # What web browser gh should use when opening URLs. If blank, will refer to environment.
