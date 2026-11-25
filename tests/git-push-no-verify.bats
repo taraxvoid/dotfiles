@@ -86,6 +86,8 @@ setup_srt() {
   [ "$(sed -n 2p "$FAKE_SRT_DIR/env")" = 1 ]
   # srt hands the child CLAUDE_CODE_TMPDIR as TMPDIR; it must be the fresh dir
   [ "$(cat "$FAKE_SRT_DIR/hook.tmpdir")" = "$tmp" ]
+  # Claude exports TMPPREFIX=/tmp/claude-<uid>/zsh for zsh; it must move too
+  [ "$(sed -n 3p "$FAKE_SRT_DIR/env")" = "$tmp/zsh" ]
   [ ! -e "$tmp" ]
 }
 

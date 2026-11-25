@@ -114,12 +114,14 @@ run_pre_push() {
 
   # zsh, so .zshenv points package caches at ~/.cache/sandbox as in Claude's sandbox.
   # srt sets the child's TMPDIR from CLAUDE_CODE_TMPDIR (else /tmp/claude), and
-  # Claude's own value (/tmp/claude-<uid>) is not writable under this config
+  # Claude's own value (/tmp/claude-<uid>) is not writable under this config. Claude
+  # also exports TMPPREFIX=/tmp/claude-<uid>/zsh, which zsh uses for heredoc and
+  # =(...) temp files, so the zsh above fails there too unless it is moved as well.
   local sh inner out rc
   sh=$(command -v zsh || command -v bash)
   inner=$(printf '%q ' "$hook" "$remote" "$url")
   out=$(cd "$top" && printf '%s %s %s %s\n' "$src" "$lsha" "$dst" "$rsha" |
-    TMPDIR=$tmp CLAUDE_CODE_TMPDIR=$tmp CLAUDE_TMPDIR=$tmp SANDBOX_RUNTIME=1 "$srt" -s "$cfg" -c "$(printf '%q -c %q' "$sh" "$inner")" 2>&1)
+    TMPDIR=$tmp TMPPREFIX=$tmp/zsh CLAUDE_CODE_TMPDIR=$tmp CLAUDE_TMPDIR=$tmp SANDBOX_RUNTIME=1 "$srt" -s "$cfg" -c "$(printf '%q -c %q' "$sh" "$inner")" 2>&1)
   rc=$?
   if [ "$rc" -eq 0 ]; then
     mkdir -p "$stamps" && touch "$stamp"
