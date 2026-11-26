@@ -271,6 +271,14 @@ stub_yazi() {
   [ "${lines[6]}" = "gma=git merge --abort" ]
 }
 
+@test "npm stage shortcut aliases are defined" {
+  run zsh -fc 'source "$0"; for a in nsl nsa nsd; do print -r -- "$a=$aliases[$a]"; done' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = "nsl=npm stage list" ]
+  [ "${lines[1]}" = "nsa=npm stage approve" ]
+  [ "${lines[2]}" = "nsd=npm stage deny" ]
+}
+
 # zb <code>: run code in zsh with the aliases loaded, on branch $BRANCH (default
 # worktree-12-x) whose open PR is $PR (none if unset). gh calls go to
 # $HOME/gh-calls; fzf prints "picker" and cancels. tty_gpd is gpd as if stdout

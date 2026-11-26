@@ -697,6 +697,14 @@ alias gwfl="gh workflow list"
 #: gwfr [workflow] -- trigger a workflow (workflow_dispatch)
 alias gwfr="gh workflow run"
 
+# npm staged publishes
+#: nsl -- list staged npm publishes waiting for approval
+alias nsl="npm stage list"
+#: nsa <id> -- approve a staged npm publish
+alias nsa="npm stage approve"
+#: nsd <id> -- deny a staged npm publish
+alias nsd="npm stage deny"
+
 # Repo
 #: gbw [path] -- open the repo (or a file in it) in the browser
 alias gbw="gh browse"
