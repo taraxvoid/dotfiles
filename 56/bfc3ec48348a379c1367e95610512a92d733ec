@@ -1,0 +1,16 @@
+.claude/scripts/agent-doctor.sh
+  h_f0add3b575c958 1-79
+.claude/settings.fragment.json
+  h_f0add3b575c958 211-215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "56bfc3ec48348a379c1367e95610512a92d733ec",
+  "prompts": {},
+  "humans": {
+    "h_f0add3b575c958": {
+      "author": "void <1711810+taraxvoid@users.noreply.github.com>"
+    }
+  }
+}
