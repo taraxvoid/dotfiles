@@ -703,15 +703,19 @@ alias nsl="npm stage list"
 # _ns_pick: fzf over `npm stage list` lines, prints the picked stage id (the
 # first UUID on the line, so it does not depend on the column layout). Preview
 # is `npm stage view`.
+_ns_uuid_re='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
 _ns_pick() {
-  local out pick
+  local out line pick
+  local -a rows
   out=$(npm stage list) || return
-  [[ -n $out ]] || { print -u2 "No staged publishes"; return 1 }
-  pick=$(print -r -- "$out" | rg -i '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' \
-    | fzf --prompt='stage> ' \
-      --preview='npm stage view $(print -r -- {} | rg -oi "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" | head -1)' \
-      --preview-window=down,50%) || return 1
-  print -r -- "$pick" | rg -oi '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1
+  for line in ${(f)out}; do
+    [[ $line =~ $_ns_uuid_re ]] && rows+=$line
+  done
+  (( $#rows )) || { print -u2 "No staged publishes"; return 1 }
+  pick=$(print -rl -- $rows | fzf --prompt='stage> ' \
+    --preview="npm stage view \$(printf %s {} | grep -Eoi '$_ns_uuid_re' | head -1)" \
+    --preview-window=down,50%) || return 1
+  [[ $pick =~ $_ns_uuid_re ]] && print -r -- $MATCH
 }
 # _ns <view|approve|reject> [id...]: with an id (or no fzf, or no terminal) runs
 # `npm stage <sub>` as is; bare on a terminal it picks from the list. approve
