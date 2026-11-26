@@ -271,12 +271,37 @@ stub_yazi() {
   [ "${lines[6]}" = "gma=git merge --abort" ]
 }
 
-@test "npm stage shortcut aliases are defined" {
-  run zsh -fc 'source "$0"; for a in nsl nsa nsd; do print -r -- "$a=$aliases[$a]"; done' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+@test "nsl is npm stage list" {
+  run zsh -fc 'source "$0"; print -r -- "$aliases[nsl]"' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$output" = "npm stage list" ]
+}
+
+@test "nsv/nsa/nsd pass an explicit id straight to npm stage (nsd rejects)" {
+  run zsh -fc 'source "$0"; npm() { print -r -- "npm $*"; }; nsv a-1; nsa b-2; nsd c-3' "$BATS_TEST_DIRNAME/../.zsh_aliases"
   [ "$status" -eq 0 ]
-  [ "${lines[0]}" = "nsl=npm stage list" ]
-  [ "${lines[1]}" = "nsa=npm stage approve" ]
-  [ "${lines[2]}" = "nsd=npm stage deny" ]
+  [ "${lines[0]}" = "npm stage view a-1" ]
+  [ "${lines[1]}" = "npm stage approve b-2" ]
+  [ "${lines[2]}" = "npm stage reject c-3" ]
+}
+
+@test "nsd with no id and no terminal runs bare npm stage reject (no picker)" {
+  run zsh -fc 'source "$0"; npm() { print -r -- "npm $*"; }; nsd' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$output" = "npm stage reject" ]
+}
+
+@test "_ns_pick prints the stage id from the picked list line" {
+  run zsh -fc 'source "$0"
+    npm() { print -r -- "pkg@1.0.0  7de69a33-503a-43a3-ad2b-67a5f4adfd95  2026-11-26"; }
+    fzf() { cat; }
+    _ns_pick' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -eq 0 ]
+  [ "$output" = "7de69a33-503a-43a3-ad2b-67a5f4adfd95" ]
+}
+
+@test "_ns_pick says so when nothing is staged" {
+  run zsh -fc 'source "$0"; npm() { :; }; _ns_pick' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"No staged publishes"* ]]
 }
 
 # zb <code>: run code in zsh with the aliases loaded, on branch $BRANCH (default

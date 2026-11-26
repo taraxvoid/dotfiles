@@ -700,10 +700,41 @@ alias gwfr="gh workflow run"
 # npm staged publishes
 #: nsl -- list staged npm publishes waiting for approval
 alias nsl="npm stage list"
-#: nsa <id> -- approve a staged npm publish
-alias nsa="npm stage approve"
-#: nsd <id> -- deny a staged npm publish
-alias nsd="npm stage deny"
+# _ns_pick: fzf over `npm stage list` lines, prints the picked stage id (the
+# first UUID on the line, so it does not depend on the column layout). Preview
+# is `npm stage view`.
+_ns_pick() {
+  local out pick
+  out=$(npm stage list) || return
+  [[ -n $out ]] || { print -u2 "No staged publishes"; return 1 }
+  pick=$(print -r -- "$out" | rg -i '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' \
+    | fzf --prompt='stage> ' \
+      --preview='npm stage view $(print -r -- {} | rg -oi "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" | head -1)' \
+      --preview-window=down,50%) || return 1
+  print -r -- "$pick" | rg -oi '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1
+}
+# _ns <view|approve|reject> [id...]: with an id (or no fzf, or no terminal) runs
+# `npm stage <sub>` as is; bare on a terminal it picks from the list. approve
+# and reject ask first when picked, since both are final.
+_ns() {
+  local sub=$1 id
+  shift
+  if (( $# )) || [[ ! -t 1 ]] || (( ! $+commands[fzf] )); then
+    npm stage $sub "$@"
+    return
+  fi
+  id=$(_ns_pick) || return 1
+  if [[ $sub != view ]]; then
+    _confirm "npm stage $sub $id?" || return 1
+  fi
+  npm stage $sub $id
+}
+#: nsv [id] -- view a staged npm publish (bare: fzf picker)
+nsv() { _ns view "$@" }
+#: nsa [id] -- approve (publish) a staged npm publish (bare: fzf picker, asks first)
+nsa() { _ns approve "$@" }
+#: nsd [id] -- reject a staged npm publish (bare: fzf picker, asks first)
+nsd() { _ns reject "$@" }
 
 # Repo
 #: gbw [path] -- open the repo (or a file in it) in the browser
