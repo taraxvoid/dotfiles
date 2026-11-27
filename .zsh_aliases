@@ -675,9 +675,11 @@ _gd() { # _gd <approved|rejected> [run] [comment]
   picks=("${(@f)$(gh pending-deploys | awk -F'\t' '$3=="can-approve"' \
     | fzf --multi --delimiter='\t' --prompt="$state> " --header='tab to multi-select')}")
   [[ -n "${picks[1]}" ]] || return 1
+  local rc=0
   for run in ${(u)${(@)picks%%$'\t'*}}; do
-    echo "run $run:"; gh review-deploy "$state" "$run"
+    echo "run $run:"; gh review-deploy "$state" "$run" || rc=1
   done
+  return $rc
 }
 gda() { _gd approved "$@"; }
 gdx() { _gd rejected "$@"; }
