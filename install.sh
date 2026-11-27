@@ -124,7 +124,7 @@ else
 fi
 [ "$DOTFILES" = "$HERE" ] || say "using the main checkout; pass --from-here to use $HERE"
 
-for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .gitconfig .config/git/ignore .config/git/attributes .config/starship.toml .config/gh/config.yml .config/herdr/config.toml \
+for f in .zshrc .zshenv .zsh_aliases .zsh_plugins.txt .bunfig.toml .gitconfig .config/git/ignore .config/git/attributes .config/starship.toml .config/gh/config.yml .config/herdr/config.toml .config/ghostty/config \
   .config/yazi/yazi.toml .config/yazi/keymap.toml .config/yazi/init.lua .config/yazi/package.toml .config/devin/config.json; do
   link "$f"
 done
