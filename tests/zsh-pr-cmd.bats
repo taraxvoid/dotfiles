@@ -42,6 +42,20 @@ zc() {
   [ "$(cat "$HOME/gh-calls")" = "gh pr view -R a/b" ]
 }
 
+@test "attached -R, help and a selector after flags all skip the picker" {
+  run zc 'gpv -Ra/b'
+  [ "$(cat "$HOME/gh-calls")" = "gh pr view -Ra/b" ]
+  run zc 'gpv --help'
+  [ "$(cat "$HOME/gh-calls")" = "gh pr view --help" ]
+  run zc 'gpv --web 12'
+  [ "$(cat "$HOME/gh-calls")" = "gh pr view --web 12" ]
+}
+
+@test "on a terminal without fzf it is plain gh" {
+  run zc 'unset "commands[fzf]"; gpv'
+  [ "$(cat "$HOME/gh-calls")" = "gh pr view" ]
+}
+
 @test "without a terminal it is plain gh" {
   run zsh -fc '
     source "$0"

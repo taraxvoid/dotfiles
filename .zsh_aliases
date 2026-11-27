@@ -509,7 +509,11 @@ unalias gpv gpw gpe gpr gpma gpc gpa gprv gpu gpdn 2>/dev/null
 _gh_pr_cmd() {
   local sub=$1 n a
   shift
-  for a in "$@"; do [[ $a == (-R|--repo|--repo=*) ]] && { gh pr ${=sub} "$@"; return }; done
+  # -R/--repo (also attached, -Rowner/repo), help, or a PR selector anywhere (number,
+  # #N, URL) means the caller already chose: no picker.
+  for a in "$@"; do
+    [[ $a == (-R*|--repo|--repo=*|-h|--help|<->|\#<->|http(|s)://*) ]] && { gh pr ${=sub} "$@"; return }
+  done
   if [[ ${1:-} != <-> && ${1:-} != \#<-> ]] && [[ ${1:-} == -* || $# -eq 0 ]] \
       && [[ -t 1 ]] && (( $+commands[fzf] )) && ! _gh_pr_current >/dev/null; then
     n=$(_gh_pr_pick "PR ${sub%% *}> " '') || return
