@@ -102,6 +102,7 @@ setup_srt() {
 @test "the hook runs with LEFTHOOK_EXCLUDE=ci, added to any value already set" {
   setup_srt
   wt=$(repo_with_hook 0)
+  unset LEFTHOOK_EXCLUDE
   run in_repo "git push" "$wt"
   [ "$status" -eq 0 ] && [ "$(cat "$FAKE_SRT_DIR/hook.exclude")" = ci ]
   git -C "$wt" commit -q --allow-empty -m again
@@ -112,7 +113,7 @@ setup_srt() {
 @test "a failure leads with failing lines, flags permission errors and saves the full log" {
   setup_srt
   noise='for i in $(seq 1 60); do echo "noise $i"; done'
-  wt=$(repo_with_hook 1 "echo '(fail) cli > parses flags'; echo 'EPERM: operation not permitted, open x'; $noise")
+  wt=$(repo_with_hook 1 "echo '(fail) cli > parses flags'; echo 'open x: permission denied'; $noise")
   run in_repo "git push" "$wt"
   [ "$status" -eq 2 ]
   [[ $output == *"LEFTHOOK_EXCLUDE=ci"* ]]
@@ -120,6 +121,7 @@ setup_srt() {
   [[ $output == *"may be the sandbox"* ]]
   log=$(sed -n 's/^Full log: //p' <<<"$output")
   [ -f "$log" ] && grep -q '^noise 1$' "$log" && grep -q '(fail) cli' "$log"
+  [ "$(stat -c %a "$log" 2>/dev/null || stat -f %Lp "$log")" = 600 ]
 }
 
 @test "a plain failure has no permission note" {
