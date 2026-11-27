@@ -271,35 +271,98 @@ stub_yazi() {
   [ "${lines[6]}" = "gma=git merge --abort" ]
 }
 
-@test "nsl is npm stage list" {
-  run zsh -fc 'source "$0"; print -r -- "$aliases[nsl]"' "$BATS_TEST_DIRNAME/../.zsh_aliases"
-  [ "$output" = "npm stage list" ]
+# zns <code>: run code in zsh with the aliases loaded and npm stubbed. npm calls
+# are logged to $HOME/npm-calls; `stage list --json` prints $NS_LIST, `stage
+# view <id> --json` prints {"status": <$NS_STATUS_<id>, default ready>}.
+zns() {
+  : >"$HOME/npm-calls"
+  zsh -fc '
+    source "$0"
+    npm() {
+      print -r -- "npm $*" >>"$HOME/npm-calls"
+      case "$2 ${@[-1]}" in
+        "list --json") print -r -- "${NS_LIST:-[]}" ;;
+        "view --json") local v="NS_STATUS_$3"; print -r -- "{\"status\":\"${(P)v:-ready}\",\"packageName\":\"pkg-$3\",\"version\":\"1.0.0\"}" ;;
+        *) print -r -- "npm $*" ;;
+      esac
+    }
+    '"$1" "$BATS_TEST_DIRNAME/../.zsh_aliases"
 }
 
-@test "nsv/nsa/nsd pass an explicit id straight to npm stage (nsd rejects)" {
-  run zsh -fc 'source "$0"; npm() { print -r -- "npm $*"; }; nsv a-1; nsa b-2; nsd c-3' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+NS_TWO='[{"id":"a1","packageName":"voidflow","version":"1.6.5","tag":"latest","status":"validating","createdAt":"2026-11-27T17:05:30.830Z"},
+{"id":"b2","packageName":"@x/voidflow","version":"1.6.5","tag":"latest","status":"ready","createdAt":"2026-11-27T17:05:26.563Z"}]'
+
+@test "nsl prints one line per staged publish with its status" {
+  NS_LIST=$NS_TWO run zns nsl
+  [ "$status" -eq 0 ]
+  [[ "${lines[0]}" =~ ^voidflow@1\.6\.5\ +latest\ +validating\ +2026-11-27\ 17:05$ ]]
+  [[ "${lines[1]}" == "@x/voidflow@1.6.5"*ready* ]]
+}
+
+@test "nsl says so when nothing is staged" {
+  run zns nsl
+  [ "$status" -eq 0 ]
+  [ "$output" = "No staged publishes" ]
+}
+
+@test "nsl replaces an old nsl alias when re-sourced" {
+  run zsh -fc 'alias nsl="npm stage list"; source "$0"; whence -w nsl' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$output" = "nsl: function" ]
+}
+
+@test "nsv/nsa/nsd pass explicit ids to npm stage (nsd rejects)" {
+  run zns 'nsv a-1; nsa b-2; nsd c-3 d-4'
   [ "$status" -eq 0 ]
   [ "${lines[0]}" = "npm stage view a-1" ]
   [ "${lines[1]}" = "npm stage approve b-2" ]
   [ "${lines[2]}" = "npm stage reject c-3" ]
+  [ "${lines[3]}" = "npm stage reject d-4" ]
+}
+
+@test "nsa skips a validating publish without calling approve, and approves the rest" {
+  NS_STATUS_a1=validating run zns 'nsa a1 b2'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"pkg-a1@1.0.0 is still in npm's automated review"*"nsa -w"* ]]
+  [[ "$output" == *"npm stage approve b2"* ]]
+  ! grep -q "approve a1" "$HOME/npm-calls"
+}
+
+@test "nsa -w polls until the review finishes, then approves" {
+  # view runs in a subshell, so count the calls in the log: validating twice
+  run zns '
+    functions[_npm_stub]=$functions[npm]
+    npm() {
+      [[ $2 == view && $(grep -c "stage view" "$HOME/npm-calls") -lt 2 ]] && local NS_STATUS_a1=validating
+      _npm_stub "$@"
+    }
+    NS_WAIT_STEP=0 nsa -w a1'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"waiting for npm's automated review of pkg-a1@1.0.0"* ]]
+  [ "$(grep -c "stage view a1" "$HOME/npm-calls")" -eq 3 ]
+  [ "$(grep -c "stage approve a1" "$HOME/npm-calls")" -eq 1 ]
+}
+
+@test "nsa -w gives up after NS_WAIT_MAX" {
+  NS_STATUS_a1=validating run zns 'NS_WAIT_STEP=1 NS_WAIT_MAX=0 nsa -w a1'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"still validating after 0s, giving up"* ]]
+  ! grep -q "approve a1" "$HOME/npm-calls"
 }
 
 @test "nsd with no id and no terminal runs bare npm stage reject (no picker)" {
-  run zsh -fc 'source "$0"; npm() { print -r -- "npm $*"; }; nsd' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  run zns nsd
   [ "$output" = "npm stage reject" ]
 }
 
-@test "_ns_pick prints the stage id from the picked list line" {
-  run zsh -fc 'source "$0"
-    npm() { print -r -- "pkg@1.0.0  7de69a33-503a-43a3-ad2b-67a5f4adfd95  2026-11-26"; }
-    fzf() { cat; }
-    _ns_pick' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+@test "_ns_pick offers the rows from npm stage list --json and passes fzf flags" {
+  NS_LIST=$NS_TWO run zns 'fzf() { print -r -- "fzf $*" >&2; head -1; }; _ns_pick -m'
   [ "$status" -eq 0 ]
-  [ "$output" = "7de69a33-503a-43a3-ad2b-67a5f4adfd95" ]
+  [[ "$output" == *"fzf -m "*"--with-nth=2.."* ]]
+  [[ "$output" == *$'a1\tvoidflow@1.6.5\tlatest\tvalidating\t2026-11-27 17:05'* ]]
 }
 
 @test "_ns_pick says so when nothing is staged" {
-  run zsh -fc 'source "$0"; npm() { :; }; _ns_pick' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  run zns _ns_pick
   [ "$status" -eq 1 ]
   [[ "$output" == *"No staged publishes"* ]]
 }

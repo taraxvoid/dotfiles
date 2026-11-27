@@ -795,47 +795,97 @@ alias gwfl="gh workflow list"
 #: gwfr [workflow] -- trigger a workflow (workflow_dispatch)
 alias gwfr="gh workflow run"
 
-# npm staged publishes
-#: nsl -- list staged npm publishes waiting for approval
-alias nsl="npm stage list"
-# _ns_pick: fzf over `npm stage list` lines, prints the picked stage id (the
-# first UUID on the line, so it does not depend on the column layout). Preview
-# is `npm stage view`.
-_ns_uuid_re='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
-_ns_pick() {
-  local out line pick
-  local -a rows
-  out=$(npm stage list) || return
-  for line in ${(f)out}; do
-    [[ $line =~ $_ns_uuid_re ]] && rows+=$line
-  done
-  (( $#rows )) || { print -u2 "No staged publishes"; return 1 }
-  pick=$(print -rl -- $rows | fzf --prompt='stage> ' \
-    --preview="npm stage view \$(printf %s {} | grep -Eoi '$_ns_uuid_re' | head -1)" \
-    --preview-window=down,50%) || return 1
-  [[ $pick =~ $_ns_uuid_re ]] && print -r -- $MATCH
+# npm staged publishes. A freshly staged version sits in "validating" while
+# npm's automated review runs, and approve refuses it (E409) only after the 2FA
+# round trip, so nsa checks the status first: it skips validating ones, or with
+# -w waits for the review to finish and then approves.
+# _ns_rows [pkg]: one line per staged publish, tab-separated: id, name@version,
+# tag, status, date staged (UTC, to the minute)
+_ns_rows() {
+  local out
+  out=$(npm stage list --json "$@") || return
+  print -r -- $out | jq -r '.[] | [.id, "\(.packageName)@\(.version)", (.tag // ""),
+    (.status // "?"), ((.createdAt // "")[0:16] | sub("T"; " "))] | @tsv'
 }
-# _ns <view|approve|reject> [id...]: with an id (or no fzf, or no terminal) runs
-# `npm stage <sub>` as is; bare on a terminal it picks from the list. approve
-# and reject ask first when picked, since both are final.
+#: nsl [pkg] -- list staged npm publishes, one line each with their status
+# nsl used to be an alias; drop it so a re-sourced shell runs the function
+(( $+aliases[nsl] )) && unalias nsl
+function nsl {
+  local out
+  out=$(_ns_rows "$@") || return
+  [[ -n $out ]] || { print "No staged publishes"; return 0 }
+  print -r -- $out | cut -f2- | column -t -s $'\t'
+}
+# _ns_pick [-m]: fzf over the staged publishes (-m: multi-select, ctrl-a
+# toggles all), prints the picked rows as _ns_rows does. Preview is
+# `npm stage view`.
+_ns_pick() {
+  local out
+  out=$(_ns_rows) || return
+  [[ -n $out ]] || { print -u2 "No staged publishes"; return 1 }
+  print -r -- $out | fzf "$@" --prompt='stage> ' --delimiter=$'\t' --with-nth=2.. \
+    --bind=ctrl-a:toggle-all --preview='npm stage view {1}' --preview-window=down,50%
+}
+# _ns_ready [-w] <id>: succeeds when the staged publish is past npm's automated
+# review. Without -w a validating one fails at once; with -w it polls every
+# NS_WAIT_STEP seconds (15) for up to NS_WAIT_MAX seconds (900).
+_ns_ready() {
+  local wait=0 id st name waited=0 step=${NS_WAIT_STEP:-15}
+  [[ $1 == -w ]] && { wait=1; shift }
+  id=$1
+  while :; do
+    st=$(npm stage view $id --json | jq -r '[(.status // ""), "\(.packageName)@\(.version)"] | @tsv') || return 1
+    name=${st#*$'\t'} st=${st%%$'\t'*}
+    [[ $st == validating ]] || return 0
+    if (( ! wait )); then
+      print -u2 -- "$name is still in npm's automated review; try again in a few minutes, or nsa -w to wait for it"
+      return 1
+    fi
+    if (( waited >= ${NS_WAIT_MAX:-900} )); then
+      print -u2 -- "$name still validating after ${waited}s, giving up"
+      return 1
+    fi
+    (( waited )) || print -u2 -- "waiting for npm's automated review of $name..."
+    sleep $step
+    (( waited += step ))
+  done
+}
+# _ns <view|approve|reject> [-w] [id...]: with ids (or no fzf, or no terminal)
+# runs `npm stage <sub>` on each; bare on a terminal it picks from the list
+# (approve and reject take several), asking first since both are final. approve
+# checks each id with _ns_ready first (-w: wait for it) and carries on with the
+# rest when one is not ready.
 _ns() {
-  local sub=$1 id
+  local sub=$1 wait= picked id rc=0
+  local -a ids
   shift
-  if (( $# )) || [[ ! -t 1 ]] || (( ! $+commands[fzf] )); then
-    npm stage $sub "$@"
-    return
+  [[ $sub == approve && $1 == -w ]] && { wait=-w; shift }
+  ids=("$@")
+  if (( ! $#ids )) && [[ -t 1 ]] && (( $+commands[fzf] )); then
+    if [[ $sub == view ]]; then
+      picked=$(_ns_pick) || return 1
+    else
+      picked=$(_ns_pick -m) || return 1
+    fi
+    ids=(${(f)"$(print -r -- $picked | cut -f1)"})
+    if [[ $sub != view ]]; then
+      _confirm "npm stage $sub ${(j:, :)${(f)"$(print -r -- $picked | cut -f2)"}}?" || return 1
+    fi
   fi
-  id=$(_ns_pick) || return 1
-  if [[ $sub != view ]]; then
-    _confirm "npm stage $sub $id?" || return 1
-  fi
-  npm stage $sub $id
+  (( $#ids )) || { npm stage $sub; return }
+  for id in $ids; do
+    if [[ $sub == approve ]]; then
+      _ns_ready $wait $id || { rc=1; continue }
+    fi
+    npm stage $sub $id || rc=1
+  done
+  return $rc
 }
 #: nsv [id] -- view a staged npm publish (bare: fzf picker)
 nsv() { _ns view "$@" }
-#: nsa [id] -- approve (publish) a staged npm publish (bare: fzf picker, asks first)
+#: nsa [-w] [id...] -- approve staged npm publishes, skipping ones still in review (-w: wait; bare: fzf multi-picker, asks first)
 nsa() { _ns approve "$@" }
-#: nsd [id] -- reject a staged npm publish (bare: fzf picker, asks first)
+#: nsd [id...] -- reject staged npm publishes (bare: fzf multi-picker, asks first)
 nsd() { _ns reject "$@" }
 
 # Repo
