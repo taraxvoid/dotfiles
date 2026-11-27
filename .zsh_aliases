@@ -887,6 +887,11 @@ gcl() {
     owner=$me name=$repo
   fi
   [[ -n $owner && -n $name && $name != */* ]] || { print -u2 "usage: gcl [owner/]name [gh repo clone args]"; return 2 }
+  # GitHub redirects a transferred or renamed repo, so take the tier from its
+  # current owner: a stale ravenflight/x must not land in a trusted tree
+  repo=$(gh repo view $owner/$name --json nameWithOwner -q .nameWithOwner) && [[ $repo == */* ]] \
+    || { print -u2 "gcl: cannot find $owner/$name on GitHub"; return 1 }
+  owner=${repo%%/*} name=${repo#*/}
   if [[ $owner == $me ]]; then
     tier=personal
   else

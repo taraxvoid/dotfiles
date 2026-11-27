@@ -476,7 +476,7 @@ zm() {
   [[ "$output" == *"gpv [pr]"*"view a PR"* ]]
   [ "${#lines[@]}" -gt 50 ]
   run zsh -fc 'source "$0"; ghelp MERGE' "$BATS_TEST_DIRNAME/../.zsh_aliases"
-  [[ "$output" == *"gpm [pr]"* ]]
+  [[ "$output" == *"gpm [pr...]"* ]]
   [[ "$output" != *"gpv [pr]"* ]]
 }
 
@@ -559,6 +559,10 @@ JSON
   [[ "$output" != *"pr merge"* ]]
   run zm 'gpm -y --no-auto -R o/r 3 4; cat "$HOME/gh-calls"'
   [[ "$output" == *"gh pr merge 3 --squash -R o/r"*"gh pr merge 4 --squash -R o/r"* ]]
+  # a failed merge does not stop the next PR, and gpm exits 1
+  run zm 'gh() { print -r -- "gh $*" >>"$HOME/gh-calls"; [[ $* != "pr merge 3 "* ]] }
+    gpm -y --no-auto 3 4; print rc=$?; cat "$HOME/gh-calls"'
+  [[ "$output" == *"rc=1"*"gh pr merge 3 --squash"*"gh pr merge 4 --squash"* ]]
 }
 
 # zc <code>: run code with gh (calls to $HOME/gh-calls) and claude (prints its
@@ -572,6 +576,8 @@ zc() {
       print -r -- "gh $*" >>"$HOME/gh-calls"
       case "$1 $2" in
         "repo clone") mkdir -p "$4/.git" ;;
+        # moved/* stands in for a repo GitHub redirects to another owner
+        "repo view") [[ $3 == moved/* ]] && print -r -- "someone/${3#*/}" || print -r -- $3 ;;
         "pr view") [[ -n ${PR:-} ]] && print -r -- $PR || return 1 ;;
       esac
     }
@@ -589,6 +595,12 @@ zc() {
   [[ "$output" == *"gh repo clone me/dotfiles $HOME/projects/personal/dotfiles"* ]]
   [[ "$output" == *"gh repo clone ravenflight/flock $HOME/projects/ravenflight/flock"* ]]
   [[ "$output" == *"gh repo clone someone/thing $HOME/projects/untrusted/thing"* ]]
+}
+
+@test "gcl takes the tier from the repo's current owner after a transfer" {
+  run zc '_gcl_tiers[moved]=ravenflight; gcl moved/app; cat "$HOME/gh-calls"'
+  [[ "$output" == *"gh repo clone someone/app $HOME/projects/untrusted/app"* ]]
+  [[ "$output" != *"projects/ravenflight"* ]]
 }
 
 @test "gcl cds to an existing clone without cloning again, and refuses a non-repo dir" {
