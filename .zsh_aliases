@@ -876,6 +876,34 @@ _herdr_popup() {
   fi
 }
 
+# ai: fzf picker over herdr agents, those waiting for input first, then most
+# recently active. Enter focuses the agent's pane. `ai -l` (or no fzf/terminal)
+# prints the plain list. Bound to ctrl+g in herdr's config.toml.
+#: ai [-l] -- herdr agents, waiting first then most recent; enter focuses
+unalias ai 2>/dev/null
+ai() {
+  setopt local_options pipe_fail
+  local list=0 rows pick
+  [[ ${1:-} == (-l|--list) ]] && { list=1; shift }
+  (( $+commands[herdr] )) || { print -u2 "herdr not found"; return 1 }
+  rows=$(herdr agent list | jq -r '
+    def short: sub("^/Users/[^/]+/"; "~/");
+    .result.agents
+    | sort_by([(if .agent_status == "blocked" then 0 else 1 end), -(.state_change_seq // 0)])[]
+    | [.pane_id, .agent_status, (.terminal_title_stripped // .agent), ((.foreground_cwd // .cwd) | short)]
+    | @tsv') || return
+  [[ -n $rows ]] || { print "No agents"; return 0 }
+  if (( list )) || [[ ! -t 1 ]] || (( ! $+commands[fzf] )); then
+    print -r -- "$rows" | column -t -s $'\t'
+    return
+  fi
+  pick=$(print -r -- "$rows" | fzf --delimiter $'\t' --with-nth 2.. --tabstop 12 \
+    --prompt 'agent> ' --header 'enter: focus' --no-sort --reverse \
+    --preview 'herdr agent read {1} 2>/dev/null | tail -30' --preview-window 'right,50%,wrap' \
+    | cut -f1) || return
+  [[ -n $pick ]] && herdr agent focus "$pick" >/dev/null
+}
+
 # _pr_trust_ok <author> <pr>: personal and ravenflight are trusted by path, so a
 # PR checked out there runs with that trust: mise reads its mise.toml (env, hooks,
 # tasks) on cd and lefthook runs its lefthook.yml on commit. Someone else's PR
