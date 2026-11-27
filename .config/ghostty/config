@@ -6,3 +6,5 @@ theme = synthwave
 
 # cmd+left: send Home instead of ctrl+a (herdr prefix)
 keybind = cmd+left=text:\x1bOH
+# cmd+right: send End instead of ctrl+e (herdr "open worktree" popup)
+keybind = cmd+right=text:\x1bOF
