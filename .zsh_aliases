@@ -44,6 +44,9 @@ fdsd() {
 alias fdsd='noglob fdsd'
 alias sz="source ~/.zshrc"
 alias jc="just --choose"
+# voidflow's prerelease CLI through bunx. The scoped name is the one
+# ~/.bunfig.toml exempts from the release-age cooldown, so a fresh @next runs.
+alias vf="bunx --package @taraxvoid/voidflow@next voidflow"
 alias vz="vim ~/.zshrc"
 alias ve="vim ~/.zshenv"
 
@@ -370,19 +373,21 @@ alias grf=_gh_rerun_failed_branch
 #: gma -- abort an in-progress merge
 alias gma="git merge --abort"
 
-# gpm: squash-merge. The PR is the first non-flag arg (number/URL/branch), else
-# the current branch's open PR, else one picked from open PRs (same rows as gps).
-# Defaults to auto-merge (--auto) when the repo allows it and the PR is still
-# waiting on something (merge state BLOCKED or BEHIND); otherwise, or with
-# --no-auto or --admin, it merges now. Auto-merge does not ask; merging now
-# confirms first unless given -y/--yes (dropped before `gh pr merge`) or an
-# explicit --auto (passed through). Other flags pass through (e.g. `gpm --admin`).
-#: gpm [pr] [-y] [--no-auto] [merge flags] -- squash-merge (this branch's PR, else pick one); auto-merge when the repo allows it, else confirms unless -y
+# gpm: squash-merge. Every non-flag arg is a PR (number/URL/branch; A-B is a
+# range of PR numbers), merged in order; bare, the current branch's open PR, else
+# one picked from open PRs (same rows as gps). Each PR gets auto-merge (--auto)
+# when the repo allows it and the PR is still waiting on something (merge state
+# BLOCKED or BEHIND); otherwise, or with --no-auto or --admin, it merges now.
+# Auto-merge does not ask; merging now confirms first unless given -y/--yes
+# (dropped before `gh pr merge`) or an explicit --auto (passed through). Other
+# flags pass through (e.g. `gpm --admin`) and apply to every PR. A PR that fails
+# or is declined does not stop the rest; gpm then exits 1.
+#: gpm [pr...] [-y] [--no-auto] [merge flags] -- squash-merge PRs (A-B is a range; bare, this branch's PR, else pick one); auto-merge when the repo allows it, else confirms unless -y
 unalias gpm 2>/dev/null
 gpm() {
-  local target label a repo REPLY skip=0 auto=1
-  local -a args
-  local -i i
+  local target label a repo REPLY skip=0 auto=1 rc=0
+  local -a args prs
+  local -i i n
   for a in "$@"; do
     case $a in
       -y|--yes) skip=1 ;;
@@ -392,32 +397,45 @@ gpm() {
       *) args+=("$a") ;;
     esac
   done
-  # First non-flag arg is the PR; skip the values of flags that take one.
+  # Non-flag args are the PRs; skip the values of flags that take one.
   for (( i = 1; i <= $#args; i++ )); do
     case ${args[i]} in
       -R|--repo) repo=${args[i+1]-}; (( i++ )) ;;
       -A|--author-email|-b|--body|-F|--body-file|--match-head-commit|-t|--subject) (( i++ )) ;;
       -*) ;;
-      *) target=${args[i]}; args[i]=(); break ;;
+      *)
+        if [[ ${args[i]} =~ '^#?([0-9]+)-#?([0-9]+)$' ]] && (( match[1] <= match[2] )); then
+          for (( n = match[1]; n <= match[2]; n++ )); do prs+=($n); done
+        else
+          prs+=(${args[i]#\#})
+        fi
+        args[i]=()
+        (( i-- )) ;;
     esac
   done
-  [[ -n $target ]] || target=$(_gh_pr_current)
-  if [[ -z $target ]]; then
-    if [[ ! -t 1 ]] || (( ! $+commands[fzf] )); then
-      gh pr merge --squash "${args[@]}"; return
+  if (( ! $#prs )); then
+    target=$(_gh_pr_current)
+    if [[ -z $target ]]; then
+      if [[ ! -t 1 ]] || (( ! $+commands[fzf] )); then
+        gh pr merge --squash "${args[@]}"; return
+      fi
+      target=$(_gh_pr_pick 'PR merge> ' '') || return
     fi
-    target=$(_gh_pr_pick 'PR merge> ' '') || return
+    prs=($target)
   fi
-  [[ $target == <-> ]] && label="#$target" || label=$target
-  if (( auto )) && _gh_pr_auto_ok $target $repo; then
-    print -u2 -- "Enabling auto-merge for $label (merge state $REPLY)"
-    gh pr merge $target --squash --auto "${args[@]}"
-    return
-  fi
-  if (( ! skip )); then
-    _confirm "Squash-merge $label${args:+ (${args[*]})}?" || return 1
-  fi
-  gh pr merge $target --squash "${args[@]}"
+  for target in $prs; do
+    [[ $target == <-> ]] && label="#$target" || label=$target
+    if (( auto )) && _gh_pr_auto_ok $target $repo; then
+      print -u2 -- "Enabling auto-merge for $label (merge state $REPLY)"
+      gh pr merge $target --squash --auto "${args[@]}" || rc=1
+      continue
+    fi
+    if (( ! skip )); then
+      _confirm "Squash-merge $label${args:+ (${args[*]})}?" || { rc=1; continue }
+    fi
+    gh pr merge $target --squash "${args[@]}" || rc=1
+  done
+  return $rc
 }
 # _gh_pr_auto_ok <pr> [repo]: true when auto-merge can and should be enabled on
 # the PR: its repo allows it (allow_auto_merge, false or absent where the plan
@@ -841,8 +859,51 @@ nsd() { _ns reject "$@" }
 # Repo
 #: gbw [path] -- open the repo (or a file in it) in the browser
 alias gbw="gh browse"
-#: gcl <repo> -- clone a GitHub repo
-alias gcl="gh repo clone"
+# gcl <repo> [gh clone args]: clone into ~/projects/<tier>/<name> and cd there,
+# so the tier's mise trust and sbx rules apply from the start. The tier comes
+# from the owner: your own login is personal, owners listed in _gcl_tiers map to
+# their tier, everyone else is untrusted. <repo> is owner/name, a bare name (your
+# own, as gh does), or a GitHub URL. Bare, an fzf picker over your repos and
+# those of the orgs in _gcl_tiers. An existing clone is just cd'd to.
+typeset -gA _gcl_tiers=(ravenflight ravenflight)
+#: gcl [repo] [clone args] -- clone into ~/projects/<tier>/<name> by owner and cd there; bare, pick one
+unalias gcl 2>/dev/null
+gcl() {
+  local repo=${1:-} owner name tier me dest o
+  (( $# )) && shift
+  me=$(_gh_me) || { print -u2 "gcl: not logged in to gh"; return 1 }
+  if [[ -z $repo ]]; then
+    repo=$(for o in $me ${(k)_gcl_tiers}; do
+        gh repo list $o --limit 200 --json nameWithOwner,description -q '.[] | "\(.nameWithOwner)\t\(.description // "")"'
+      done | fzf --delimiter='\t' --prompt='clone> ' | cut -f1) || return 1
+    [[ -n $repo ]] || return 1
+  fi
+  repo=${repo%/}
+  repo=${repo%.git}
+  [[ $repo =~ '^(https://|git@)github\.com[/:](.*)$' ]] && repo=$match[2]
+  if [[ $repo == */* ]]; then
+    owner=${repo%%/*} name=${repo#*/}
+  else
+    owner=$me name=$repo
+  fi
+  [[ -n $owner && -n $name && $name != */* ]] || { print -u2 "usage: gcl [owner/]name [gh repo clone args]"; return 2 }
+  if [[ $owner == $me ]]; then
+    tier=personal
+  else
+    tier=${_gcl_tiers[$owner]:-untrusted}
+  fi
+  dest=$HOME/projects/$tier/$name
+  if [[ -d $dest/.git ]]; then
+    print -u2 "gcl: already cloned"
+  elif [[ -e $dest ]]; then
+    print -u2 "gcl: ${dest/#$HOME/~} exists and is not a git checkout"
+    return 1
+  else
+    mkdir -p ${dest:h} || return 1
+    gh repo clone $owner/$name $dest "$@" || return 1
+  fi
+  cd $dest && echo "in ${dest/#$HOME/~}"
+}
 #: gfk <repo> -- fork a repo and clone the fork
 alias gfk="gh repo fork --clone"
 #: gcr [name] -- create a GitHub repo
@@ -1009,6 +1070,75 @@ gwc() {
   cd "$dest" || return 1
   git push -q -u origin HEAD 2>/dev/null || print -u2 "gwc: push failed; gws lists the branch as orphaned until it is pushed"
   echo "on $(git branch --show-current) in ${dest/#$HOME/~}"
+}
+
+# Claude dispatch. cw starts an issue (gwc, or the issue of the worktree you are
+# in), cfix follows up a PR (gpo first), crv runs /code-review on a PR. They run
+# Opus by default, since Sonnet's PRs on non-trivial work came back needing an
+# Opus review or a round of basic review fixes; -s picks Sonnet for small jobs,
+# -m <model> any other. Words after the issue/PR are added to the prompt.
+# _claude_args <args...>: sets REPLY to the model, reply to the leading
+# number (#N or N, else empty) and argv_rest to the remaining words.
+_claude_args() {
+  REPLY=opus reply=() argv_rest=()
+  while (( $# )); do
+    case $1 in
+      -s|--sonnet) REPLY=sonnet ;;
+      -m|--model) REPLY=${2:?-m needs a model}; shift ;;
+      *) argv_rest+=("$1") ;;
+    esac
+    shift
+  done
+  if [[ ${argv_rest[1]:-} == (\#|)<-> || ${argv_rest[1]:-} == https://*/pull/<-> ]]; then
+    reply=(${${argv_rest[1]#\#}##*/})
+    shift argv_rest
+  fi
+}
+#: cw [issue] [-s|-m model] [notes] -- Claude (Opus) works an issue in its gwc worktree; bare, this worktree's issue, else pick one
+unalias cw 2>/dev/null
+cw() {
+  local REPLY n cur wt
+  local -a reply argv_rest
+  _claude_args "$@" || return 2
+  n=${reply[1]:-}
+  cur=$(_gh_branch_issue)
+  if [[ -n $cur && ( -z $n || $n == $cur ) ]]; then
+    n=$cur
+  else
+    # an existing worktree-<N>-* worktree is reused, else gwc makes one
+    [[ -n $n ]] && wt=$(git worktree list --porcelain \
+      | awk -v p="branch refs/heads/worktree-$n-" '/^worktree /{w=substr($0,10)} index($0,p)==1{print w; exit}')
+    if [[ -n $wt ]]; then
+      cd $wt || return
+    else
+      gwc $n || return
+    fi
+    n=$(_gh_branch_issue) || { print -u2 "cw: not on a worktree-<N>-* branch"; return 1 }
+  fi
+  claude --model $REPLY "Work on issue #$n.${argv_rest:+ $argv_rest}"
+}
+#: cfix [pr] [-s|-m model] [notes] -- Claude (Opus) fixes a PR's CI, conflicts and review threads; bare, this branch's PR, else pick one
+unalias cfix 2>/dev/null
+cfix() {
+  local REPLY n
+  local -a reply argv_rest
+  _claude_args "$@" || return 2
+  n=${reply[1]:-}
+  if [[ -n $n ]]; then
+    gpo $n || return
+  elif ! n=$(_gh_pr_current); then
+    gpo || return
+    n=$(_gh_pr_current) || { print -u2 "cfix: no open PR on this branch"; return 1 }
+  fi
+  claude --model $REPLY "Follow up on PR #$n: fix failing CI, resolve merge conflicts with its base, and address the open review threads.${argv_rest:+ $argv_rest}"
+}
+#: crv [pr] [-s|-m model] [notes] -- Claude (Opus) /code-review of a PR, to vet Sonnet's work; bare, this branch's PR or diff
+unalias crv 2>/dev/null
+crv() {
+  local REPLY
+  local -a reply argv_rest
+  _claude_args "$@" || return 2
+  claude --model $REPLY "/code-review high${reply:+ $reply}${argv_rest:+ $argv_rest}"
 }
 
 # gwo: bare, an fzf picker of all worktrees with the gwl columns (local state and
