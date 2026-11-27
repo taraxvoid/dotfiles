@@ -22,7 +22,7 @@ aliases:
         !gh api graphql -f id="$1" -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' --jq .data.resolveReviewThread.thread.isResolved
     # pending-deploys: runs waiting on a deployment review, one line per environment (run id, environment, can-approve|no-access).
     pending-deploys: |-
-        !for id in $(gh run list --status waiting --json databaseId -q '.[].databaseId'); do gh api "repos/{owner}/{repo}/actions/runs/$id/pending_deployments" --jq '.[] | "\(.environment.name)\t\(if .current_user_can_approve then "can-approve" else "no-access" end)"' | awk -v id="$id" '{print id "\t" $0}'; done
+        !ids=$(gh run list --status waiting --json databaseId -q '.[].databaseId') || exit 1; for id in $ids; do rows=$(gh api "repos/{owner}/{repo}/actions/runs/$id/pending_deployments" --jq '.[] | "\(.environment.name)\t\(if .current_user_can_approve then "can-approve" else "no-access" end)"') || exit 1; if [ -n "$rows" ]; then printf '%s\n' "$rows" | awk -v id="$id" '{print id "\t" $0}'; fi; done
     # review-deploy <approved|rejected> <run-id> [comment]: review every pending environment you can approve on one run.
     # Deliberately not in permissions.allow: Claude must ask before approving or rejecting a deployment.
     review-deploy: |-
