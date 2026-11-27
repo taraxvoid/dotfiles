@@ -518,3 +518,32 @@ gid() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"dependency install failed"* ]]
 }
+
+@test "_gh_pr_threads_jq lists only unresolved threads: file:line, author, first comment line" {
+  run jq -r "$(zsh -fc 'source "$0"; print -r -- $_gh_pr_threads_jq' "$BATS_TEST_DIRNAME/../.zsh_aliases")" <<'JSON'
+{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[
+ {"isResolved":false,"isOutdated":false,"path":"a.sh","line":4,"originalLine":4,"comments":{"nodes":[{"body":"\nUse quotes\nmore","author":{"login":"codacy-production"}}]}},
+ {"isResolved":true,"isOutdated":false,"path":"b.sh","line":9,"originalLine":9,"comments":{"nodes":[{"body":"done","author":{"login":"x"}}]}},
+ {"isResolved":false,"isOutdated":true,"path":"c.sh","line":null,"originalLine":2,"comments":{"nodes":[{"body":"old","author":null}]}}
+]}}}}}
+JSON
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = "a.sh:4  @codacy-production  Use quotes" ]
+  [ "${lines[1]}" = "c.sh:2  @ghost  old  (outdated)" ]
+  [ "${#lines[@]}" -eq 2 ]
+}
+
+@test "_gh_pr_threads fails when gh api fails, instead of printing nothing" {
+  run zsh -fc 'gh() { case "$1 $2" in "repo view") print o/r ;; *) return 1 ;; esac }; source "$0"; _gh_pr_threads 5' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -ne 0 ]
+  run zsh -fc 'gh() { case "$1 $2" in "repo view") print o/r ;; *) return 1 ;; esac }; source "$0"; gpt 5' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -ne 0 ]
+  [[ "$output" != *"no open review threads"* ]]
+}
+
+@test "gpt reports the count, or that none are open" {
+  run z '_gh_pr_threads() { print -r -- "a.sh:4  @c  msg" }; gpt 5'
+  [[ "$output" == *"#5: 1 open review thread(s)"* && "$output" == *"a.sh:4"* ]]
+  run z '_gh_pr_threads() { :; }; gpt "#5"'
+  [[ "$output" == *"#5: no open review threads"* ]]
+}

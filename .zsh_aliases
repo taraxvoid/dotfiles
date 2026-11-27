@@ -217,6 +217,7 @@ gps() {
     n=${1#\#}
     rows=$(gh pr view $n --json $_gh_pr_fields) || return
     print -r -- "$rows" | jq -r --arg me "$me" "$_gh_pr_jq_defs"'block'
+    gpt $n
     (( list )) || [[ ! -t 1 ]] || (( ! $+commands[fzf] )) || _gh_pr_act $n
     return
   fi
@@ -246,6 +247,57 @@ _gh_pr_pick() {
   print -r -- "${pick%%$'\t'*}"
 }
 
+# _gh_pr_threads <pr>: unresolved review threads on a PR (inline review comments,
+# e.g. Codacy or CodeRabbit), one per line: file:line, author, first line of the
+# comment, (outdated) when the code moved. Prints nothing when all are resolved.
+# The jq filter lives in _gh_pr_threads_jq so tests can feed it canned JSON.
+typeset -g _gh_pr_threads_jq='
+  [.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved | not)]
+  | .[] | .comments.nodes[0] as $c
+  | "\(.path):\(.line // .originalLine // 0)  @\($c.author.login // "ghost")  \(($c.body // "") | split("\n") | map(select(test("\\S"))) | .[0] // "" | .[0:100])\(if .isOutdated then "  (outdated)" else "" end)"'
+_gh_pr_threads() {
+  local repo owner name json
+  repo=$(gh repo view --json nameWithOwner -q .nameWithOwner) || return 1
+  owner=${repo%%/*} name=${repo#*/}
+  # capture first: in a pipe, a failed gh api would leave jq reading nothing and
+  # exiting 0, which gpt would report as "no open review threads"
+  json=$(gh api graphql -F owner=$owner -F name=$name -F number=$1 -f query='
+    query($owner: String!, $name: String!, $number: Int!) {
+      repository(owner: $owner, name: $name) {
+        pullRequest(number: $number) {
+          reviewThreads(first: 100) {
+            nodes { isResolved isOutdated path line originalLine
+              comments(first: 1) { nodes { body author { login } } } }
+          }
+        }
+      }
+    }') || return 1
+  print -r -- $json | jq -r "$_gh_pr_threads_jq"
+}
+
+# gpt: open (unresolved) review threads on a PR, e.g. Codacy's inline comments.
+# Bare: this branch's PR, else pick one. Also shown under `gps <N>` and in the
+# gps action menu.
+#: gpt [pr] -- open (unresolved) review threads on a PR, e.g. Codacy; bare, this branch's PR, else pick one
+unalias gpt 2>/dev/null
+gpt() {
+  local n=${1#\#} out
+  if [[ -z $n ]]; then
+    n=$(_gh_pr_current)
+    if [[ -z $n ]]; then
+      [[ -t 1 ]] && (( $+commands[fzf] )) || { print -u2 "gpt: no PR for this branch, pass a number"; return 1 }
+      n=$(_gh_pr_pick 'PR threads> ' '') || return
+    fi
+  fi
+  out=$(_gh_pr_threads $n) || return
+  if [[ -n $out ]]; then
+    print -r -- "#$n: $(print -r -- $out | wc -l | tr -d ' ') open review thread(s)"
+    print -r -- $out
+  else
+    print -r -- "#$n: no open review threads"
+  fi
+}
+
 # gpl: the gps table without the picker (args pass through to `gh pr list`)
 #: gpl [list args] -- the gps table, no picker
 unalias gpl 2>/dev/null
@@ -269,12 +321,13 @@ _gh_pr_rerun_failed() {
 _gh_pr_act() {
   local n=$1 action
   action=$(printf '%s\n' approve "automerge (squash)" browser "checkout (cd worktree)" checks close comment \
-    diff logs "merge (commit)" "merge (squash)" ready review "rerun all failed" "update (base)" view watch \
+    diff logs "merge (commit)" "merge (squash)" ready review "rerun all failed" threads "update (base)" view watch \
     | fzf --prompt="#$n> " --height=~40%) || return 1
   case $action in
     view) gh pr view $n ;;
     diff) gh pr diff --color=always $n | _page ;;
     checks) gh pr checks $n ;;
+    threads) gpt $n ;;
     "logs") gj $n ;;
     "checkout (cd worktree)") _gh_pr_checkout $n ;;
     "merge (squash)") read -q "?Squash-merge #$n? [y/N] " && { echo; gh pr merge $n --squash } ;;
