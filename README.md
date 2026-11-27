@@ -44,6 +44,13 @@ The zsh config detects what is installed instead of branching on OS:
 - `gwc [issue] [slug]` starts an issue by hand the way Claude does: worktree
   `<N>-<slug>` on branch `worktree-<N>-<slug>` (same `worktree-create.sh`),
   pushed so `gws` counts it as tracked.
+- `cw [issue]`, `cfix [pr]` and `crv [pr]` start Claude (Opus unless `-s`/`-m`)
+  on an issue in its worktree, a PR's CI/conflict/review follow-up, or a
+  `/code-review` of a PR.
+- `gcl <repo>` clones into `~/projects/<tier>/<name>` (your repos personal,
+  owners in `_gcl_tiers` their tier, anyone else untrusted) and cds there.
+- Merge conflicts show ours and theirs only; `git base <file>` re-renders one
+  with the merge base when you need it.
 - git pages through delta (pinned in the global mise config) when it runs, and
   falls back to less.
 - git-branchless (pinned in the global mise config): `git sl` smartlog,

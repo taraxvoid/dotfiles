@@ -539,7 +539,7 @@ zm() {
   [[ "$output" == *"gpv [pr]"*"view a PR"* ]]
   [ "${#lines[@]}" -gt 50 ]
   run zsh -fc 'source "$0"; ghelp MERGE' "$BATS_TEST_DIRNAME/../.zsh_aliases"
-  [[ "$output" == *"gpm [pr]"* ]]
+  [[ "$output" == *"gpm [pr...]"* ]]
   [[ "$output" != *"gpv [pr]"* ]]
 }
 
@@ -609,4 +609,96 @@ JSON
   [[ "$output" == *"#5: 1 open review thread(s)"* && "$output" == *"a.sh:4"* ]]
   run z '_gh_pr_threads() { :; }; gpt "#5"'
   [[ "$output" == *"#5: no open review threads"* ]]
+}
+
+@test "gpm merges every PR given, expands A-B ranges, and keeps going past a failure" {
+  AUTO=true run zm 'gpm 3 "#5" 8-10; cat "$HOME/gh-calls"'
+  [ "$status" -eq 0 ]
+  for n in 3 5 8 9 10; do [[ "$output" == *"gh pr merge $n --squash --auto"* ]]; done
+  [[ "$output" != *"pr merge 7 "* ]]
+  # declined confirmations skip that PR and make gpm exit 1
+  run zm 'gpm 3 4 </dev/null; print rc=$?; cat "$HOME/gh-calls"'
+  [[ "$output" == *"Squash-merge #3?"*"Squash-merge #4?"*"rc=1"* ]]
+  [[ "$output" != *"pr merge"* ]]
+  run zm 'gpm -y --no-auto -R o/r 3 4; cat "$HOME/gh-calls"'
+  [[ "$output" == *"gh pr merge 3 --squash -R o/r"*"gh pr merge 4 --squash -R o/r"* ]]
+  # a failed merge does not stop the next PR, and gpm exits 1
+  run zm 'gh() { print -r -- "gh $*" >>"$HOME/gh-calls"; [[ $* != "pr merge 3 "* ]] }
+    gpm -y --no-auto 3 4; print rc=$?; cat "$HOME/gh-calls"'
+  [[ "$output" == *"rc=1"*"gh pr merge 3 --squash"*"gh pr merge 4 --squash"* ]]
+}
+
+# zc <code>: run code with gh (calls to $HOME/gh-calls) and claude (prints its
+# args) stubbed; you are "me", the branch is $BRANCH, this branch's PR is $PR.
+zc() {
+  : >"$HOME/gh-calls"
+  zsh -fc '
+    source "$0"
+    _gh_me() { print me }
+    gh() {
+      print -r -- "gh $*" >>"$HOME/gh-calls"
+      case "$1 $2" in
+        "repo clone") mkdir -p "$4/.git" ;;
+        # moved/* stands in for a repo GitHub redirects to another owner
+        "repo view") [[ $3 == moved/* ]] && print -r -- "someone/${3#*/}" || print -r -- $3 ;;
+        "pr view") [[ -n ${PR:-} ]] && print -r -- $PR || return 1 ;;
+      esac
+    }
+    git() { case $1 in branch) print -r -- "${BRANCH-main}" ;; esac }
+    claude() { print -r -- "claude $*" }
+    gwc() { print -r -- "gwc $*"; BRANCH=worktree-${1:-99}-x }
+    gpo() { print -r -- "gpo $*"; PR=${1:-77} }
+    '"$1" "$BATS_TEST_DIRNAME/../.zsh_aliases"
+}
+
+@test "gcl clones into the owner's tier and cds there" {
+  run zc 'gcl dotfiles && print -r -- $PWD; gcl https://github.com/ravenflight/flock.git; gcl someone/thing; cat "$HOME/gh-calls"'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"$HOME/projects/personal/dotfiles"* ]]
+  [[ "$output" == *"gh repo clone me/dotfiles $HOME/projects/personal/dotfiles"* ]]
+  [[ "$output" == *"gh repo clone ravenflight/flock $HOME/projects/ravenflight/flock"* ]]
+  [[ "$output" == *"gh repo clone someone/thing $HOME/projects/untrusted/thing"* ]]
+}
+
+@test "gcl takes the tier from the repo's current owner after a transfer" {
+  run zc '_gcl_tiers[moved]=ravenflight; gcl moved/app; cat "$HOME/gh-calls"'
+  [[ "$output" == *"gh repo clone someone/app $HOME/projects/untrusted/app"* ]]
+  [[ "$output" != *"projects/ravenflight"* ]]
+}
+
+@test "gcl cds to an existing clone without cloning again, and refuses a non-repo dir" {
+  mkdir -p "$HOME/projects/personal/app/.git" "$HOME/projects/untrusted/junk"
+  run zc 'gcl me/app && print -r -- $PWD; cat "$HOME/gh-calls"'
+  [[ "$output" == *"already cloned"* ]]
+  [[ "$output" == *"$HOME/projects/personal/app"* ]]
+  [[ "$output" != *"repo clone"* ]]
+  run zc 'gcl x/junk'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"not a git checkout"* ]]
+}
+
+@test "cw runs Opus on the issue, in this worktree or a new gwc one; -s picks Sonnet" {
+  BRANCH=worktree-12-thing run zc 'cw'
+  [ "$output" = "claude --model opus Work on issue #12." ]
+  run zc 'cw 42 -s keep it small'
+  [[ "$output" == *"gwc 42"* ]]
+  [[ "$output" == *"claude --model sonnet Work on issue #42. keep it small"* ]]
+  run zc 'cw "#7" -m haiku'
+  [[ "$output" == *"claude --model haiku Work on issue #7."* ]]
+}
+
+@test "cfix checks out the PR and asks Opus to follow it up; bare uses this branch's PR" {
+  run zc 'cfix https://github.com/o/r/pull/31 also bump deps'
+  [[ "$output" == *"gpo 31"* ]]
+  [[ "$output" == *"claude --model opus Follow up on PR #31: "*" also bump deps" ]]
+  PR=5 run zc 'cfix'
+  [[ "$output" != *gpo* ]]
+  [[ "$output" == *"Follow up on PR #5:"* ]]
+}
+
+@test "crv runs /code-review on the PR, or bare on this branch" {
+  run zc 'crv 9 focus on auth'
+  [ "$output" = "claude --model opus /code-review high 9 focus on auth" ]
+  run zc 'crv'
+  [ "$output" = "claude --model opus /code-review high" ]
 }

@@ -18,8 +18,16 @@
 	autoSquash = true
 	autoStash = true
 	updateRefs = true
+	# a line deleted from an interactive rebase todo stops the rebase instead of
+	# silently dropping that commit (use the `drop` command to mean it)
+	missingCommitsCheck = error
+# Conflicts show only ours and theirs (git's default "merge" style), since the
+# base section was mostly cut by hand. `git base <file>` re-renders one file's
+# conflict with the base (zdiff3) when you need it; it discards edits made to
+# that file since the merge stopped. mergiraf (below) already settles the
+# structural ones, and lazygit's conflict view picks hunks with a key.
 [merge]
-	conflictStyle = diff3
+	conflictStyle = merge
 # syntax-aware merges. Which files use it is set in ~/.config/git/attributes
 # (git's default core.attributesFile, linked by install.sh). Where mergiraf is
 # not installed (it comes from brew), git merge-file does git's usual line merge.
@@ -32,6 +40,8 @@
 [diff]
 	algorithm = histogram
 	colorMoved = default
+	# moved code that was only re-indented still counts as moved
+	colorMovedWS = allow-indentation-change
 	mnemonicPrefix = true
 	renames = true
 [commit]
@@ -79,6 +89,8 @@
 	stal = stash list
 	stap = stash pop
 	sw = switch -
+	# re-render a conflicted file with the merge base shown (see [merge] above)
+	base = checkout --conflict=zdiff3 --
 	worktrees = !git worktree list
 	prunetrees = !git worktree prune
 # gh as the HTTPS credential helper (resolved from PATH so it works with brew or apt)
