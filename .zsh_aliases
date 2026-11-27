@@ -882,6 +882,7 @@ _herdr_popup() {
 #: ai [-l] -- herdr agents, waiting first then most recent; enter focuses
 unalias ai 2>/dev/null
 ai() {
+  setopt local_options pipe_fail
   local list=0 rows pick
   [[ ${1:-} == (-l|--list) ]] && { list=1; shift }
   (( $+commands[herdr] )) || { print -u2 "herdr not found"; return 1 }

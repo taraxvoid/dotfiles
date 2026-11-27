@@ -83,13 +83,13 @@ description = "agent tab (shell below)"
 [[keys.command]]
 key = "cmd+ctrl+period"
 type = "shell"
-command = "\"$HERDR_BIN_PATH\" agent list | jq -r '.result.agents as $a | (($a | map(.focused == true) | index(true)) // -1) as $f | [range(0; $a | length) | select($a[.].agent_status == \"blocked\")] as $b | (([$b[] | select(. > $f)] + $b)[0]) as $i | if $i == null then empty else $a[$i].pane_id end' | { read -r id && [ -n \"$id\" ] && \"$HERDR_BIN_PATH\" agent focus \"$id\"; }"
+command = "\"$HERDR_BIN_PATH\" agent list | jq -r '.result.agents as $a | (($a | map(.focused == true) | index(true)) // -1) as $f | [range(0; $a | length) | select($a[.].agent_status == \"blocked\")] as $b | (([$b[] | select(. > $f)] + $b)[0]) as $i | if $i == null then empty else $a[$i].pane_id end' | { read -r id; [ -z \"$id\" ] || \"$HERDR_BIN_PATH\" agent focus \"$id\"; }"
 description = "next agent waiting for input"
 
 [[keys.command]]
 key = "cmd+ctrl+comma"
 type = "shell"
-command = "\"$HERDR_BIN_PATH\" agent list | jq -r '.result.agents as $a | (($a | map(.focused == true) | index(true)) // -1) as $f | [range(0; $a | length) | select($a[.].agent_status == \"blocked\")] as $b | ((([$b[] | select(. < $f)] | reverse) + ($b | reverse))[0]) as $i | if $i == null then empty else $a[$i].pane_id end' | { read -r id && [ -n \"$id\" ] && \"$HERDR_BIN_PATH\" agent focus \"$id\"; }"
+command = "\"$HERDR_BIN_PATH\" agent list | jq -r '.result.agents as $a | (($a | map(.focused == true) | index(true)) // -1) as $f | [range(0; $a | length) | select($a[.].agent_status == \"blocked\")] as $b | ((([$b[] | select(. < $f)] | reverse) + ($b | reverse))[0]) as $i | if $i == null then empty else $a[$i].pane_id end' | { read -r id; [ -z \"$id\" ] || \"$HERDR_BIN_PATH\" agent focus \"$id\"; }"
 description = "previous agent waiting for input"
 
 # agent picker: waiting first, then most recently active (ai in .zsh_aliases)
