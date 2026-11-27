@@ -156,7 +156,7 @@ Thread node IDs (and the REST comment IDs to reply to) come from a
 Deployment reviews (environments with required reviewers) work the same way. `gh
 pending-deploys` (zsh `gdl`) lists waiting runs with their environments and is in
 `permissions.allow`. `gh review-deploy <approved|rejected> <run-id> [comment]` (zsh `gda`
-approves, `gdd` denies) looks up the environments you can review and POSTs the decision.
+approves, `gdx` rejects; bare, both open an fzf picker) looks up the environments you can review and POSTs the decision.
 It is deliberately not in `permissions.allow`, so Claude has to ask before it runs.
 GitHub notifies you of waiting reviews itself (Settings > Notifications > Actions).
 

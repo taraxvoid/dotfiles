@@ -205,7 +205,7 @@ deploy_stub() {
   cat >"$BATS_TEST_TMPDIR/stub/gh" <<STUB
 #!/bin/sh
 case "\$*" in
-  *"--method POST"*) printf '%s\n' "\$@" >"$BATS_TEST_TMPDIR/argv"; cat >"$BATS_TEST_TMPDIR/body"; echo prod ;;
+  *"--method POST"*) printf '%s\n' "\$@" >"$BATS_TEST_TMPDIR/argv"; cat >"$BATS_TEST_TMPDIR/body"; for a in "\$@"; do l=\$a; done; echo '[{"environment":"prod"}]' | jq -r "\$l" ;;
   *) echo '$1' | jq -c "\${*##*--jq }" 2>/dev/null || echo '$1' | jq -c '[.[] | select(.current_user_can_approve) | .environment.id]' ;;
 esac
 STUB
@@ -225,6 +225,7 @@ review_run() {
   [ "$status" -eq 0 ]
   grep -Fxq 'repos/{owner}/{repo}/actions/runs/99/pending_deployments' "$BATS_TEST_TMPDIR/argv"
   [ "$(jq -c . "$BATS_TEST_TMPDIR/body")" = '{"environment_ids":[5],"state":"approved","comment":"ship it"}' ]
+  [ "$output" = prod ]
 }
 
 @test "review-deploy defaults the comment and refuses bad state or run id" {

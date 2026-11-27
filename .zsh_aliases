@@ -665,10 +665,22 @@ alias grvl="gh run view"
 alias grlg="gh run view --log"
 #: gdl -- runs waiting on a deployment review (run id, environment, can-approve)
 alias gdl="gh pending-deploys"
-#: gda <run> [comment] -- approve a run's pending deployments
-alias gda="gh review-deploy approved"
-#: gdd <run> [comment] -- reject (deny) a run's pending deployments
-alias gdd="gh review-deploy rejected"
+#: gda [run] [comment] -- approve pending deployments (bare: fzf picker)
+#: gdx [run] [comment] -- reject pending deployments (bare: fzf picker)
+unalias gda gdx gdd 2>/dev/null
+_gd() { # _gd <approved|rejected> [run] [comment]
+  local state=$1 run; shift
+  if (( $# )); then gh review-deploy "$state" "$@"; return; fi
+  local -a picks
+  picks=("${(@f)$(gh pending-deploys | awk -F'\t' '$3=="can-approve"' \
+    | fzf --multi --delimiter='\t' --prompt="$state> " --header='tab to multi-select')}")
+  [[ -n "${picks[1]}" ]] || return 1
+  for run in ${(u)${(@)picks%%$'\t'*}}; do
+    echo "run $run:"; gh review-deploy "$state" "$run"
+  done
+}
+gda() { _gd approved "$@"; }
+gdx() { _gd rejected "$@"; }
 #: grx [run] -- cancel a workflow run
 alias grx="gh run cancel"
 # full rerun of the current branch's latest run (grf = failed only); any args
