@@ -77,6 +77,14 @@ type = "shell"
 command = "p=$(\"$HERDR_BIN_PATH\" tab create --workspace \"$HERDR_ACTIVE_WORKSPACE_ID\" --cwd \"$HERDR_ACTIVE_PANE_CWD\" --focus | jq -r .result.root_pane.pane_id) && \"$HERDR_BIN_PATH\" pane split \"$p\" --direction down --ratio 0.7 --cwd \"$HERDR_ACTIVE_PANE_CWD\" --no-focus"
 description = "agent tab (shell below)"
 
+# cycle only agents waiting for input (status "blocked"), starting after the
+# focused one and wrapping; does nothing when none are blocked
+[[keys.command]]
+key = "prefix+i"
+type = "shell"
+command = "\"$HERDR_BIN_PATH\" agent list | jq -r '.result.agents as $a | (($a | map(.focused == true) | index(true)) // -1) as $f | [range(0; $a | length) | select($a[.].agent_status == \"blocked\")] as $b | (([$b[] | select(. > $f)] + $b)[0]) as $i | if $i == null then empty else $a[$i].pane_id end' | { read -r id && [ -n \"$id\" ] && \"$HERDR_BIN_PATH\" agent focus \"$id\"; }"
+description = "next agent waiting for input"
+
 [ui.toast]
 delivery = "herdr"
 
