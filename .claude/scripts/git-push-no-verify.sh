@@ -21,6 +21,12 @@
 # the rewritten call, and that second call should not run the checks again. Passes
 # are recorded in CLAUDE_PUSH_CHECK_DIR (default ~/.cache/claude-push-checks),
 # which sandboxed commands can't write.
+# CI owns the full test gate: the hook runs with LEFTHOOK_EXCLUDE=ci (added to any
+# value already set), so lefthook jobs tagged `ci` (heavy or host-dependent tests
+# that fail in the sandbox for sandbox reasons) are skipped here and left to CI.
+# Tara's own pushes run git's hook directly, so they still run them.
+# On failure the message lists the failing lines, flags permission errors that may
+# be the sandbox, shows the tail, and names a file holding the full log.
 # Escape hatch: CLAUDE_ALLOW_PUSH_HOOKS=1 (git runs the hook itself, unsandboxed).
 # Overrides, for tests: CLAUDE_SETTINGS (settings file), SRT_BIN (srt binary).
 set -uo pipefail
@@ -80,8 +86,9 @@ run_pre_push() {
   rsha=$(git rev-parse --verify -q "refs/remotes/$remote/${dst#refs/heads/}") ||
     rsha=0000000000000000000000000000000000000000
 
+  local exclude=${LEFTHOOK_EXCLUDE:+$LEFTHOOK_EXCLUDE,}ci
   local stamps=${CLAUDE_PUSH_CHECK_DIR:-$HOME/.cache/claude-push-checks} stamp
-  stamp=$stamps/$(printf '%s\n' "$top" "$lsha" "$remote" "$dst" "$(git hash-object "$hook")" |
+  stamp=$stamps/$(printf '%s\n' "$top" "$lsha" "$remote" "$dst" "$(git hash-object "$hook")" "$exclude" |
     git hash-object --stdin)
   [ -e "$stamp" ] && return 0
 
@@ -121,17 +128,36 @@ run_pre_push() {
   sh=$(command -v zsh || command -v bash)
   inner=$(printf '%q ' "$hook" "$remote" "$url")
   out=$(cd "$top" && printf '%s %s %s %s\n' "$src" "$lsha" "$dst" "$rsha" |
-    TMPDIR=$tmp TMPPREFIX=$tmp/zsh CLAUDE_CODE_TMPDIR=$tmp CLAUDE_TMPDIR=$tmp SANDBOX_RUNTIME=1 "$srt" -s "$cfg" -c "$(printf '%q -c %q' "$sh" "$inner")" 2>&1)
+    TMPDIR=$tmp TMPPREFIX=$tmp/zsh CLAUDE_CODE_TMPDIR=$tmp CLAUDE_TMPDIR=$tmp SANDBOX_RUNTIME=1 LEFTHOOK_EXCLUDE=$exclude "$srt" -s "$cfg" -c "$(printf '%q -c %q' "$sh" "$inner")" 2>&1)
   rc=$?
   if [ "$rc" -eq 0 ]; then
     mkdir -p "$stamps" && touch "$stamp"
     return 0
   fi
-  {
-    echo "Blocked push: the pre-push hook failed (exit $rc), run sandboxed via srt. Fix what it reports and push again:"
-    tail -n 40 <<<"$out"
-  } >&2
+  report_failure "$rc" "$out" "$stamps/failed-${top##*/}.log" "$exclude" >&2
   exit 2
+}
+
+# report_failure <rc> <output> <log file> <excluded tags>: the block message. Raw
+# output can be thousands of lines and a plain tail can cut off which test failed,
+# so it leads with the lines that look like failures, then the tail, and saves the
+# whole log where Claude can read it.
+report_failure() {
+  local rc=$1 out log=$3 lines
+  # shellcheck disable=SC2001 # a regex; parameter expansion can't express it
+  out=$(sed $'s/\x1b\\[[0-9;?]*[A-Za-z]//g' <<<"$2") # drop color codes
+  mkdir -p "${log%/*}" && printf '%s\n' "$out" >"$log" || log=
+  echo "Blocked push: the pre-push hook failed (exit $rc), run sandboxed via srt (LEFTHOOK_EXCLUDE=$4). Fix what it reports and push again."
+  lines=$(grep -E '\(fail\)|^not ok|(^|[^[:alnum:]_])(FAIL|FAILED|ERROR)([^[:alnum:]_]|$)|(^|[^[:alpha:]])(error|Error):' <<<"$out" |
+    awk '!seen[$0]++' | head -n 30)
+  [ -n "$lines" ] && printf '\nLines that look like failures:\n%s\n' "$lines"
+  if grep -qE 'Operation not permitted|EPERM|EACCES|Permission denied' <<<"$out"; then
+    printf '\n%s\n' "The output has permission errors (EPERM, Operation not permitted and the like). Those may be the sandbox, not the code: check whether the failing step touches paths or tools outside the worktree. If it is a host-dependent check that CI also runs, tag its lefthook job \`ci\` (tags: [ci]) so this check leaves it to CI; don't widen the sandbox to make a test pass."
+  fi
+  printf '\nLast 40 lines:\n'
+  tail -n 40 <<<"$out"
+  [ -n "$log" ] && printf '\nFull log: %s\n' "$log"
+  return 0
 }
 # In a subshell: an unexpected failure in there (exit 1, an unset variable) must
 # block the push, not let it run with git's own, unsandboxed hook

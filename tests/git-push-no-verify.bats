@@ -41,14 +41,15 @@ rewritten() { jq -r '.hookSpecificOutput.updatedInput.command' <<<"$output"; }
 
 in_repo() { jq -cn --arg c "$1" --arg d "$2" '{tool_name: "Bash", cwd: $d, tool_input: {command: $c}}' | git-push-no-verify.sh; }
 
-# repo_with_hook <exit code>: worktree whose pre-push hook logs its args and stdin
+# repo_with_hook <exit code> [extra hook line]: worktree whose pre-push hook logs
+# its args, stdin and env
 repo_with_hook() {
   local main wt
   main=$(make_repo personal/p)
   wt=$(add_worktree "$main" feat --push)
   git -C "$wt" commit -q --allow-empty -m more
-  printf '#!/usr/bin/env bash\necho "args $*" >"%s/hook.log"\ncat >>"%s/hook.log"\necho "$TMPDIR" >"%s/hook.tmpdir"\necho hook-says-no\nexit %s\n' \
-    "$FAKE_SRT_DIR" "$FAKE_SRT_DIR" "$FAKE_SRT_DIR" "$1" >"$main/.git/hooks/pre-push"
+  printf '#!/usr/bin/env bash\necho "args $*" >"%s/hook.log"\ncat >>"%s/hook.log"\necho "$TMPDIR" >"%s/hook.tmpdir"\necho "$LEFTHOOK_EXCLUDE" >"%s/hook.exclude"\n%s\necho hook-says-no\nexit %s\n' \
+    "$FAKE_SRT_DIR" "$FAKE_SRT_DIR" "$FAKE_SRT_DIR" "$FAKE_SRT_DIR" "${2:-:}" "$1" >"$main/.git/hooks/pre-push"
   chmod +x "$main/.git/hooks/pre-push"
   printf '%s\n' "$wt"
 }
@@ -96,6 +97,36 @@ setup_srt() {
   wt=$(repo_with_hook 1)
   run in_repo "git push" "$wt"
   [ "$status" -eq 2 ] && [[ $output == *"pre-push hook failed"* ]] && [[ $output == *hook-says-no* ]]
+}
+
+@test "the hook runs with LEFTHOOK_EXCLUDE=ci, added to any value already set" {
+  setup_srt
+  wt=$(repo_with_hook 0)
+  run in_repo "git push" "$wt"
+  [ "$status" -eq 0 ] && [ "$(cat "$FAKE_SRT_DIR/hook.exclude")" = ci ]
+  git -C "$wt" commit -q --allow-empty -m again
+  LEFTHOOK_EXCLUDE=slow run in_repo "git push" "$wt"
+  [ "$status" -eq 0 ] && [ "$(cat "$FAKE_SRT_DIR/hook.exclude")" = slow,ci ]
+}
+
+@test "a failure leads with failing lines, flags permission errors and saves the full log" {
+  setup_srt
+  noise='for i in $(seq 1 60); do echo "noise $i"; done'
+  wt=$(repo_with_hook 1 "echo '(fail) cli > parses flags'; echo 'EPERM: operation not permitted, open x'; $noise")
+  run in_repo "git push" "$wt"
+  [ "$status" -eq 2 ]
+  [[ $output == *"LEFTHOOK_EXCLUDE=ci"* ]]
+  [[ $output == *"Lines that look like failures:"*"(fail) cli > parses flags"*"Last 40 lines:"* ]]
+  [[ $output == *"may be the sandbox"* ]]
+  log=$(sed -n 's/^Full log: //p' <<<"$output")
+  [ -f "$log" ] && grep -q '^noise 1$' "$log" && grep -q '(fail) cli' "$log"
+}
+
+@test "a plain failure has no permission note" {
+  setup_srt
+  wt=$(repo_with_hook 1)
+  run in_repo "git push" "$wt"
+  [ "$status" -eq 2 ] && [[ $output != *"may be the sandbox"* ]] && [[ $output == *"Full log: "* ]]
 }
 
 @test "no pre-push hook: rewrites without running srt" {
