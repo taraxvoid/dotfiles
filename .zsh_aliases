@@ -628,8 +628,12 @@ gpp() {
     prev=$arg
   done
   if [[ -z $base ]]; then
-    base=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)
-    base=${base#origin/}
+    # GitHub's default branch is authoritative; a local origin/HEAD can be stale
+    base=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
+    if [[ -z $base ]]; then
+      base=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)
+      base=${base#origin/}
+    fi
     : ${base:=main}
   fi
   git fetch -q origin "$base" || return
@@ -661,13 +665,13 @@ gpp() {
     body=$(git log --reverse --first-parent --no-merges --format='- **%s**' origin/$base..HEAD)
   fi
   if [[ -z $issue ]]; then
-    gh pr create --fill --title "$title" "$@"
+    gh pr create --fill --base "$base" --title "$title" "$@"
     return
   fi
   body="Closes #$issue${body:+
 
 $body}"
-  gh pr create --title "$title" --body "$body" "$@"
+  gh pr create --base "$base" --title "$title" --body "$body" "$@"
 }
 
 #: gpn [create args] -- gpp with base next
