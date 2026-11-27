@@ -92,11 +92,11 @@ type = "shell"
 command = "\"$HERDR_BIN_PATH\" agent list | jq -r '.result.agents as $a | (($a | map(.focused == true) | index(true)) // -1) as $f | [range(0; $a | length) | select($a[.].agent_status == \"blocked\")] as $b | ((([$b[] | select(. < $f)] | reverse) + ($b | reverse))[0]) as $i | if $i == null then empty else $a[$i].pane_id end' | { read -r id && [ -n \"$id\" ] && \"$HERDR_BIN_PATH\" agent focus \"$id\"; }"
 description = "previous agent waiting for input"
 
-# agent picker: waiting first, then most recently active (gag in .zsh_aliases)
+# agent picker: waiting first, then most recently active (gai in .zsh_aliases)
 [[keys.command]]
 key = "ctrl+g"
 type = "popup"
-command = "zsh -ic gag"
+command = "zsh -ic gai"
 width = "90%"
 height = "90%"
 description = "agent picker"
