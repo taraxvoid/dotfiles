@@ -215,8 +215,13 @@ unsandboxed, so `.claude/settings.fragment.json` keeps their inputs out of reach
   `~/.cache/claude-push-checks`, outside the sandbox's reach): auto mode makes
   Claude re-issue a rewritten call, and that shouldn't run the checks twice. A
   missing `srt` blocks, and any error in the hook script blocks rather than
-  letting git run the hook. Override
-  with `CLAUDE_ALLOW_PUSH_HOOKS=1` (git runs the hook unsandboxed).
+  letting git run the hook. The hook runs with `LEFTHOOK_EXCLUDE=ci` (added to
+  any value already set): CI owns the full test gate, so a repo tags heavy or
+  host-dependent lefthook jobs `tags: [ci]` and the sandboxed check skips them
+  (your own pushes still run them). A failure leads with the lines that look like
+  failures, notes permission errors that may be the sandbox, shows the last 40
+  lines, and saves the full log to `~/.cache/claude-push-checks/failed-<repo>.log`.
+  Override with `CLAUDE_ALLOW_PUSH_HOOKS=1` (git runs the hook unsandboxed).
 - `git-remote-guard.sh` (PreToolUse on `git push|fetch|ls-remote`) blocks the call
   unless git would read its config only from the expected files. The sandbox
   protects `.git/config` and `.git/hooks`, but a worktree's `.git` file and its
