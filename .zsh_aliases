@@ -501,33 +501,54 @@ gj() {
 
 
 # PRs (gp*)
-#: gpv [pr] -- view a PR
-alias gpv="gh pr view"
-#: gpw [pr] -- watch PR checks until they finish
-alias gpw="gh pr checks --watch"
+# _gh_pr_cmd "<gh pr subcommand + flags>" [args...]: the PR shortcuts below. Args
+# naming a PR (or -R/--repo) pass straight to gh. Bare or flag-only, they act on
+# this branch's open PR; with none (a main checkout), on a terminal with fzf,
+# pick an open PR first (same rows as gps) and run on that. Otherwise plain gh.
+unalias gpv gpw gpe gpr gpma gpc gpa gprv gpu gpdn 2>/dev/null
+_gh_pr_cmd() {
+  local sub=$1 n a
+  shift
+  # -R/--repo (also attached, -Rowner/repo), help, or a PR selector anywhere (number,
+  # #N, URL) means the caller already chose: no picker.
+  for a in "$@"; do
+    [[ $a == (-R*|--repo|--repo=*|-h|--help|<->|\#<->|http(|s)://*) ]] && { gh pr ${=sub} "$@"; return }
+  done
+  if [[ ${1:-} != <-> && ${1:-} != \#<-> ]] && [[ ${1:-} == -* || $# -eq 0 ]] \
+      && [[ -t 1 ]] && (( $+commands[fzf] )) && ! _gh_pr_current >/dev/null; then
+    n=$(_gh_pr_pick "PR ${sub%% *}> " '') || return
+    gh pr ${=sub} $n "$@"
+    return
+  fi
+  gh pr ${=sub} "$@"
+}
+#: gpv [pr] -- view a PR; bare, this branch's PR, else pick one
+gpv() { _gh_pr_cmd view "$@" }
+#: gpw [pr] -- watch PR checks until they finish; bare, this branch's PR, else pick one
+gpw() { _gh_pr_cmd "checks --watch" "$@" }
 # gpb: open the PR in the browser; if the branch has none yet, open the create-PR page instead
 #: gpb -- open this branch's PR in the browser, or the create-PR page
 gpb() { gh pr view --web 2>/dev/null || gh pr create --web; }
-#: gpe [pr] -- edit a PR (title, body, labels, reviewers...)
-alias gpe="gh pr edit"
-#: gpr [pr] -- mark a draft PR ready for review
-alias gpr="gh pr ready"
-#: gpma [pr] -- turn on squash auto-merge, delete the branch after
-alias gpma="gh pr merge --squash --auto --delete-branch"
+#: gpe [pr] -- edit a PR (title, body, labels, reviewers...); bare, this branch's PR, else pick one
+gpe() { _gh_pr_cmd edit "$@" }
+#: gpr [pr] -- mark a draft PR ready for review; bare, this branch's PR, else pick one
+gpr() { _gh_pr_cmd ready "$@" }
+#: gpma [pr] -- turn on squash auto-merge, delete the branch after; bare, this branch's PR, else pick one
+gpma() { _gh_pr_cmd "merge --squash --auto --delete-branch" "$@" }
 #: gplm -- your open PRs
 alias gplm="gh pr list --author @me"
 #: gpq -- PRs waiting on your review
 alias gpq="gh pr list --search 'review-requested:@me'"
-#: gpc [pr] -- comment on a PR
-alias gpc="gh pr comment"
-#: gpa [pr] -- approve a PR
-alias gpa="gh pr review --approve"
-#: gprv [pr] -- review a PR (approve, comment or request changes)
-alias gprv="gh pr review"
-#: gpu [pr] -- update the PR branch from its base
-alias gpu="gh pr update-branch"
-#: gpdn [pr] -- names of the files a PR changes
-alias gpdn="gh pr diff --name-only"
+#: gpc [pr] -- comment on a PR; bare, this branch's PR, else pick one
+gpc() { _gh_pr_cmd comment "$@" }
+#: gpa [pr] -- approve a PR; bare, this branch's PR, else pick one
+gpa() { _gh_pr_cmd "review --approve" "$@" }
+#: gprv [pr] -- review a PR (approve, comment or request changes); bare, this branch's PR, else pick one
+gprv() { _gh_pr_cmd review "$@" }
+#: gpu [pr] -- update the PR branch from its base; bare, this branch's PR, else pick one
+gpu() { _gh_pr_cmd update-branch "$@" }
+#: gpdn [pr] -- names of the files a PR changes; bare, this branch's PR, else pick one
+gpdn() { _gh_pr_cmd "diff --name-only" "$@" }
 
 # push current branch and open a PR from the commits. A single-commit PR takes
 # that commit's subject as its title. A multi-commit one is titled
