@@ -1,0 +1,26 @@
+.zsh_aliases
+  s_4de5d93b515353::t_2b90dbb1ce823c 668-683
+README.md
+  s_4de5d93b515353::t_0b78ebbf95248c 159
+tests/gh-api-guard.bats
+  s_4de5d93b515353::t_fedc64b061519e 208
+  s_4de5d93b515353::t_6aca660a60afc8 228
+.config/gh/config.yml
+  s_4de5d93b515353::t_2ada9f4a83e819 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0bb31f49800ef53328cacf0fd5d3ff96abe56ec6",
+  "prompts": {},
+  "sessions": {
+    "s_4de5d93b515353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "117b0137-4277-4fdd-b4d9-7976b5b850ea",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "void <1711810+taraxvoid@users.noreply.github.com>"
+    }
+  }
+}
