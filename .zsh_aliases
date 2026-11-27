@@ -663,8 +663,14 @@ alias gim="gh issue list --assignee @me"
 alias grvl="gh run view"
 #: grlg [run] -- full log of a workflow run
 alias grlg="gh run view --log"
+# gdl: waiting deployment reviews (gh pending-deploys), or a plain sentence when none.
 #: gdl -- runs waiting on a deployment review (run id, environment, can-approve)
-alias gdl="gh pending-deploys"
+unalias gdl 2>/dev/null
+gdl() {
+  local out
+  out=$(gh pending-deploys) || return
+  if [[ -n $out ]]; then print -r -- $out; else print "No deployments are waiting for review."; fi
+}
 #: gda <run> [comment] -- approve a run's pending deployments
 alias gda="gh review-deploy approved"
 #: gdd <run> [comment] -- reject (deny) a run's pending deployments
