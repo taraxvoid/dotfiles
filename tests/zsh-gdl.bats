@@ -14,6 +14,17 @@ gd() {
   [ "$output" = "No deployments are waiting for review." ]
 }
 
+@test "gdl does not claim nothing is waiting when gh fails" {
+  run zsh -fc 'gh() { return 1 }; source "$0"; gdl' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -eq 1 ]
+  [ -z "$output" ]
+}
+
+@test "gdl leaves glob characters in rows alone" {
+  ROWS=$'5\t*\tcan-approve' run gd
+  [ "$output" = $'5\t*\tcan-approve' ]
+}
+
 @test "gdl prints waiting rows as they are" {
   ROWS=$'5\tprod\tcan-approve' run gd
   [ "$output" = $'5\tprod\tcan-approve' ]

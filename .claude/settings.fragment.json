@@ -208,6 +208,11 @@
           {
             "type": "command",
             "command": "$HOME/.local/bin/gws --refresh --bg"
+          },
+	  {
+            "hooks": [
+              { "type": "command", "command": "$HOME/.claude/scripts/agent-doctor.sh", "timeout": 20 }
+            ]
           }
         ]
       }
