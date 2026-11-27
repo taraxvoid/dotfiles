@@ -533,6 +533,14 @@ JSON
   [ "${#lines[@]}" -eq 2 ]
 }
 
+@test "_gh_pr_threads fails when gh api fails, instead of printing nothing" {
+  run zsh -fc 'gh() { case "$1 $2" in "repo view") print o/r ;; *) return 1 ;; esac }; source "$0"; _gh_pr_threads 5' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -ne 0 ]
+  run zsh -fc 'gh() { case "$1 $2" in "repo view") print o/r ;; *) return 1 ;; esac }; source "$0"; gpt 5' "$BATS_TEST_DIRNAME/../.zsh_aliases"
+  [ "$status" -ne 0 ]
+  [[ "$output" != *"no open review threads"* ]]
+}
+
 @test "gpt reports the count, or that none are open" {
   run z '_gh_pr_threads() { print -r -- "a.sh:4  @c  msg" }; gpt 5'
   [[ "$output" == *"#5: 1 open review thread(s)"* && "$output" == *"a.sh:4"* ]]

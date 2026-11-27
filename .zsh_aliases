@@ -256,10 +256,12 @@ typeset -g _gh_pr_threads_jq='
   | .[] | .comments.nodes[0] as $c
   | "\(.path):\(.line // .originalLine // 0)  @\($c.author.login // "ghost")  \(($c.body // "") | split("\n") | map(select(test("\\S"))) | .[0] // "" | .[0:100])\(if .isOutdated then "  (outdated)" else "" end)"'
 _gh_pr_threads() {
-  local repo owner name
+  local repo owner name json
   repo=$(gh repo view --json nameWithOwner -q .nameWithOwner) || return 1
   owner=${repo%%/*} name=${repo#*/}
-  gh api graphql -F owner=$owner -F name=$name -F number=$1 -f query='
+  # capture first: in a pipe, a failed gh api would leave jq reading nothing and
+  # exiting 0, which gpt would report as "no open review threads"
+  json=$(gh api graphql -F owner=$owner -F name=$name -F number=$1 -f query='
     query($owner: String!, $name: String!, $number: Int!) {
       repository(owner: $owner, name: $name) {
         pullRequest(number: $number) {
@@ -269,7 +271,8 @@ _gh_pr_threads() {
           }
         }
       }
-    }' | jq -r "$_gh_pr_threads_jq"
+    }') || return 1
+  print -r -- $json | jq -r "$_gh_pr_threads_jq"
 }
 
 # gpt: open (unresolved) review threads on a PR, e.g. Codacy's inline comments.
